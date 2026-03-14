@@ -300,7 +300,7 @@ pub struct DatabaseCapability {
 
 impl DatabaseCapability {
     pub fn open(config: DatabaseOpenConfig) -> Result<Self> {
-        validate_identifier(&config.app_id, "app id")?;
+        validate_app_id(&config.app_id)?;
         config.schema.validate()?;
 
         let data_dir = match config.data_dir {
@@ -1278,6 +1278,32 @@ fn validate_identifier(value: &str, label: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_app_id(value: &str) -> Result<()> {
+    let mut characters = value.chars();
+    let Some(first) = characters.next() else {
+        return Err(RuntimeError::InvalidConfiguration(
+            "app id must not be empty".into(),
+        ));
+    };
+
+    if !matches!(first, 'a'..='z' | 'A'..='Z' | '_') {
+        return Err(RuntimeError::InvalidConfiguration(format!(
+            "app id '{}' must start with a letter or underscore",
+            value
+        )));
+    }
+
+    if !characters.all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+    {
+        return Err(RuntimeError::InvalidConfiguration(format!(
+            "app id '{}' may only contain letters, digits, underscores, and hyphens",
+            value
+        )));
+    }
+
+    Ok(())
+}
+
 fn validate_reserved_column_name(value: &str) -> Result<()> {
     if matches!(
         value,
@@ -1458,6 +1484,20 @@ mod tests {
         let capability = open_database(sample_schema(), Vec::new());
         assert!(capability.info().database_path.ends_with("app.db"));
         assert!(capability.info().data_dir.contains("data"));
+    }
+
+    #[test]
+    fn accepts_hyphenated_app_ids() {
+        let temp = tempdir().unwrap();
+        let capability = DatabaseCapability::open(DatabaseOpenConfig {
+            app_id: "prism-gallery".into(),
+            data_dir: Some(temp.path().join("data")),
+            schema: sample_schema(),
+            seed_files: Vec::new(),
+        })
+        .unwrap();
+
+        assert_eq!(capability.info().app_id, "prism-gallery");
     }
 
     #[test]
