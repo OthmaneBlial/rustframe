@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{app_title}}</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="grid"></div>
+    <main class="app-shell">
+        <section class="hero panel">
+            <div class="hero-copy">
+                <p class="eyebrow">RustFrame App</p>
+                <h1>{{app_title}}</h1>
+                <p class="lede">
+                    Build the entire interface with HTML, CSS, and JavaScript, then export it as a desktop app.
+                    Replace this starter with your own product UI and keep the native runtime thin.
+                </p>
+            </div>
+            <div class="hero-meta">
+                <div class="meta-card">
+                    <span>Runtime</span>
+                    <strong>RustFrame</strong>
+                </div>
+                <div class="meta-card">
+                    <span>Asset mode</span>
+                    <strong id="asset-mode">Embedded</strong>
+                </div>
+                <div class="meta-card">
+                    <span>Origin</span>
+                    <strong id="origin-label">app://localhost</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="workspace">
+            <article class="panel controls">
+                <div class="panel-header">
+                    <p class="eyebrow">Window API</p>
+                    <h2>Wire your own controls</h2>
+                </div>
+
+                <label class="title-label" for="title-input">Window title</label>
+                <input id="title-input" type="text" value="{{app_title}}">
+
+                <div class="actions">
+                    <button id="rename-button">Set title</button>
+                    <button id="close-button" class="ghost">Close app</button>
+                </div>
+            </article>
+
+            <article class="panel notes">
+                <div class="panel-header">
+                    <p class="eyebrow">How to build</p>
+                    <h2>Edit these files</h2>
+                </div>
+                <ul class="checklist">
+                    <li><code>frontend/index.html</code> for structure</li>
+                    <li><code>frontend/styles.css</code> for styling and motion</li>
+                    <li><code>frontend/app.js</code> for app behavior</li>
+                    <li><code>rustframe.toml</code> for title, size, and permissions</li>
+                </ul>
+            </article>
+
+            <article class="panel terminal">
+                <div class="panel-header terminal-header">
+                    <div>
+                        <p class="eyebrow">Runtime Log</p>
+                        <h2>Bridge output</h2>
+                    </div>
+                    <span class="pill">starter</span>
+                </div>
+                <pre id="log-output">Starter app ready.</pre>
+            </article>
+        </section>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

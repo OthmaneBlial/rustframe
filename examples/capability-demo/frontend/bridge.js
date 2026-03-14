@@ -1,0 +1,63 @@
+(function () {
+    const pending = new Map();
+    let nextId = 1;
+
+    function rejectPayload(payload) {
+        if (payload && typeof payload === "object") {
+            return payload;
+        }
+
+        return {
+            code: "unknown_error",
+            message: String(payload ?? "Unknown RustFrame error")
+        };
+    }
+
+    function invoke(method, params = {}) {
+        if (!window.ipc || typeof window.ipc.postMessage !== "function") {
+            return Promise.reject({
+                code: "ipc_unavailable",
+                message: "window.ipc.postMessage is not available in this WebView"
+            });
+        }
+
+        return new Promise((resolve, reject) => {
+            const id = nextId++;
+            pending.set(id, { resolve, reject });
+            window.ipc.postMessage(JSON.stringify({ id, method, params }));
+        });
+    }
+
+    function resolveFromNative(message) {
+        const callback = pending.get(message.id);
+        if (!callback) {
+            return;
+        }
+
+        pending.delete(message.id);
+
+        if (message.ok) {
+            callback.resolve(message.data);
+            return;
+        }
+
+        callback.reject(rejectPayload(message.error));
+    }
+
+    window.RustFrame = Object.freeze({
+        __resolveFromNative: resolveFromNative,
+        invoke,
+        window: Object.freeze({
+            close: () => invoke("window.close"),
+            minimize: () => invoke("window.minimize"),
+            maximize: () => invoke("window.maximize"),
+            setTitle: (title) => invoke("window.setTitle", { title })
+        }),
+        fs: Object.freeze({
+            readText: (path) => invoke("fs.readText", { path })
+        }),
+        shell: Object.freeze({
+            exec: (command, args = []) => invoke("shell.exec", { command, args })
+        })
+    });
+})();

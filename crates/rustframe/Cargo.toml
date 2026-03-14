@@ -1,0 +1,32 @@
+[package]
+name = "rustframe"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["desktop"]
+desktop = ["dep:gtk", "dep:mime_guess", "dep:tao", "dep:wry"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+
+[dependencies.mime_guess]
+version = "2.0.5"
+optional = true
+
+[dependencies.tao]
+version = "0.34.6"
+optional = true
+
+[dependencies.wry]
+version = "0.54.3"
+optional = true
+
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.gtk]
+version = "0.18"
+optional = true
+
+[dev-dependencies]
+tempfile = "3.23.0"

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RustFrame Capability Demo</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="noise"></div>
+    <main class="shell">
+        <section class="hero panel">
+            <div class="hero-copy">
+                <p class="eyebrow">RustFrame / Capability Demo</p>
+                <h1>Direct native IPC. Embedded UI. No localhost bridge.</h1>
+                <p class="intro">
+                    This demo proves the core runtime contract: a lightweight custom protocol,
+                    a tiny promise bridge, sandboxed file access, and allowlisted shell execution.
+                </p>
+            </div>
+            <div class="hero-stats">
+                <div class="stat">
+                    <span class="label">Transport</span>
+                    <strong>Native IPC</strong>
+                </div>
+                <div class="stat">
+                    <span class="label">Assets</span>
+                    <strong id="asset-mode">Embedded</strong>
+                </div>
+                <div class="stat">
+                    <span class="label">Origin</span>
+                    <strong id="origin-label">app://localhost</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <article class="panel controls">
+                <div class="panel-header">
+                    <p class="eyebrow">Window</p>
+                    <h2>Native controls</h2>
+                </div>
+                <label class="title-field">
+                    <span>Title</span>
+                    <input id="title-input" type="text" value="RustFrame Capability Demo">
+                </label>
+                <div class="actions">
+                    <button data-action="set-title">Set title</button>
+                    <button data-action="minimize">Minimize</button>
+                    <button data-action="maximize">Maximize</button>
+                </div>
+            </article>
+
+            <article class="panel controls">
+                <div class="panel-header">
+                    <p class="eyebrow">Filesystem</p>
+                    <h2>Sandboxed reads</h2>
+                </div>
+                <p class="body-copy">
+                    The runtime only exposes the demo's `frontend/` directory. This reads
+                    `bridge.js` through the native API and rejects anything outside the allowed root.
+                </p>
+                <div class="actions">
+                    <button data-action="read-bridge">Read bridge.js</button>
+                </div>
+            </article>
+
+            <article class="panel controls">
+                <div class="panel-header">
+                    <p class="eyebrow">Shell</p>
+                    <h2>Allowlisted process execution</h2>
+                </div>
+                <p class="body-copy">
+                    The app can execute one pre-registered command: `listFrontend`. It runs without
+                    a shell and returns structured stdout, stderr, and exit code.
+                </p>
+                <div class="actions">
+                    <button data-action="list-frontend">Run listFrontend</button>
+                </div>
+            </article>
+
+            <article class="panel terminal">
+                <div class="panel-header terminal-header">
+                    <div>
+                        <p class="eyebrow">Runtime Log</p>
+                        <h2>Host responses</h2>
+                    </div>
+                    <span class="terminal-pill">ready</span>
+                </div>
+                <pre id="output">RustFrame booted.</pre>
+            </article>
+        </section>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

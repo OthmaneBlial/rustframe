@@ -1,0 +1,16 @@
+[app]
+title = "Hello Rustframe"
+width = 1120
+height = 760
+
+[dev]
+# Optional local frontend server for live reload during development.
+# url = "http://127.0.0.1:5173"
+
+[permissions.fs]
+roots = []
+
+# Example:
+# [permissions.shell.commands.openProject]
+# program = "xdg-open"
+# args = ["."]

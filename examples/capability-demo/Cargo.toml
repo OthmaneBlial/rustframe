@@ -1,0 +1,8 @@
+[package]
+name = "capability-demo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rust-embed = "8.11.0"
+rustframe = { path = "../../crates/rustframe" }
