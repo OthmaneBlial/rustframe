@@ -87,6 +87,8 @@ cargo run -p rustframe-cli -- export
 - Exported binaries are copied into `apps/<name>/dist/`.
 - Use a dev server when you want tooling like Vite; the production export remains a single embedded binary.
 
+See [FRONTEND_APP_RULES.md](/home/othmane/Downloads/RustFrame/FRONTEND_APP_RULES.md) for the full contract app authors should follow.
+
 ## Linux notes
 
 The current implementation is Linux-first and expects the native GTK/WebKitGTK stack required by `wry`. The release size target refers to the stripped executable only, not system libraries.
