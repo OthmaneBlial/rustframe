@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Orbit Desk</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="grid"></div>
+    <div class="glow glow-a"></div>
+    <div class="glow glow-b"></div>
+
+    <main class="layout">
+        <aside class="rail panel">
+            <div class="brand-lockup">
+                <p class="eyebrow">Orbit Desk</p>
+                <h1>Work the plan. Hold the line.</h1>
+                <p class="lede">
+                    A desktop workspace for planning, prioritizing, and staying in flow without
+                    leaving a single window.
+                </p>
+            </div>
+
+            <section class="status-stack">
+                <article class="status-card">
+                    <span class="label">Today</span>
+                    <strong id="today-label"></strong>
+                </article>
+                <article class="status-card">
+                    <span class="label">Asset mode</span>
+                    <strong id="asset-mode">Embedded</strong>
+                </article>
+                <article class="status-card">
+                    <span class="label">Origin</span>
+                    <strong id="origin-label">app://localhost</strong>
+                </article>
+            </section>
+
+            <section class="composer">
+                <div class="section-heading">
+                    <p class="eyebrow">Quick capture</p>
+                    <h2>Add a task</h2>
+                </div>
+
+                <form id="task-form" class="task-form">
+                    <label class="field">
+                        <span>Task</span>
+                        <input id="task-title" name="title" type="text" placeholder="Ship release notes" required>
+                    </label>
+
+                    <div class="dual">
+                        <label class="field">
+                            <span>Project</span>
+                            <input id="task-project" name="project" type="text" placeholder="Orbit">
+                        </label>
+
+                        <div class="field">
+                            <span>Priority</span>
+                            <div id="priority-picker" class="priority-picker" role="radiogroup" aria-label="Priority">
+                                <button type="button" class="priority-option" data-priority="critical">Critical</button>
+                                <button type="button" class="priority-option" data-priority="high">High</button>
+                                <button type="button" class="priority-option" data-priority="medium">Medium</button>
+                                <button type="button" class="priority-option" data-priority="low">Low</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field due-field" id="due-field">
+                        <div class="field-head">
+                            <span>Due</span>
+                            <button id="clear-due" type="button" class="text-button">Clear</button>
+                        </div>
+                        <button
+                            id="task-due-trigger"
+                            type="button"
+                            class="date-trigger"
+                            aria-expanded="false"
+                            aria-controls="task-due-popover"
+                        >
+                            <span id="task-due-label" class="date-trigger__value">No deadline</span>
+                            <span id="task-due-meta" class="date-trigger__meta">Custom calendar</span>
+                        </button>
+                        <div id="task-due-popover" class="calendar-popover" hidden>
+                            <div class="calendar-header">
+                                <button type="button" class="calendar-nav" data-calendar-nav="-1" aria-label="Previous month">‹</button>
+                                <div class="calendar-heading">
+                                    <span class="label">Calendar</span>
+                                    <strong id="calendar-month-label"></strong>
+                                </div>
+                                <button type="button" class="calendar-nav" data-calendar-nav="1" aria-label="Next month">›</button>
+                            </div>
+                            <div class="calendar-weekdays">
+                                <span>Mo</span>
+                                <span>Tu</span>
+                                <span>We</span>
+                                <span>Th</span>
+                                <span>Fr</span>
+                                <span>Sa</span>
+                                <span>Su</span>
+                            </div>
+                            <div id="calendar-grid" class="calendar-grid"></div>
+                        </div>
+                    </div>
+
+                    <button class="primary-button" type="submit">Capture task</button>
+                </form>
+            </section>
+
+            <section class="window-controls">
+                <div class="section-heading">
+                    <p class="eyebrow">Desktop</p>
+                    <h2>Native window</h2>
+                </div>
+
+                <div class="button-row">
+                    <button id="window-rename" type="button">Sync title</button>
+                    <button id="window-minimize" type="button" class="ghost-button">Minimize</button>
+                    <button id="window-close" type="button" class="ghost-button">Close</button>
+                </div>
+            </section>
+        </aside>
+
+        <section class="main-column">
+            <header class="hero panel">
+                <div>
+                    <p class="eyebrow">Command Surface</p>
+                    <h2>Operational focus for a full workday.</h2>
+                </div>
+
+                <div class="hero-actions">
+                    <label class="search-field">
+                        <span>Search</span>
+                        <input id="search-input" type="search" placeholder="Find tasks, projects, keywords">
+                    </label>
+
+                    <div class="filter-group" id="filter-group">
+                        <button type="button" data-filter="all" class="filter-button is-active">All</button>
+                        <button type="button" data-filter="active" class="filter-button">Active</button>
+                        <button type="button" data-filter="done" class="filter-button">Done</button>
+                    </div>
+                </div>
+            </header>
+
+            <section class="metrics">
+                <article class="metric panel">
+                    <span class="label">Open tasks</span>
+                    <strong id="metric-open">0</strong>
+                </article>
+                <article class="metric panel">
+                    <span class="label">Done today</span>
+                    <strong id="metric-done">0</strong>
+                </article>
+                <article class="metric panel">
+                    <span class="label">Focus sessions</span>
+                    <strong id="metric-focus">0</strong>
+                </article>
+                <article class="metric panel">
+                    <span class="label">Critical queue</span>
+                    <strong id="metric-critical">0</strong>
+                </article>
+            </section>
+
+            <section class="boards">
+                <article class="board panel">
+                    <div class="section-heading">
+                        <p class="eyebrow">Queue</p>
+                        <h2>Focus queue</h2>
+                    </div>
+                    <div id="focus-list" class="task-list"></div>
+                </article>
+
+                <article class="board panel">
+                    <div class="section-heading">
+                        <p class="eyebrow">Pipeline</p>
+                        <h2>All tasks</h2>
+                    </div>
+                    <div id="task-list" class="task-list"></div>
+                </article>
+            </section>
+        </section>
+
+        <aside class="side-column">
+            <section class="timer panel">
+                <div class="section-heading">
+                    <p class="eyebrow">Focus Engine</p>
+                    <h2>Timer</h2>
+                </div>
+
+                <div class="timer-display" id="timer-display">25:00</div>
+                <p class="timer-caption" id="timer-caption">Ready for a 25-minute focus block.</p>
+
+                <div class="preset-row" id="preset-row">
+                    <button type="button" data-minutes="25" class="preset is-active">25m</button>
+                    <button type="button" data-minutes="50" class="preset">50m</button>
+                    <button type="button" data-minutes="90" class="preset">90m</button>
+                </div>
+
+                <div class="button-row">
+                    <button id="timer-toggle" type="button" class="primary-button">Start</button>
+                    <button id="timer-reset" type="button" class="ghost-button">Reset</button>
+                </div>
+            </section>
+
+            <section class="notes panel">
+                <div class="section-heading">
+                    <p class="eyebrow">Notes</p>
+                    <h2>Working draft</h2>
+                </div>
+                <textarea id="notes-input" placeholder="Drop meeting notes, working ideas, or next-step fragments here."></textarea>
+            </section>
+
+            <section class="activity panel">
+                <div class="section-heading">
+                    <p class="eyebrow">Activity</p>
+                    <h2>Recent actions</h2>
+                </div>
+                <pre id="activity-log" class="activity-log">Orbit Desk ready.</pre>
+            </section>
+        </aside>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

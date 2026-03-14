@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/hello-rustframe", "crates/rustframe", "crates/rustframe-cli", "examples/capability-demo"]
+members = ["apps/hello-rustframe", "apps/orbit-desk", "crates/rustframe", "crates/rustframe-cli", "examples/capability-demo"]
 resolver = "2"
 
 [profile.release]
