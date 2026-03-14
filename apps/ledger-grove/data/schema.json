@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "entries",
+      "columns": [
+        { "name": "label", "type": "text", "required": true },
+        { "name": "amount", "type": "real", "required": true },
+        { "name": "direction", "type": "text", "required": true, "default": "expense" },
+        { "name": "bookedOn", "type": "text", "required": true },
+        { "name": "account", "type": "text", "required": true },
+        { "name": "category", "type": "text", "required": true },
+        { "name": "note", "type": "text" },
+        { "name": "cleared", "type": "boolean", "default": true }
+      ],
+      "indexes": [
+        { "columns": ["direction"] },
+        { "columns": ["bookedOn"] },
+        { "columns": ["category"] }
+      ]
+    }
+  ]
+}

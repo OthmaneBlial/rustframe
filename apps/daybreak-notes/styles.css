@@ -1,0 +1,336 @@
+:root {
+    --paper: #efe7db;
+    --paper-strong: #e6dbc9;
+    --ink: #2a2117;
+    --ink-soft: #5e5448;
+    --line: rgba(88, 67, 39, 0.18);
+    --line-strong: rgba(88, 67, 39, 0.32);
+    --accent: #a35b2b;
+    --accent-soft: rgba(163, 91, 43, 0.12);
+    --shadow: 0 30px 80px rgba(67, 44, 18, 0.16);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    min-height: 100%;
+}
+
+body {
+    margin: 0;
+    color: var(--ink);
+    background:
+        radial-gradient(circle at top left, rgba(163, 91, 43, 0.12), transparent 25%),
+        radial-gradient(circle at bottom right, rgba(136, 104, 58, 0.11), transparent 22%),
+        linear-gradient(180deg, #f8f2e9 0%, var(--paper) 100%);
+    font-family: "Avenir Next", "Gill Sans", sans-serif;
+}
+
+.paper-grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 26px 26px;
+    opacity: 0.35;
+    mask-image: radial-gradient(circle at center, black 55%, transparent 100%);
+}
+
+.shell {
+    position: relative;
+    z-index: 1;
+    width: min(1360px, calc(100vw - 40px));
+    margin: 22px auto 40px;
+    display: grid;
+    gap: 22px;
+}
+
+.hero {
+    display: grid;
+    gap: 24px;
+    grid-template-columns: 1.35fr 0.95fr;
+    padding: 26px 28px;
+    border: 1px solid var(--line-strong);
+    background: rgba(255, 251, 245, 0.72);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+}
+
+.hero h1,
+.section-heading h2,
+.note-card h3 {
+    margin: 0;
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    letter-spacing: -0.03em;
+}
+
+.hero h1 {
+    font-size: clamp(3rem, 6vw, 5.4rem);
+    line-height: 0.9;
+    max-width: 10ch;
+}
+
+.eyebrow {
+    margin: 0 0 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.72rem;
+    color: var(--accent);
+    font-family: "IBM Plex Mono", "Courier New", monospace;
+}
+
+.lede {
+    margin: 18px 0 0;
+    max-width: 58ch;
+    color: var(--ink-soft);
+    font-size: 1.03rem;
+    line-height: 1.8;
+}
+
+.hero-meta {
+    display: grid;
+    gap: 12px;
+    align-content: end;
+}
+
+.meta-card,
+.card {
+    border: 1px solid var(--line-strong);
+    background: rgba(255, 251, 245, 0.84);
+    box-shadow: var(--shadow);
+}
+
+.meta-card {
+    padding: 18px;
+}
+
+.meta-card span {
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    font-family: "IBM Plex Mono", "Courier New", monospace;
+}
+
+.meta-card strong {
+    display: block;
+    margin-top: 10px;
+    font-size: 1.02rem;
+    overflow-wrap: anywhere;
+}
+
+.workspace {
+    display: grid;
+    gap: 22px;
+    grid-template-columns: 380px minmax(0, 1fr);
+}
+
+.composer,
+.toolbar {
+    padding: 22px;
+}
+
+.section-heading {
+    margin-bottom: 18px;
+}
+
+.section-heading h2 {
+    font-size: 2rem;
+}
+
+.field {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.field span,
+.search-field span {
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    font-family: "IBM Plex Mono", "Courier New", monospace;
+}
+
+input,
+textarea {
+    width: 100%;
+    padding: 15px 16px;
+    border: 1px solid var(--line);
+    background: rgba(255, 253, 249, 0.92);
+    color: var(--ink);
+    font: inherit;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 190px;
+}
+
+input:focus,
+textarea:focus {
+    outline: 1px solid var(--accent);
+    border-color: var(--accent);
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.chip,
+.actions button,
+.note-actions button {
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--ink);
+    padding: 10px 14px;
+    font: inherit;
+    cursor: pointer;
+    transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.chip:hover,
+.actions button:hover,
+.note-actions button:hover {
+    transform: translateY(-1px);
+    border-color: var(--accent);
+}
+
+.chip.is-active,
+.primary-action {
+    background: var(--accent);
+    color: #fffaf3;
+    border-color: var(--accent);
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.status-log {
+    margin: 18px 0 0;
+    min-height: 160px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    background: rgba(249, 243, 233, 0.78);
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    font-family: "IBM Plex Mono", "Courier New", monospace;
+}
+
+.library {
+    display: grid;
+    gap: 18px;
+}
+
+.toolbar {
+    display: grid;
+    gap: 16px;
+}
+
+.search-field {
+    display: grid;
+    gap: 10px;
+}
+
+.filter-row {
+    justify-content: start;
+}
+
+.notes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.note-card {
+    display: grid;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid var(--line-strong);
+    background: rgba(255, 251, 245, 0.88);
+    box-shadow: var(--shadow);
+}
+
+.note-topline {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 12px;
+}
+
+.note-card h3 {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    font-family: "IBM Plex Mono", "Courier New", monospace;
+}
+
+.tag.is-pinned {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.note-body {
+    margin: 0;
+    color: var(--ink-soft);
+    line-height: 1.8;
+    white-space: pre-wrap;
+}
+
+.note-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.note-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.empty-state {
+    padding: 36px;
+    border: 1px dashed var(--line-strong);
+    color: var(--ink-soft);
+    text-align: center;
+    background: rgba(255, 251, 245, 0.72);
+}
+
+@media (max-width: 1040px) {
+    .hero,
+    .workspace,
+    .notes-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hero h1 {
+        max-width: 100%;
+    }
+}

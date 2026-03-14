@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "notes",
+      "columns": [
+        { "name": "title", "type": "text", "required": true },
+        { "name": "body", "type": "text" },
+        { "name": "mood", "type": "text", "default": "idea" },
+        { "name": "pinned", "type": "boolean", "default": false }
+      ],
+      "indexes": [
+        { "columns": ["pinned", "mood"] }
+      ]
+    }
+  ]
+}

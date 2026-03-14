@@ -1,0 +1,386 @@
+:root {
+    color-scheme: dark;
+    --bg: #090c12;
+    --bg-soft: #111723;
+    --panel: rgba(12, 17, 25, 0.9);
+    --line: rgba(255, 163, 88, 0.18);
+    --line-strong: rgba(255, 190, 121, 0.36);
+    --text: #f7efe3;
+    --muted: #bfaf9c;
+    --accent: #ff9d4c;
+    --accent-soft: rgba(255, 157, 76, 0.16);
+    --critical: #ff6c6c;
+    --high: #ffb65b;
+    --medium: #7bd6cb;
+    --low: #97a7ff;
+    --shadow: 0 28px 84px rgba(0, 0, 0, 0.42);
+    font-family: "Eurostile", "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    min-height: 100%;
+}
+
+body {
+    margin: 0;
+    color: var(--text);
+    background:
+        radial-gradient(circle at top left, rgba(255, 157, 76, 0.14), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(80, 112, 255, 0.14), transparent 36%),
+        linear-gradient(180deg, #070a10 0%, #0d121c 100%);
+}
+
+button,
+input,
+textarea {
+    font: inherit;
+}
+
+.scanlines {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)),
+        linear-gradient(rgba(255, 157, 76, 0.05) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 4px;
+    opacity: 0.45;
+    mix-blend-mode: screen;
+}
+
+.shell {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 18px;
+    padding: 24px;
+}
+
+.panel {
+    background: linear-gradient(180deg, rgba(13, 18, 26, 0.96), rgba(9, 13, 20, 0.94));
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(14px);
+}
+
+.masthead {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) 320px;
+    gap: 18px;
+}
+
+.intro,
+.status,
+.composer,
+.filters,
+.lane,
+.log-panel,
+.metric {
+    padding: 20px;
+}
+
+.eyebrow,
+.pill,
+.metric span {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-size: 0.7rem;
+    color: #ffc996;
+    font-family: "IBM Plex Mono", "Menlo", monospace;
+}
+
+.intro h1,
+.section-head h2,
+.lane-head h3 {
+    margin: 0;
+    font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+    letter-spacing: 0.02em;
+}
+
+.intro h1 {
+    margin-top: 10px;
+    max-width: 10ch;
+    font-size: clamp(3rem, 5vw, 5.2rem);
+    line-height: 0.92;
+}
+
+.lede {
+    max-width: 60ch;
+    margin: 18px 0 0;
+    color: var(--muted);
+    line-height: 1.72;
+}
+
+.masthead-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 22px;
+}
+
+.status {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+}
+
+.status-block {
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    background: rgba(255, 157, 76, 0.04);
+    border: 1px solid rgba(255, 157, 76, 0.12);
+}
+
+.status-block strong {
+    word-break: break-word;
+}
+
+.overview {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.metric {
+    display: grid;
+    gap: 8px;
+}
+
+.metric strong {
+    font-size: clamp(2rem, 3vw, 3rem);
+    line-height: 1;
+}
+
+.metric p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.workspace {
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr);
+    gap: 18px;
+}
+
+.section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 18px;
+}
+
+.section-head h2 {
+    margin-top: 4px;
+    font-size: 1.9rem;
+    line-height: 1;
+}
+
+label {
+    display: block;
+    margin: 16px 0 8px;
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+input,
+textarea {
+    width: 100%;
+    border: 1px solid rgba(255, 157, 76, 0.16);
+    background: rgba(6, 10, 16, 0.86);
+    color: var(--text);
+    padding: 13px 14px;
+    outline: none;
+}
+
+input:focus,
+textarea:focus {
+    border-color: var(--line-strong);
+    box-shadow: 0 0 0 3px rgba(255, 157, 76, 0.1);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 120px;
+}
+
+.pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.chips button,
+.masthead-actions button,
+#save-incident-button,
+.incident-actions button {
+    border: 1px solid rgba(255, 157, 76, 0.2);
+    background: rgba(15, 20, 30, 0.92);
+    color: var(--text);
+    padding: 11px 13px;
+    cursor: pointer;
+    transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.chips button:hover,
+.masthead-actions button:hover,
+#save-incident-button:hover,
+.incident-actions button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 190, 121, 0.42);
+}
+
+.chips button.is-active,
+#save-incident-button,
+.masthead-actions button:first-child {
+    background: linear-gradient(135deg, rgba(255, 157, 76, 0.16), rgba(255, 190, 121, 0.08));
+    border-color: rgba(255, 190, 121, 0.38);
+}
+
+.masthead-actions .ghost {
+    background: transparent;
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 157, 76, 0.16);
+    background: rgba(255, 157, 76, 0.06);
+}
+
+.board-shell {
+    display: grid;
+    gap: 18px;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.lane-head {
+    margin-bottom: 14px;
+}
+
+.lane-head h3 {
+    margin-top: 6px;
+    font-size: 1.5rem;
+}
+
+.lane-list {
+    display: grid;
+    gap: 12px;
+}
+
+.incident-card {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    background: rgba(8, 12, 18, 0.82);
+    border: 1px solid rgba(255, 157, 76, 0.12);
+}
+
+.incident-top,
+.incident-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.incident-card h4 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.incident-summary,
+.incident-meta,
+.empty-state {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.58;
+}
+
+.incident-meta,
+.incident-tags,
+.incident-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 9px;
+    border: 1px solid rgba(255, 157, 76, 0.14);
+    background: rgba(15, 20, 30, 0.92);
+    color: var(--muted);
+}
+
+.tag.is-critical {
+    color: var(--critical);
+    border-color: rgba(255, 108, 108, 0.28);
+}
+
+.tag.is-high {
+    color: var(--high);
+    border-color: rgba(255, 182, 91, 0.28);
+}
+
+.tag.is-medium {
+    color: var(--medium);
+    border-color: rgba(123, 214, 203, 0.28);
+}
+
+.tag.is-low {
+    color: var(--low);
+    border-color: rgba(151, 167, 255, 0.28);
+}
+
+pre {
+    margin: 12px 0 0;
+    color: #ffd2a6;
+    white-space: pre-wrap;
+    font-family: "IBM Plex Mono", "Menlo", monospace;
+}
+
+@media (max-width: 1280px) {
+    .workspace,
+    .masthead,
+    .overview,
+    .board {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 920px) {
+    .shell {
+        padding: 16px;
+    }
+
+    .pair,
+    .incident-top,
+    .incident-footer,
+    .masthead-actions {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

@@ -1,0 +1,27 @@
+{
+  "entries": [
+    {
+      "table": "notes",
+      "rows": [
+        {
+          "title": "Field note for the launch issue",
+          "body": "The strongest copy line is not the most dramatic one. It is the one the team can repeat under pressure.",
+          "mood": "field",
+          "pinned": true
+        },
+        {
+          "title": "Draft the morning brief",
+          "body": "Keep the editorial tone warm, but let the numbers carry the conviction. Avoid slogans unless they earn their place.",
+          "mood": "draft",
+          "pinned": false
+        },
+        {
+          "title": "Archive the references",
+          "body": "Collect screenshots, launch notes, and copy fragments in one place so they stop leaking across chats and tabs.",
+          "mood": "archive",
+          "pinned": false
+        }
+      ]
+    }
+  ]
+}

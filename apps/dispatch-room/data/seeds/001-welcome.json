@@ -1,0 +1,49 @@
+{
+  "entries": [
+    {
+      "table": "incidents",
+      "rows": [
+        {
+          "title": "Checkout timeout on Safari",
+          "service": "Storefront",
+          "owner": "Aya",
+          "dueOn": "2026-03-14",
+          "summary": "Safari sessions are timing out on the final payment handoff.",
+          "severity": "critical",
+          "severityRank": 4,
+          "status": "active"
+        },
+        {
+          "title": "Nightly sync backlog",
+          "service": "Warehouse",
+          "owner": "Noor",
+          "dueOn": "2026-03-15",
+          "summary": "Inbound order sync is six hours behind after the provider outage.",
+          "severity": "high",
+          "severityRank": 3,
+          "status": "triage"
+        },
+        {
+          "title": "Internal dashboard screenshots stale",
+          "service": "Analytics",
+          "owner": "Leo",
+          "dueOn": "2026-03-18",
+          "summary": "Marketing preview board is still rendering last week's captures.",
+          "severity": "medium",
+          "severityRank": 2,
+          "status": "blocked"
+        },
+        {
+          "title": "Status page copy refresh",
+          "service": "Ops",
+          "owner": "Jin",
+          "dueOn": "2026-03-12",
+          "summary": "Public incident recap shipped and can be archived.",
+          "severity": "low",
+          "severityRank": 1,
+          "status": "resolved"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "entries": [
+    {
+      "table": "entries",
+      "rows": [
+        {
+          "label": "Spring retainers",
+          "amount": 8200,
+          "direction": "income",
+          "bookedOn": "2026-03-01",
+          "account": "Operating",
+          "category": "Revenue",
+          "note": "Monthly client retainers landed clean.",
+          "cleared": true
+        },
+        {
+          "label": "Animation contractor",
+          "amount": 1850,
+          "direction": "expense",
+          "bookedOn": "2026-03-04",
+          "account": "Operating",
+          "category": "Production",
+          "note": "Motion pass for the launch film.",
+          "cleared": true
+        },
+        {
+          "label": "Studio rent",
+          "amount": 2400,
+          "direction": "expense",
+          "bookedOn": "2026-03-07",
+          "account": "Operating",
+          "category": "Overhead",
+          "note": "March studio and utilities.",
+          "cleared": true
+        },
+        {
+          "label": "Strategy workshop",
+          "amount": 3400,
+          "direction": "income",
+          "bookedOn": "2026-03-12",
+          "account": "Reserve",
+          "category": "Advisory",
+          "note": "Two-day executive workshop.",
+          "cleared": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "incidents",
+      "columns": [
+        { "name": "title", "type": "text", "required": true },
+        { "name": "service", "type": "text", "required": true },
+        { "name": "owner", "type": "text", "required": true },
+        { "name": "dueOn", "type": "text", "required": true },
+        { "name": "summary", "type": "text" },
+        { "name": "severity", "type": "text", "required": true, "default": "medium" },
+        { "name": "severityRank", "type": "integer", "required": true, "default": 2 },
+        { "name": "status", "type": "text", "required": true, "default": "triage" }
+      ],
+      "indexes": [
+        { "columns": ["severity"] },
+        { "columns": ["status"] },
+        { "columns": ["dueOn"] }
+      ]
+    }
+  ]
+}

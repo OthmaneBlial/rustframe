@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="rustframe:width" content="1440">
+    <meta name="rustframe:height" content="920">
+    <title>Ledger Grove</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="grain"></div>
+    <main class="shell">
+        <section class="hero">
+            <div class="hero-copy card">
+                <p class="eyebrow">Ledger Grove</p>
+                <h1>Cash flow in plain sight.</h1>
+                <p class="lede">
+                    A finance cockpit built entirely with HTML, CSS, and JavaScript. It stores transactions in
+                    RustFrame's embedded SQLite layer and exports as a native desktop binary.
+                </p>
+                <div class="hero-actions">
+                    <button id="sync-title-button" type="button">Sync window title</button>
+                    <button id="close-button" class="ghost" type="button">Close</button>
+                </div>
+            </div>
+
+            <aside class="hero-aside card">
+                <div class="metric-stack">
+                    <p class="eyebrow">Storage</p>
+                    <strong id="db-path">Connecting…</strong>
+                </div>
+                <div class="metric-stack">
+                    <p class="eyebrow">Mode</p>
+                    <strong id="asset-mode">Embedded</strong>
+                </div>
+                <div class="metric-stack">
+                    <p class="eyebrow">Origin</p>
+                    <strong id="origin-label">app://localhost</strong>
+                </div>
+            </aside>
+        </section>
+
+        <section class="metrics">
+            <article class="metric-card">
+                <span>Balance</span>
+                <strong id="balance-value">$0</strong>
+                <p id="balance-caption">0 transactions tracked</p>
+            </article>
+            <article class="metric-card">
+                <span>Income</span>
+                <strong id="income-value">$0</strong>
+                <p>Money entering the system</p>
+            </article>
+            <article class="metric-card">
+                <span>Spend</span>
+                <strong id="expense-value">$0</strong>
+                <p>Outgoing cash this ledger sees</p>
+            </article>
+            <article class="metric-card">
+                <span>Largest line</span>
+                <strong id="largest-line">$0</strong>
+                <p id="largest-caption">No entries yet</p>
+            </article>
+        </section>
+
+        <section class="workspace">
+            <article class="card composer">
+                <div class="section-head">
+                    <div>
+                        <p class="eyebrow">Capture</p>
+                        <h2>Add a ledger line</h2>
+                    </div>
+                    <span class="pill" id="entry-count">0 rows</span>
+                </div>
+
+                <label for="entry-label">Label</label>
+                <input id="entry-label" type="text" placeholder="March consulting invoice">
+
+                <div class="duo">
+                    <div>
+                        <label for="entry-amount">Amount</label>
+                        <input id="entry-amount" type="number" min="0" step="0.01" placeholder="2450.00">
+                    </div>
+                    <div>
+                        <label for="entry-date">Booked on</label>
+                        <input id="entry-date" type="text" placeholder="2026-03-14">
+                    </div>
+                </div>
+
+                <label for="entry-account">Account</label>
+                <input id="entry-account" type="text" placeholder="Operating">
+
+                <label for="entry-category">Category</label>
+                <input id="entry-category" type="text" placeholder="Revenue">
+
+                <div class="segmented" id="direction-group" aria-label="Direction">
+                    <button type="button" data-direction="income" class="is-active">Income</button>
+                    <button type="button" data-direction="expense">Expense</button>
+                </div>
+
+                <label for="entry-note">Memo</label>
+                <textarea id="entry-note" rows="4" placeholder="Optional note for this transaction."></textarea>
+
+                <label class="toggle">
+                    <input id="entry-cleared" type="checkbox" checked>
+                    <span>Marked as cleared</span>
+                </label>
+
+                <button id="save-entry-button" type="button">Save line</button>
+            </article>
+
+            <div class="stack">
+                <article class="card filters">
+                    <div class="section-head">
+                        <div>
+                            <p class="eyebrow">Lens</p>
+                            <h2>Flow filters</h2>
+                        </div>
+                        <span class="pill" id="visible-count">0 visible</span>
+                    </div>
+
+                    <div class="segmented" id="flow-filter" aria-label="Entry type filter">
+                        <button type="button" data-filter="all" class="is-active">All</button>
+                        <button type="button" data-filter="income">Income</button>
+                        <button type="button" data-filter="expense">Expense</button>
+                    </div>
+
+                    <label for="search-input">Search</label>
+                    <input id="search-input" type="text" placeholder="Search labels, account, category, memo">
+                </article>
+
+                <article class="card summary">
+                    <div class="section-head">
+                        <div>
+                            <p class="eyebrow">Breakdown</p>
+                            <h2>Category pressure</h2>
+                        </div>
+                        <span class="pill">Live from DB</span>
+                    </div>
+                    <div id="category-breakdown" class="category-breakdown"></div>
+                </article>
+            </div>
+
+            <article class="card ledger">
+                <div class="section-head">
+                    <div>
+                        <p class="eyebrow">Ledger</p>
+                        <h2>Recent movement</h2>
+                    </div>
+                    <span class="pill">SQLite-backed</span>
+                </div>
+
+                <div id="ledger-list" class="ledger-list"></div>
+
+                <div class="log-panel">
+                    <p class="eyebrow">Runtime log</p>
+                    <pre id="log-output">Ledger Grove is booting.</pre>
+                </div>
+            </article>
+        </section>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

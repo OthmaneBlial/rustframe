@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="rustframe:width" content="1480">
+    <meta name="rustframe:height" content="940">
+    <title>Dispatch Room</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="scanlines"></div>
+    <main class="shell">
+        <section class="masthead">
+            <div class="intro panel">
+                <p class="eyebrow">Dispatch Room</p>
+                <h1>Operate the floor. Keep incidents moving.</h1>
+                <p class="lede">
+                    This showcase app proves RustFrame can host a richer operational desktop product:
+                    live filters, custom controls, a board UI, and persistent SQLite data with no browser storage.
+                </p>
+                <div class="masthead-actions">
+                    <button id="sync-title-button" type="button">Sync title</button>
+                    <button id="close-button" class="ghost" type="button">Close</button>
+                </div>
+            </div>
+
+            <aside class="status panel">
+                <div class="status-block">
+                    <p class="eyebrow">Storage</p>
+                    <strong id="db-path">Connecting…</strong>
+                </div>
+                <div class="status-block">
+                    <p class="eyebrow">Mode</p>
+                    <strong id="asset-mode">Embedded</strong>
+                </div>
+                <div class="status-block">
+                    <p class="eyebrow">Origin</p>
+                    <strong id="origin-label">app://localhost</strong>
+                </div>
+            </aside>
+        </section>
+
+        <section class="overview">
+            <article class="metric panel">
+                <span>Total</span>
+                <strong id="total-count">0</strong>
+                <p>All incidents tracked locally</p>
+            </article>
+            <article class="metric panel">
+                <span>Open</span>
+                <strong id="open-count">0</strong>
+                <p>Not yet resolved</p>
+            </article>
+            <article class="metric panel">
+                <span>Critical</span>
+                <strong id="critical-count">0</strong>
+                <p>Needs immediate attention</p>
+            </article>
+            <article class="metric panel">
+                <span>Due today</span>
+                <strong id="today-count">0</strong>
+                <p>Commitments landing now</p>
+            </article>
+        </section>
+
+        <section class="workspace">
+            <article class="panel composer">
+                <div class="section-head">
+                    <div>
+                        <p class="eyebrow">Create</p>
+                        <h2>Open a new incident</h2>
+                    </div>
+                    <span class="pill" id="incident-count">0 rows</span>
+                </div>
+
+                <label for="incident-title">Title</label>
+                <input id="incident-title" type="text" placeholder="Checkout latency spike on mobile">
+
+                <div class="pair">
+                    <div>
+                        <label for="incident-service">Service</label>
+                        <input id="incident-service" type="text" placeholder="Payments API">
+                    </div>
+                    <div>
+                        <label for="incident-owner">Owner</label>
+                        <input id="incident-owner" type="text" placeholder="Nadia">
+                    </div>
+                </div>
+
+                <div class="pair">
+                    <div>
+                        <label for="incident-due-on">Due by</label>
+                        <input id="incident-due-on" type="text" placeholder="2026-03-14">
+                    </div>
+                    <div>
+                        <label>Severity</label>
+                        <div id="severity-group" class="chips" aria-label="Severity">
+                            <button type="button" data-severity="critical">Critical</button>
+                            <button type="button" data-severity="high" class="is-active">High</button>
+                            <button type="button" data-severity="medium">Medium</button>
+                            <button type="button" data-severity="low">Low</button>
+                        </div>
+                    </div>
+                </div>
+
+                <label>Status</label>
+                <div id="status-group" class="chips status-chips" aria-label="Initial status">
+                    <button type="button" data-status="triage" class="is-active">Triage</button>
+                    <button type="button" data-status="active">Active</button>
+                    <button type="button" data-status="blocked">Blocked</button>
+                    <button type="button" data-status="resolved">Resolved</button>
+                </div>
+
+                <label for="incident-summary">Summary</label>
+                <textarea id="incident-summary" rows="5" placeholder="Capture the issue, customer impact, or the next move."></textarea>
+
+                <button id="save-incident-button" type="button">Dispatch incident</button>
+            </article>
+
+            <section class="board-shell">
+                <article class="panel filters">
+                    <div class="section-head">
+                        <div>
+                            <p class="eyebrow">Filter</p>
+                            <h2>Traffic control</h2>
+                        </div>
+                        <span class="pill" id="visible-count">0 visible</span>
+                    </div>
+
+                    <div id="filter-group" class="chips severity-filter" aria-label="Severity filter">
+                        <button type="button" data-filter="all" class="is-active">All</button>
+                        <button type="button" data-filter="critical">Critical</button>
+                        <button type="button" data-filter="high">High</button>
+                        <button type="button" data-filter="medium">Medium</button>
+                        <button type="button" data-filter="low">Low</button>
+                    </div>
+
+                    <label for="search-input">Search</label>
+                    <input id="search-input" type="text" placeholder="Search title, service, owner, summary">
+                </article>
+
+                <section class="board">
+                    <article class="panel lane">
+                        <div class="lane-head">
+                            <p class="eyebrow">Lane</p>
+                            <h3>Triage</h3>
+                        </div>
+                        <div id="lane-triage" class="lane-list"></div>
+                    </article>
+                    <article class="panel lane">
+                        <div class="lane-head">
+                            <p class="eyebrow">Lane</p>
+                            <h3>Active</h3>
+                        </div>
+                        <div id="lane-active" class="lane-list"></div>
+                    </article>
+                    <article class="panel lane">
+                        <div class="lane-head">
+                            <p class="eyebrow">Lane</p>
+                            <h3>Blocked</h3>
+                        </div>
+                        <div id="lane-blocked" class="lane-list"></div>
+                    </article>
+                    <article class="panel lane">
+                        <div class="lane-head">
+                            <p class="eyebrow">Lane</p>
+                            <h3>Resolved</h3>
+                        </div>
+                        <div id="lane-resolved" class="lane-list"></div>
+                    </article>
+                </section>
+
+                <article class="panel log-panel">
+                    <p class="eyebrow">Runtime log</p>
+                    <pre id="log-output">Dispatch Room is booting.</pre>
+                </article>
+            </section>
+        </section>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

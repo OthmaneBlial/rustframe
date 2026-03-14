@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="rustframe:width" content="1360">
+    <meta name="rustframe:height" content="900">
+    <title>Daybreak Notes</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="paper-grain"></div>
+
+    <main class="shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Daybreak Notes</p>
+                <h1>Editorial calm for ideas worth keeping.</h1>
+                <p class="lede">
+                    A warm offline notes desk with pinned cards, searchable entries, and a SQLite
+                    library seeded directly from the app bundle.
+                </p>
+            </div>
+
+            <div class="hero-meta">
+                <article class="meta-card">
+                    <span>Library</span>
+                    <strong id="note-count">0 notes</strong>
+                </article>
+                <article class="meta-card">
+                    <span>Storage</span>
+                    <strong id="db-status">Connecting…</strong>
+                </article>
+                <article class="meta-card">
+                    <span>Filter</span>
+                    <strong id="filter-label">All moods</strong>
+                </article>
+            </div>
+        </header>
+
+        <section class="workspace">
+            <aside class="composer card">
+                <div class="section-heading">
+                    <p class="eyebrow">Compose</p>
+                    <h2>Capture a note</h2>
+                </div>
+
+                <label class="field">
+                    <span>Title</span>
+                    <input id="note-title" type="text" placeholder="Sketch the launch letter">
+                </label>
+
+                <label class="field">
+                    <span>Body</span>
+                    <textarea id="note-body" rows="9" placeholder="Write the note, fragment, or reference you want to keep close."></textarea>
+                </label>
+
+                <div class="field">
+                    <span>Mood</span>
+                    <div id="mood-picker" class="chip-row">
+                        <button type="button" class="chip is-active" data-mood="idea">Idea</button>
+                        <button type="button" class="chip" data-mood="draft">Draft</button>
+                        <button type="button" class="chip" data-mood="field">Field</button>
+                        <button type="button" class="chip" data-mood="archive">Archive</button>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button id="save-note" class="primary-action" type="button">Save note</button>
+                    <button id="sync-title" type="button">Sync window title</button>
+                </div>
+
+                <pre id="status-log" class="status-log">Waiting for the local library…</pre>
+            </aside>
+
+            <section class="library">
+                <div class="toolbar card">
+                    <label class="search-field">
+                        <span>Search</span>
+                        <input id="search-input" type="search" placeholder="Find titles, fragments, moods">
+                    </label>
+
+                    <div id="filter-group" class="chip-row filter-row">
+                        <button type="button" class="chip is-active" data-filter="all">All</button>
+                        <button type="button" class="chip" data-filter="idea">Idea</button>
+                        <button type="button" class="chip" data-filter="draft">Draft</button>
+                        <button type="button" class="chip" data-filter="field">Field</button>
+                        <button type="button" class="chip" data-filter="archive">Archive</button>
+                    </div>
+                </div>
+
+                <div id="notes-grid" class="notes-grid"></div>
+            </section>
+        </section>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
