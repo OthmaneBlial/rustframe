@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "habits",
+      "columns": [
+        { "name": "name", "type": "text", "required": true },
+        { "name": "cadence", "type": "text", "required": true },
+        { "name": "target", "type": "integer", "required": true, "default": 7 },
+        { "name": "zone", "type": "text", "required": true, "default": "body" },
+        { "name": "streak", "type": "integer", "required": true, "default": 0 },
+        { "name": "completedToday", "type": "boolean", "required": true, "default": false }
+      ],
+      "indexes": [
+        { "columns": ["zone"] },
+        { "columns": ["streak"] },
+        { "columns": ["completedToday"] }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="rustframe:width" content="1460">
+    <meta name="rustframe:height" content="940">
+    <title>Quill Studio</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="paper-noise"></div>
+    <main class="shell">
+        <section class="hero">
+            <article class="panel intro">
+                <p class="eyebrow">Quill Studio</p>
+                <h1>An editorial desk that feels like print.</h1>
+                <p class="lede">
+                    A newsroom planning board rendered in HTML, CSS, and JavaScript, then exported as a native
+                    desktop app through RustFrame. Stories persist in SQLite and move across the desk in real time.
+                </p>
+                <div class="hero-actions">
+                    <button id="sync-title-button" type="button">Sync title</button>
+                    <button id="close-button" class="ghost" type="button">Close</button>
+                </div>
+            </article>
+
+            <aside class="panel status">
+                <div class="status-block">
+                    <p class="eyebrow">Storage</p>
+                    <strong id="db-path">Connecting…</strong>
+                </div>
+                <div class="status-block">
+                    <p class="eyebrow">Mode</p>
+                    <strong id="asset-mode">Embedded</strong>
+                </div>
+                <div class="status-block">
+                    <p class="eyebrow">Origin</p>
+                    <strong id="origin-label">app://localhost</strong>
+                </div>
+            </aside>
+        </section>
+
+        <section class="metrics">
+            <article class="panel metric">
+                <span>Open stories</span>
+                <strong id="open-count">0</strong>
+                <p>Everything not yet scheduled</p>
+            </article>
+            <article class="panel metric">
+                <span>Due today</span>
+                <strong id="today-count">0</strong>
+                <p>Editorial pressure landing now</p>
+            </article>
+            <article class="panel metric">
+                <span>Scheduled</span>
+                <strong id="scheduled-count">0</strong>
+                <p>Ready for publication</p>
+            </article>
+            <article class="panel metric">
+                <span>Priority desk</span>
+                <strong id="priority-count">0</strong>
+                <p>Priority 3 stories</p>
+            </article>
+        </section>
+
+        <section class="workspace">
+            <article class="panel composer">
+                <div class="section-head">
+                    <div>
+                        <p class="eyebrow">Pitch</p>
+                        <h2>Add a story</h2>
+                    </div>
+                    <span class="pill" id="story-count">0 rows</span>
+                </div>
+
+                <label for="title-input">Story title</label>
+                <input id="title-input" type="text" placeholder="How boutique brands are rebuilding offline retail">
+
+                <div class="pair">
+                    <div>
+                        <label for="desk-input">Desk</label>
+                        <input id="desk-input" type="text" placeholder="Business">
+                    </div>
+                    <div>
+                        <label for="editor-input">Editor</label>
+                        <input id="editor-input" type="text" placeholder="Maya">
+                    </div>
+                </div>
+
+                <div class="pair">
+                    <div>
+                        <label for="deadline-input">Deadline</label>
+                        <input id="deadline-input" type="text" placeholder="2026-03-14">
+                    </div>
+                    <div>
+                        <label for="angle-input">Angle</label>
+                        <input id="angle-input" type="text" placeholder="Retail as theatre">
+                    </div>
+                </div>
+
+                <label>Channel</label>
+                <div id="channel-group" class="chips">
+                    <button type="button" data-channel="web" class="is-active">Web</button>
+                    <button type="button" data-channel="newsletter">Newsletter</button>
+                    <button type="button" data-channel="video">Video</button>
+                    <button type="button" data-channel="podcast">Podcast</button>
+                </div>
+
+                <label>Status</label>
+                <div id="status-group" class="chips">
+                    <button type="button" data-status="pitch" class="is-active">Pitch</button>
+                    <button type="button" data-status="drafting">Drafting</button>
+                    <button type="button" data-status="editing">Editing</button>
+                    <button type="button" data-status="scheduled">Scheduled</button>
+                </div>
+
+                <label>Priority</label>
+                <div id="priority-group" class="chips">
+                    <button type="button" data-priority="1">1</button>
+                    <button type="button" data-priority="2" class="is-active">2</button>
+                    <button type="button" data-priority="3">3</button>
+                </div>
+
+                <button id="save-story-button" type="button">File story</button>
+            </article>
+
+            <section class="board-shell">
+                <article class="panel filters">
+                    <div class="section-head">
+                        <div>
+                            <p class="eyebrow">Filter</p>
+                            <h2>Desk lens</h2>
+                        </div>
+                        <span class="pill" id="visible-count">0 visible</span>
+                    </div>
+
+                    <div id="filter-group" class="chips">
+                        <button type="button" data-filter="all" class="is-active">All</button>
+                        <button type="button" data-filter="web">Web</button>
+                        <button type="button" data-filter="newsletter">Newsletter</button>
+                        <button type="button" data-filter="video">Video</button>
+                        <button type="button" data-filter="podcast">Podcast</button>
+                    </div>
+
+                    <label for="search-input">Search</label>
+                    <input id="search-input" type="text" placeholder="Search title, desk, editor, angle">
+                </article>
+
+                <section class="board">
+                    <article class="panel lane">
+                        <div class="lane-head"><p class="eyebrow">Desk</p><h3>Pitch</h3></div>
+                        <div id="lane-pitch" class="lane-list"></div>
+                    </article>
+                    <article class="panel lane">
+                        <div class="lane-head"><p class="eyebrow">Desk</p><h3>Drafting</h3></div>
+                        <div id="lane-drafting" class="lane-list"></div>
+                    </article>
+                    <article class="panel lane">
+                        <div class="lane-head"><p class="eyebrow">Desk</p><h3>Editing</h3></div>
+                        <div id="lane-editing" class="lane-list"></div>
+                    </article>
+                    <article class="panel lane">
+                        <div class="lane-head"><p class="eyebrow">Desk</p><h3>Scheduled</h3></div>
+                        <div id="lane-scheduled" class="lane-list"></div>
+                    </article>
+                </section>
+
+                <article class="panel log-panel">
+                    <p class="eyebrow">Runtime log</p>
+                    <pre id="log-output">Quill Studio is booting.</pre>
+                </article>
+            </section>
+        </section>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

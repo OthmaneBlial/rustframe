@@ -1,0 +1,45 @@
+{
+  "entries": [
+    {
+      "table": "assets",
+      "rows": [
+        {
+          "title": "Neon stairwell still",
+          "collection": "Campaign 02",
+          "format": "Poster",
+          "usage": "Hero card for the launch deck.",
+          "palette": "neon",
+          "state": "approved",
+          "rating": 5
+        },
+        {
+          "title": "Harbor suite moodboard",
+          "collection": "Spring Stay",
+          "format": "Moodboard",
+          "usage": "Hospitality treatment and spatial references.",
+          "palette": "ocean",
+          "state": "in-review",
+          "rating": 4
+        },
+        {
+          "title": "Sunset headline frame",
+          "collection": "Editorial Teasers",
+          "format": "Social",
+          "usage": "Square teaser for the weekend package.",
+          "palette": "sunset",
+          "state": "draft",
+          "rating": 3
+        },
+        {
+          "title": "Neutral texture pack",
+          "collection": "Brand System",
+          "format": "Texture",
+          "usage": "Surface options for packaging comps.",
+          "palette": "sand",
+          "state": "archive",
+          "rating": 2
+        }
+      ]
+    }
+  ]
+}

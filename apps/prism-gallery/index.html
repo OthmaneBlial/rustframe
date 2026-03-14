@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="rustframe:width" content="1460">
+    <meta name="rustframe:height" content="940">
+    <title>Prism Gallery</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="wash"></div>
+    <main class="shell">
+        <section class="hero">
+            <article class="panel intro">
+                <p class="eyebrow">Prism Gallery</p>
+                <h1>A vivid asset library built without a frontend framework.</h1>
+                <p class="lede">
+                    An art-direction and asset browser that proves RustFrame can carry a more expressive product UI:
+                    colorful previews, tags, ratings, and persistent library state in embedded SQLite.
+                </p>
+                <div class="hero-actions">
+                    <button id="sync-title-button" type="button">Sync title</button>
+                    <button id="close-button" class="ghost" type="button">Close</button>
+                </div>
+            </article>
+
+            <aside class="panel status">
+                <div class="status-block"><p class="eyebrow">Storage</p><strong id="db-path">Connecting…</strong></div>
+                <div class="status-block"><p class="eyebrow">Mode</p><strong id="asset-mode">Embedded</strong></div>
+                <div class="status-block"><p class="eyebrow">Origin</p><strong id="origin-label">app://localhost</strong></div>
+            </aside>
+        </section>
+
+        <section class="metrics">
+            <article class="panel metric"><span>Assets</span><strong id="asset-count">0</strong><p>Library records</p></article>
+            <article class="panel metric"><span>Favorites</span><strong id="favorite-count">0</strong><p>Rated 4 or higher</p></article>
+            <article class="panel metric"><span>In review</span><strong id="review-count">0</strong><p>Awaiting approval</p></article>
+            <article class="panel metric"><span>Collections</span><strong id="collection-count">0</strong><p>Distinct groupings</p></article>
+        </section>
+
+        <section class="workspace">
+            <article class="panel composer">
+                <div class="section-head">
+                    <div><p class="eyebrow">Capture</p><h2>Add asset</h2></div>
+                    <span class="pill" id="row-count">0 rows</span>
+                </div>
+
+                <label for="title-input">Title</label>
+                <input id="title-input" type="text" placeholder="Neon stairwell still">
+
+                <div class="pair">
+                    <div>
+                        <label for="collection-input">Collection</label>
+                        <input id="collection-input" type="text" placeholder="Campaign 02">
+                    </div>
+                    <div>
+                        <label for="format-input">Format</label>
+                        <input id="format-input" type="text" placeholder="Poster">
+                    </div>
+                </div>
+
+                <label for="usage-input">Usage note</label>
+                <input id="usage-input" type="text" placeholder="Hero card for launch deck">
+
+                <label>Palette</label>
+                <div id="palette-group" class="chips">
+                    <button type="button" data-palette="sunset" class="is-active">Sunset</button>
+                    <button type="button" data-palette="ocean">Ocean</button>
+                    <button type="button" data-palette="neon">Neon</button>
+                    <button type="button" data-palette="sand">Sand</button>
+                </div>
+
+                <label>State</label>
+                <div id="state-group" class="chips">
+                    <button type="button" data-state="draft" class="is-active">Draft</button>
+                    <button type="button" data-state="in-review">In review</button>
+                    <button type="button" data-state="approved">Approved</button>
+                    <button type="button" data-state="archive">Archive</button>
+                </div>
+
+                <label>Rating</label>
+                <div id="rating-group" class="chips">
+                    <button type="button" data-rating="1">1</button>
+                    <button type="button" data-rating="2">2</button>
+                    <button type="button" data-rating="3" class="is-active">3</button>
+                    <button type="button" data-rating="4">4</button>
+                    <button type="button" data-rating="5">5</button>
+                </div>
+
+                <button id="save-asset-button" type="button">Save asset</button>
+            </article>
+
+            <section class="gallery-shell">
+                <article class="panel filters">
+                    <div class="section-head">
+                        <div><p class="eyebrow">Filter</p><h2>Palette lens</h2></div>
+                        <span class="pill" id="visible-count">0 visible</span>
+                    </div>
+                    <div id="filter-group" class="chips">
+                        <button type="button" data-filter="all" class="is-active">All</button>
+                        <button type="button" data-filter="sunset">Sunset</button>
+                        <button type="button" data-filter="ocean">Ocean</button>
+                        <button type="button" data-filter="neon">Neon</button>
+                        <button type="button" data-filter="sand">Sand</button>
+                    </div>
+                    <label for="search-input">Search</label>
+                    <input id="search-input" type="text" placeholder="Search title, collection, format, usage">
+                </article>
+
+                <div id="gallery-grid" class="gallery-grid"></div>
+
+                <article class="panel log-panel">
+                    <p class="eyebrow">Runtime log</p>
+                    <pre id="log-output">Prism Gallery is booting.</pre>
+                </article>
+            </section>
+        </section>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

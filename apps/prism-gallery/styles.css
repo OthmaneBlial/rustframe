@@ -1,0 +1,282 @@
+:root {
+    color-scheme: dark;
+    --bg: #0f0e1b;
+    --panel: rgba(17, 15, 31, 0.82);
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --text: #f7f2ff;
+    --muted: #b8afcf;
+    --shadow: 0 28px 90px rgba(0, 0, 0, 0.4);
+    font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+    margin: 0;
+    color: var(--text);
+    background:
+        radial-gradient(circle at top left, rgba(255, 124, 111, 0.16), transparent 24%),
+        radial-gradient(circle at top right, rgba(79, 184, 255, 0.14), transparent 24%),
+        radial-gradient(circle at bottom left, rgba(255, 229, 112, 0.12), transparent 28%),
+        linear-gradient(180deg, #0a0913 0%, #121024 100%);
+}
+
+button, input { font: inherit; }
+
+.wash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.03), transparent 40%);
+}
+
+.shell {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 18px;
+    padding: 24px;
+}
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(14px);
+}
+
+.hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) 320px;
+    gap: 18px;
+}
+
+.intro, .status, .composer, .filters, .log-panel, .metric { padding: 20px; }
+
+.eyebrow, .pill, .metric span {
+    margin: 0;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: #dbc8ff;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.intro h1, .section-head h2 {
+    margin: 0;
+    font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+}
+
+.intro h1 {
+    margin-top: 10px;
+    max-width: 11ch;
+    font-size: clamp(3rem, 5vw, 5rem);
+    line-height: 0.92;
+}
+
+.lede {
+    margin-top: 16px;
+    max-width: 58ch;
+    color: var(--muted);
+    line-height: 1.72;
+}
+
+.hero-actions, .chips, .asset-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.hero-actions { margin-top: 20px; }
+.status { display: grid; gap: 12px; }
+.status-block {
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.metric { display: grid; gap: 8px; }
+.metric strong { font-size: clamp(2rem, 3vw, 3rem); line-height: 1; }
+.metric p { margin: 0; color: var(--muted); }
+
+.workspace {
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr);
+    gap: 18px;
+}
+
+.gallery-shell { display: grid; gap: 18px; }
+
+.section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 18px;
+}
+
+.section-head h2 { margin-top: 4px; font-size: 1.8rem; line-height: 1; }
+
+label {
+    display: block;
+    margin: 16px 0 8px;
+    color: var(--muted);
+}
+
+input {
+    width: 100%;
+    padding: 13px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(11, 10, 22, 0.7);
+    color: var(--text);
+    outline: none;
+}
+
+input:focus {
+    border-color: var(--line-strong);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+.pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.chips button,
+.hero-actions button,
+#save-asset-button,
+.asset-actions button {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    padding: 11px 13px;
+    cursor: pointer;
+    transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.chips button:hover,
+.hero-actions button:hover,
+#save-asset-button:hover,
+.asset-actions button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.chips button.is-active,
+#save-asset-button,
+.hero-actions button:first-child {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.ghost { background: transparent; }
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.asset-card {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.asset-preview {
+    min-height: 180px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.palette-sunset {
+    background: linear-gradient(135deg, #ff6a6a, #ffb26a 55%, #ffe6a2);
+}
+
+.palette-ocean {
+    background: linear-gradient(135deg, #054a91, #1daeff 55%, #72f3de);
+}
+
+.palette-neon {
+    background: linear-gradient(135deg, #ff00a8, #7d4dff 45%, #00f7ff);
+}
+
+.palette-sand {
+    background: linear-gradient(135deg, #c6a97a, #ecd7aa 48%, #faf3df);
+}
+
+.asset-top, .asset-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.asset-card h4 { margin: 0; font-size: 1rem; }
+.asset-note, .asset-meta, .empty-state {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.tags, .asset-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--muted);
+}
+
+.rating {
+    font-weight: 700;
+}
+
+pre {
+    margin: 10px 0 0;
+    white-space: pre-wrap;
+    font-family: "IBM Plex Mono", monospace;
+    color: #d4c5ff;
+}
+
+@media (max-width: 1280px) {
+    .hero, .workspace, .metrics, .gallery-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 920px) {
+    .shell { padding: 16px; }
+    .pair, .hero-actions, .asset-top, .asset-footer {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

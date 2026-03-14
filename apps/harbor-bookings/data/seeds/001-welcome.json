@@ -1,0 +1,45 @@
+{
+  "entries": [
+    {
+      "table": "reservations",
+      "rows": [
+        {
+          "guest": "Alicia Monroe",
+          "suite": "Harbor 04",
+          "host": "Nadia",
+          "arrival": "2026-03-14",
+          "nights": 3,
+          "note": "Late arrival, port transfer arranged.",
+          "status": "confirmed"
+        },
+        {
+          "guest": "Jonas Reed",
+          "suite": "Pier Loft 02",
+          "host": "Mira",
+          "arrival": "2026-03-14",
+          "nights": 2,
+          "note": "Celebration stay with rooftop dinner request.",
+          "status": "in-house"
+        },
+        {
+          "guest": "Nora Patel",
+          "suite": "Cove 07",
+          "host": "Nadia",
+          "arrival": "2026-03-18",
+          "nights": 4,
+          "note": "Pending card authorization.",
+          "status": "pending"
+        },
+        {
+          "guest": "Yuki Sato",
+          "suite": "Harbor 01",
+          "host": "Leo",
+          "arrival": "2026-03-10",
+          "nights": 2,
+          "note": "Stayed for the design summit and checked out smoothly.",
+          "status": "complete"
+        }
+      ]
+    }
+  ]
+}

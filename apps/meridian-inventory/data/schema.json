@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "items",
+      "columns": [
+        { "name": "name", "type": "text", "required": true },
+        { "name": "sku", "type": "text", "required": true, "unique": true },
+        { "name": "location", "type": "text", "required": true },
+        { "name": "category", "type": "text", "required": true },
+        { "name": "supplier", "type": "text", "required": true },
+        { "name": "quantity", "type": "integer", "required": true, "default": 0 },
+        { "name": "reorderPoint", "type": "integer", "required": true, "default": 0 }
+      ],
+      "indexes": [
+        { "columns": ["category"] },
+        { "columns": ["location"] },
+        { "columns": ["quantity"] }
+      ]
+    }
+  ]
+}

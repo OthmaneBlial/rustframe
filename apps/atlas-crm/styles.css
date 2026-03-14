@@ -1,0 +1,300 @@
+:root {
+    color-scheme: dark;
+    --bg: #0c111b;
+    --panel: rgba(14, 20, 30, 0.9);
+    --line: rgba(212, 173, 96, 0.18);
+    --line-strong: rgba(236, 207, 146, 0.36);
+    --text: #f5f0e5;
+    --muted: #b9ac95;
+    --accent: #d4ad60;
+    --hot: #ff7b6b;
+    --warm: #ffbb6e;
+    --cool: #8cb9ff;
+    --shadow: 0 28px 90px rgba(0, 0, 0, 0.4);
+    font-family: "Optima", "Candara", "Trebuchet MS", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+    margin: 0;
+    color: var(--text);
+    background:
+        radial-gradient(circle at top left, rgba(212, 173, 96, 0.12), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(94, 130, 255, 0.1), transparent 34%),
+        linear-gradient(180deg, #091019 0%, #111826 100%);
+}
+
+button, input { font: inherit; }
+
+.backdrop {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, rgba(212, 173, 96, 0.05) 1px, transparent 1px),
+        linear-gradient(rgba(212, 173, 96, 0.04) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(circle at center, black 40%, transparent 95%);
+}
+
+.shell {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 18px;
+    padding: 24px;
+}
+
+.panel {
+    background: linear-gradient(180deg, rgba(14, 20, 30, 0.96), rgba(10, 15, 23, 0.94));
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(12px);
+}
+
+.hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) 320px;
+    gap: 18px;
+}
+
+.intro, .status, .composer, .filters, .lane, .log-panel, .metric { padding: 20px; }
+
+.eyebrow, .pill, .metric span {
+    margin: 0;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: #efc987;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.intro h1, .section-head h2, .lane-head h3 {
+    margin: 0;
+    font-family: "Baskerville", "Palatino Linotype", serif;
+}
+
+.intro h1 {
+    margin-top: 10px;
+    max-width: 10ch;
+    font-size: clamp(3rem, 5vw, 5.2rem);
+    line-height: 0.92;
+}
+
+.lede {
+    margin-top: 18px;
+    max-width: 60ch;
+    color: var(--muted);
+    line-height: 1.72;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 22px;
+}
+
+.status {
+    display: grid;
+    gap: 12px;
+}
+
+.status-block {
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    border: 1px solid rgba(212, 173, 96, 0.12);
+    background: rgba(212, 173, 96, 0.04);
+}
+
+.status-block strong { word-break: break-word; }
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.metric {
+    display: grid;
+    gap: 8px;
+}
+
+.metric strong {
+    font-size: clamp(2rem, 3vw, 3rem);
+    line-height: 1;
+    font-family: "Baskerville", "Palatino Linotype", serif;
+}
+
+.metric p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.workspace {
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr);
+    gap: 18px;
+}
+
+.section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 18px;
+}
+
+.section-head h2 {
+    margin-top: 4px;
+    font-size: 1.9rem;
+    line-height: 1;
+}
+
+label {
+    display: block;
+    margin: 16px 0 8px;
+    color: var(--muted);
+}
+
+input {
+    width: 100%;
+    padding: 13px 14px;
+    border: 1px solid rgba(212, 173, 96, 0.16);
+    background: rgba(7, 10, 16, 0.84);
+    color: var(--text);
+    outline: none;
+}
+
+input:focus {
+    border-color: var(--line-strong);
+    box-shadow: 0 0 0 3px rgba(212, 173, 96, 0.1);
+}
+
+.pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.chips, .hero-actions, .deal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.chips button,
+.hero-actions button,
+#save-deal-button,
+.deal-actions button {
+    border: 1px solid rgba(212, 173, 96, 0.18);
+    background: rgba(15, 20, 29, 0.9);
+    color: var(--text);
+    padding: 11px 13px;
+    cursor: pointer;
+    transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.chips button:hover,
+.hero-actions button:hover,
+#save-deal-button:hover,
+.deal-actions button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(236, 207, 146, 0.44);
+}
+
+.chips button.is-active,
+#save-deal-button,
+.hero-actions button:first-child {
+    background: linear-gradient(135deg, rgba(212, 173, 96, 0.18), rgba(236, 207, 146, 0.08));
+    border-color: rgba(236, 207, 146, 0.36);
+}
+
+.ghost { background: transparent; }
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 8px 12px;
+    border: 1px solid rgba(212, 173, 96, 0.16);
+    background: rgba(212, 173, 96, 0.05);
+}
+
+.board-shell {
+    display: grid;
+    gap: 18px;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.lane-head { margin-bottom: 14px; }
+.lane-head h3 { margin-top: 6px; font-size: 1.45rem; }
+.lane-list { display: grid; gap: 12px; }
+
+.deal-card {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    background: rgba(8, 12, 18, 0.82);
+    border: 1px solid rgba(212, 173, 96, 0.12);
+}
+
+.deal-top, .deal-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.deal-card h4 { margin: 0; font-size: 1rem; }
+.deal-note, .deal-meta, .empty-state {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.deal-meta, .deal-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 9px;
+    border: 1px solid rgba(212, 173, 96, 0.14);
+    background: rgba(15, 20, 29, 0.92);
+    color: var(--muted);
+}
+
+.tag.is-hot { color: var(--hot); border-color: rgba(255, 123, 107, 0.28); }
+.tag.is-warm { color: var(--warm); border-color: rgba(255, 187, 110, 0.28); }
+.tag.is-cool { color: var(--cool); border-color: rgba(140, 185, 255, 0.28); }
+
+pre {
+    margin: 10px 0 0;
+    white-space: pre-wrap;
+    font-family: "IBM Plex Mono", monospace;
+    color: #f2d9a9;
+}
+
+@media (max-width: 1280px) {
+    .hero, .workspace, .metrics, .board { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 920px) {
+    .shell { padding: 16px; }
+    .pair, .hero-actions, .deal-top, .deal-footer {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

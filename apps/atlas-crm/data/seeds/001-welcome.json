@@ -1,0 +1,45 @@
+{
+  "entries": [
+    {
+      "table": "deals",
+      "rows": [
+        {
+          "company": "Northstar Holdings",
+          "contact": "Leila Costa",
+          "owner": "Sam",
+          "value": 68000,
+          "nextStep": "Board review on Thursday",
+          "stage": "proposal",
+          "heat": 4
+        },
+        {
+          "company": "Marrow Bank",
+          "contact": "Jon Park",
+          "owner": "Mina",
+          "value": 24000,
+          "nextStep": "Security questionnaire returned",
+          "stage": "qualified",
+          "heat": 3
+        },
+        {
+          "company": "Lumen Foods",
+          "contact": "Sara Hall",
+          "owner": "Yara",
+          "value": 12500,
+          "nextStep": "Intro call next week",
+          "stage": "lead",
+          "heat": 2
+        },
+        {
+          "company": "Arbor Health",
+          "contact": "Theo Kim",
+          "owner": "Sam",
+          "value": 91000,
+          "nextStep": "Closed and handed to onboarding",
+          "stage": "won",
+          "heat": 4
+        }
+      ]
+    }
+  ]
+}

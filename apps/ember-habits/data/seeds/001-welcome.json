@@ -1,0 +1,41 @@
+{
+  "entries": [
+    {
+      "table": "habits",
+      "rows": [
+        {
+          "name": "Morning walk",
+          "cadence": "Daily",
+          "target": 14,
+          "zone": "body",
+          "streak": 8,
+          "completedToday": true
+        },
+        {
+          "name": "Deep reading",
+          "cadence": "Weeknights",
+          "target": 10,
+          "zone": "mind",
+          "streak": 5,
+          "completedToday": false
+        },
+        {
+          "name": "Sketch one idea",
+          "cadence": "Daily",
+          "target": 12,
+          "zone": "studio",
+          "streak": 11,
+          "completedToday": true
+        },
+        {
+          "name": "Kitchen reset",
+          "cadence": "Nightly",
+          "target": 7,
+          "zone": "home",
+          "streak": 4,
+          "completedToday": false
+        }
+      ]
+    }
+  ]
+}

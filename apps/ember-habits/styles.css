@@ -1,0 +1,275 @@
+:root {
+    color-scheme: light;
+    --bg: #f8efe4;
+    --panel: rgba(255, 249, 243, 0.82);
+    --line: rgba(144, 86, 58, 0.14);
+    --line-strong: rgba(144, 86, 58, 0.28);
+    --text: #2b201a;
+    --muted: #7f675b;
+    --accent: #c3653a;
+    --accent-soft: rgba(195, 101, 58, 0.08);
+    --success: #5e9a74;
+    --shadow: 0 24px 80px rgba(88, 58, 41, 0.12);
+    font-family: "Avenir Next", "Trebuchet MS", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+    margin: 0;
+    color: var(--text);
+    background:
+        radial-gradient(circle at top left, rgba(195, 101, 58, 0.08), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(94, 154, 116, 0.08), transparent 32%),
+        linear-gradient(180deg, #fbf2e7 0%, #f6ebdf 100%);
+}
+
+button, input { font: inherit; }
+
+.glow {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent 45%);
+}
+
+.shell {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 18px;
+    padding: 24px;
+}
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(12px);
+}
+
+.hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) 320px;
+    gap: 18px;
+}
+
+.intro, .status, .composer, .filters, .zones, .habits, .metric { padding: 20px; }
+
+.eyebrow, .pill, .metric span {
+    margin: 0;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.intro h1, .section-head h2 {
+    margin: 0;
+    font-family: "Baskerville", "Palatino Linotype", serif;
+}
+
+.intro h1 {
+    margin-top: 10px;
+    max-width: 10ch;
+    font-size: clamp(3rem, 5vw, 5rem);
+    line-height: 0.92;
+}
+
+.lede {
+    margin-top: 16px;
+    max-width: 58ch;
+    color: var(--muted);
+    line-height: 1.72;
+}
+
+.hero-actions, .chips, .habit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.hero-actions { margin-top: 20px; }
+.status { display: grid; gap: 12px; }
+.status-block {
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    border: 1px solid rgba(195, 101, 58, 0.12);
+    background: rgba(195, 101, 58, 0.04);
+}
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.metric { display: grid; gap: 8px; }
+.metric strong { font-size: clamp(2rem, 3vw, 3rem); line-height: 1; }
+.metric p { margin: 0; color: var(--muted); }
+
+.workspace {
+    display: grid;
+    grid-template-columns: 340px 290px minmax(0, 1fr);
+    gap: 18px;
+}
+
+.stack { display: grid; gap: 18px; align-content: start; }
+
+.section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 18px;
+}
+
+.section-head h2 { margin-top: 4px; font-size: 1.8rem; line-height: 1; }
+
+label {
+    display: block;
+    margin: 16px 0 8px;
+    color: var(--muted);
+}
+
+input {
+    width: 100%;
+    padding: 13px 14px;
+    border: 1px solid rgba(144, 86, 58, 0.14);
+    background: rgba(255, 255, 255, 0.82);
+    color: var(--text);
+    outline: none;
+}
+
+input:focus {
+    border-color: var(--line-strong);
+    box-shadow: 0 0 0 3px rgba(195, 101, 58, 0.08);
+}
+
+.pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.chips button,
+.hero-actions button,
+#save-habit-button,
+.habit-actions button {
+    border: 1px solid rgba(144, 86, 58, 0.14);
+    background: rgba(255, 255, 255, 0.86);
+    color: var(--text);
+    padding: 11px 13px;
+    cursor: pointer;
+    transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.chips button:hover,
+.hero-actions button:hover,
+#save-habit-button:hover,
+.habit-actions button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(144, 86, 58, 0.28);
+}
+
+.chips button.is-active,
+#save-habit-button,
+.hero-actions button:first-child {
+    background: rgba(195, 101, 58, 0.1);
+    border-color: rgba(195, 101, 58, 0.24);
+}
+
+.ghost { background: transparent; }
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 8px 12px;
+    background: rgba(195, 101, 58, 0.05);
+    border: 1px solid rgba(144, 86, 58, 0.12);
+}
+
+.zone-list, .habits-list { display: grid; gap: 12px; }
+
+.zone-row, .habit-card {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.62);
+    border: 1px solid rgba(144, 86, 58, 0.12);
+}
+
+.habit-top, .habit-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.habit-card h4 { margin: 0; font-size: 1rem; }
+.habit-note, .habit-meta, .zone-row p, .empty-state {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.tags, .habit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 9px;
+    border: 1px solid rgba(144, 86, 58, 0.12);
+    background: rgba(195, 101, 58, 0.04);
+    color: var(--muted);
+}
+
+.tag.is-done {
+    color: var(--success);
+    border-color: rgba(94, 154, 116, 0.22);
+}
+
+.progress {
+    height: 10px;
+    border: 1px solid rgba(144, 86, 58, 0.12);
+    background: rgba(195, 101, 58, 0.06);
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, rgba(195, 101, 58, 0.7), rgba(94, 154, 116, 0.72));
+}
+
+.log-panel {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(144, 86, 58, 0.12);
+}
+
+pre {
+    margin: 10px 0 0;
+    white-space: pre-wrap;
+    font-family: "IBM Plex Mono", monospace;
+    color: #8c4f34;
+}
+
+@media (max-width: 1240px) {
+    .hero, .workspace, .metrics { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 920px) {
+    .shell { padding: 16px; }
+    .pair, .hero-actions, .habit-top, .habit-footer {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

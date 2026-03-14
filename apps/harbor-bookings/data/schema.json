@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "reservations",
+      "columns": [
+        { "name": "guest", "type": "text", "required": true },
+        { "name": "suite", "type": "text", "required": true },
+        { "name": "host", "type": "text", "required": true },
+        { "name": "arrival", "type": "text", "required": true },
+        { "name": "nights", "type": "integer", "required": true, "default": 1 },
+        { "name": "note", "type": "text", "required": true },
+        { "name": "status", "type": "text", "required": true, "default": "pending" }
+      ],
+      "indexes": [
+        { "columns": ["arrival"] },
+        { "columns": ["status"] },
+        { "columns": ["host"] }
+      ]
+    }
+  ]
+}

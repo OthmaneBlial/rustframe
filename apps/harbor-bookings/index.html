@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="rustframe:width" content="1460">
+    <meta name="rustframe:height" content="920">
+    <title>Harbor Bookings</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="mist"></div>
+    <main class="shell">
+        <section class="hero">
+            <article class="panel intro">
+                <p class="eyebrow">Harbor Bookings</p>
+                <h1>A calm reservations desk with native speed.</h1>
+                <p class="lede">
+                    A hospitality-focused frontend app with persistent reservations, custom controls, and a polished
+                    desktop feel. The booking ledger is stored in RustFrame's embedded SQLite database.
+                </p>
+                <div class="hero-actions">
+                    <button id="sync-title-button" type="button">Sync title</button>
+                    <button id="close-button" class="ghost" type="button">Close</button>
+                </div>
+            </article>
+
+            <aside class="panel status">
+                <div class="status-block"><p class="eyebrow">Storage</p><strong id="db-path">Connecting…</strong></div>
+                <div class="status-block"><p class="eyebrow">Mode</p><strong id="asset-mode">Embedded</strong></div>
+                <div class="status-block"><p class="eyebrow">Origin</p><strong id="origin-label">app://localhost</strong></div>
+            </aside>
+        </section>
+
+        <section class="metrics">
+            <article class="panel metric"><span>Arrivals today</span><strong id="arrivals-count">0</strong><p>Check-ins landing now</p></article>
+            <article class="panel metric"><span>In house</span><strong id="inhouse-count">0</strong><p>Guests currently staying</p></article>
+            <article class="panel metric"><span>Pending</span><strong id="pending-count">0</strong><p>Awaiting confirmation</p></article>
+            <article class="panel metric"><span>Night load</span><strong id="night-count">0</strong><p>Total booked nights</p></article>
+        </section>
+
+        <section class="workspace">
+            <article class="panel composer">
+                <div class="section-head">
+                    <div><p class="eyebrow">Create</p><h2>Add reservation</h2></div>
+                    <span class="pill" id="booking-count">0 rows</span>
+                </div>
+
+                <label for="guest-input">Guest</label>
+                <input id="guest-input" type="text" placeholder="Alicia Monroe">
+
+                <div class="pair">
+                    <div>
+                        <label for="suite-input">Suite</label>
+                        <input id="suite-input" type="text" placeholder="Harbor 04">
+                    </div>
+                    <div>
+                        <label for="host-input">Host</label>
+                        <input id="host-input" type="text" placeholder="Nadia">
+                    </div>
+                </div>
+
+                <div class="pair">
+                    <div>
+                        <label for="arrival-input">Arrival</label>
+                        <input id="arrival-input" type="text" placeholder="2026-03-14">
+                    </div>
+                    <div>
+                        <label for="nights-input">Nights</label>
+                        <input id="nights-input" type="number" min="1" step="1" placeholder="3">
+                    </div>
+                </div>
+
+                <label>Status</label>
+                <div id="status-group" class="chips">
+                    <button type="button" data-status="pending" class="is-active">Pending</button>
+                    <button type="button" data-status="confirmed">Confirmed</button>
+                    <button type="button" data-status="in-house">In house</button>
+                    <button type="button" data-status="complete">Complete</button>
+                </div>
+
+                <label for="note-input">Note</label>
+                <input id="note-input" type="text" placeholder="Late arrival, port transfer arranged">
+
+                <button id="save-booking-button" type="button">Save booking</button>
+            </article>
+
+            <article class="panel bookings">
+                <div class="section-head">
+                    <div><p class="eyebrow">Reservations</p><h2>Guest flow</h2></div>
+                    <span class="pill" id="visible-count">0 visible</span>
+                </div>
+
+                <div id="filter-group" class="chips">
+                    <button type="button" data-filter="all" class="is-active">All</button>
+                    <button type="button" data-filter="pending">Pending</button>
+                    <button type="button" data-filter="confirmed">Confirmed</button>
+                    <button type="button" data-filter="in-house">In house</button>
+                    <button type="button" data-filter="complete">Complete</button>
+                </div>
+
+                <label for="search-input">Search</label>
+                <input id="search-input" type="text" placeholder="Search guest, suite, host, note">
+
+                <div id="bookings-list" class="bookings-list"></div>
+
+                <div class="log-panel">
+                    <p class="eyebrow">Runtime log</p>
+                    <pre id="log-output">Harbor Bookings is booting.</pre>
+                </div>
+            </article>
+
+            <aside class="panel overview">
+                <div class="section-head">
+                    <div><p class="eyebrow">Overview</p><h2>Host workload</h2></div>
+                    <span class="pill">Live</span>
+                </div>
+                <div id="host-list" class="host-list"></div>
+            </aside>
+        </section>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

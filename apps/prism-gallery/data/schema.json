@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "assets",
+      "columns": [
+        { "name": "title", "type": "text", "required": true },
+        { "name": "collection", "type": "text", "required": true },
+        { "name": "format", "type": "text", "required": true },
+        { "name": "usage", "type": "text", "required": true },
+        { "name": "palette", "type": "text", "required": true, "default": "sunset" },
+        { "name": "state", "type": "text", "required": true, "default": "draft" },
+        { "name": "rating", "type": "integer", "required": true, "default": 3 }
+      ],
+      "indexes": [
+        { "columns": ["palette"] },
+        { "columns": ["state"] },
+        { "columns": ["rating"] }
+      ]
+    }
+  ]
+}

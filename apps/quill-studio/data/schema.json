@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "stories",
+      "columns": [
+        { "name": "title", "type": "text", "required": true },
+        { "name": "desk", "type": "text", "required": true },
+        { "name": "editor", "type": "text", "required": true },
+        { "name": "deadline", "type": "text", "required": true },
+        { "name": "angle", "type": "text", "required": true },
+        { "name": "channel", "type": "text", "required": true, "default": "web" },
+        { "name": "status", "type": "text", "required": true, "default": "pitch" },
+        { "name": "priority", "type": "integer", "required": true, "default": 2 }
+      ],
+      "indexes": [
+        { "columns": ["status"] },
+        { "columns": ["channel"] },
+        { "columns": ["deadline"] }
+      ]
+    }
+  ]
+}

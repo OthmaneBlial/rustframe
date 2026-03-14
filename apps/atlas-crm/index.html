@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="rustframe:width" content="1480">
+    <meta name="rustframe:height" content="940">
+    <title>Atlas CRM</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="backdrop"></div>
+    <main class="shell">
+        <section class="hero">
+            <article class="panel intro">
+                <p class="eyebrow">Atlas CRM</p>
+                <h1>Pipeline discipline with native feel.</h1>
+                <p class="lede">
+                    A frontend-only desktop CRM with a luxury sales-board aesthetic. Deals persist in RustFrame's
+                    SQLite layer and move across the pipeline without any browser storage.
+                </p>
+                <div class="hero-actions">
+                    <button id="sync-title-button" type="button">Sync title</button>
+                    <button id="close-button" class="ghost" type="button">Close</button>
+                </div>
+            </article>
+
+            <aside class="panel status">
+                <div class="status-block">
+                    <p class="eyebrow">Storage</p>
+                    <strong id="db-path">Connecting…</strong>
+                </div>
+                <div class="status-block">
+                    <p class="eyebrow">Mode</p>
+                    <strong id="asset-mode">Embedded</strong>
+                </div>
+                <div class="status-block">
+                    <p class="eyebrow">Origin</p>
+                    <strong id="origin-label">app://localhost</strong>
+                </div>
+            </aside>
+        </section>
+
+        <section class="metrics">
+            <article class="panel metric">
+                <span>Pipeline</span>
+                <strong id="pipeline-value">$0</strong>
+                <p>Open opportunity value</p>
+            </article>
+            <article class="panel metric">
+                <span>Won</span>
+                <strong id="won-value">$0</strong>
+                <p>Closed revenue</p>
+            </article>
+            <article class="panel metric">
+                <span>Open deals</span>
+                <strong id="open-count">0</strong>
+                <p>Active accounts in motion</p>
+            </article>
+            <article class="panel metric">
+                <span>Hot deals</span>
+                <strong id="hot-count">0</strong>
+                <p>Heat level 3 and above</p>
+            </article>
+        </section>
+
+        <section class="workspace">
+            <article class="panel composer">
+                <div class="section-head">
+                    <div>
+                        <p class="eyebrow">Create</p>
+                        <h2>Add a deal</h2>
+                    </div>
+                    <span class="pill" id="deal-count">0 rows</span>
+                </div>
+
+                <label for="company-input">Company</label>
+                <input id="company-input" type="text" placeholder="Northstar Holdings">
+
+                <div class="pair">
+                    <div>
+                        <label for="contact-input">Primary contact</label>
+                        <input id="contact-input" type="text" placeholder="Leila Costa">
+                    </div>
+                    <div>
+                        <label for="owner-input">Owner</label>
+                        <input id="owner-input" type="text" placeholder="Othmane">
+                    </div>
+                </div>
+
+                <div class="pair">
+                    <div>
+                        <label for="value-input">Deal value</label>
+                        <input id="value-input" type="number" min="0" step="0.01" placeholder="42000">
+                    </div>
+                    <div>
+                        <label for="next-step-input">Next step</label>
+                        <input id="next-step-input" type="text" placeholder="Board review on Friday">
+                    </div>
+                </div>
+
+                <label>Stage</label>
+                <div id="stage-group" class="chips">
+                    <button type="button" data-stage="lead" class="is-active">Lead</button>
+                    <button type="button" data-stage="qualified">Qualified</button>
+                    <button type="button" data-stage="proposal">Proposal</button>
+                    <button type="button" data-stage="won">Won</button>
+                </div>
+
+                <label>Heat</label>
+                <div id="heat-group" class="chips">
+                    <button type="button" data-heat="1">1</button>
+                    <button type="button" data-heat="2" class="is-active">2</button>
+                    <button type="button" data-heat="3">3</button>
+                    <button type="button" data-heat="4">4</button>
+                </div>
+
+                <button id="save-deal-button" type="button">Capture deal</button>
+            </article>
+
+            <section class="board-shell">
+                <article class="panel filters">
+                    <div class="section-head">
+                        <div>
+                            <p class="eyebrow">Filter</p>
+                            <h2>Heat map</h2>
+                        </div>
+                        <span class="pill" id="visible-count">0 visible</span>
+                    </div>
+
+                    <div id="filter-group" class="chips">
+                        <button type="button" data-filter="all" class="is-active">All</button>
+                        <button type="button" data-filter="hot">Hot</button>
+                        <button type="button" data-filter="warm">Warm</button>
+                        <button type="button" data-filter="cool">Cool</button>
+                    </div>
+
+                    <label for="search-input">Search</label>
+                    <input id="search-input" type="text" placeholder="Search company, contact, owner, next step">
+                </article>
+
+                <section class="board">
+                    <article class="panel lane">
+                        <div class="lane-head"><p class="eyebrow">Stage</p><h3>Lead</h3></div>
+                        <div id="lane-lead" class="lane-list"></div>
+                    </article>
+                    <article class="panel lane">
+                        <div class="lane-head"><p class="eyebrow">Stage</p><h3>Qualified</h3></div>
+                        <div id="lane-qualified" class="lane-list"></div>
+                    </article>
+                    <article class="panel lane">
+                        <div class="lane-head"><p class="eyebrow">Stage</p><h3>Proposal</h3></div>
+                        <div id="lane-proposal" class="lane-list"></div>
+                    </article>
+                    <article class="panel lane">
+                        <div class="lane-head"><p class="eyebrow">Stage</p><h3>Won</h3></div>
+                        <div id="lane-won" class="lane-list"></div>
+                    </article>
+                </section>
+
+                <article class="panel log-panel">
+                    <p class="eyebrow">Runtime log</p>
+                    <pre id="log-output">Atlas CRM is booting.</pre>
+                </article>
+            </section>
+        </section>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

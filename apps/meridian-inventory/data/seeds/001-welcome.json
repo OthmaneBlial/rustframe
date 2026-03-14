@@ -1,0 +1,45 @@
+{
+  "entries": [
+    {
+      "table": "items",
+      "rows": [
+        {
+          "name": "Studio light stand",
+          "sku": "LGT-204",
+          "location": "Aisle 3",
+          "category": "Lighting",
+          "supplier": "Nova Supply",
+          "quantity": 24,
+          "reorderPoint": 8
+        },
+        {
+          "name": "Camera battery pack",
+          "sku": "CAM-018",
+          "location": "Vault B",
+          "category": "Power",
+          "supplier": "Peak Motion",
+          "quantity": 6,
+          "reorderPoint": 6
+        },
+        {
+          "name": "Grip clamp set",
+          "sku": "GRP-902",
+          "location": "Aisle 5",
+          "category": "Rigging",
+          "supplier": "Anchor Works",
+          "quantity": 0,
+          "reorderPoint": 4
+        },
+        {
+          "name": "Portable monitor",
+          "sku": "MON-411",
+          "location": "Studio Cart",
+          "category": "Displays",
+          "supplier": "Nova Supply",
+          "quantity": 12,
+          "reorderPoint": 3
+        }
+      ]
+    }
+  ]
+}

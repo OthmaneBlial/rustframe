@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="rustframe:width" content="1420">
+    <meta name="rustframe:height" content="920">
+    <title>Ember Habits</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="glow"></div>
+    <main class="shell">
+        <section class="hero">
+            <article class="panel intro">
+                <p class="eyebrow">Ember Habits</p>
+                <h1>Small rituals, tracked in a calm native shell.</h1>
+                <p class="lede">
+                    A habit and rhythm tracker built entirely with HTML, CSS, and JavaScript. Habits persist through
+                    RustFrame's SQLite layer, while the UI stays lightweight and export-ready.
+                </p>
+                <div class="hero-actions">
+                    <button id="sync-title-button" type="button">Sync title</button>
+                    <button id="close-button" class="ghost" type="button">Close</button>
+                </div>
+            </article>
+
+            <aside class="panel status">
+                <div class="status-block"><p class="eyebrow">Storage</p><strong id="db-path">Connecting…</strong></div>
+                <div class="status-block"><p class="eyebrow">Mode</p><strong id="asset-mode">Embedded</strong></div>
+                <div class="status-block"><p class="eyebrow">Origin</p><strong id="origin-label">app://localhost</strong></div>
+            </aside>
+        </section>
+
+        <section class="metrics">
+            <article class="panel metric"><span>Done today</span><strong id="done-count">0</strong><p>Habits checked in</p></article>
+            <article class="panel metric"><span>Average streak</span><strong id="average-streak">0</strong><p>Across all habits</p></article>
+            <article class="panel metric"><span>Total habits</span><strong id="habit-count">0</strong><p>Tracked in local DB</p></article>
+            <article class="panel metric"><span>Best streak</span><strong id="best-streak">0</strong><p>Strongest current run</p></article>
+        </section>
+
+        <section class="workspace">
+            <article class="panel composer">
+                <div class="section-head">
+                    <div><p class="eyebrow">Create</p><h2>Add ritual</h2></div>
+                    <span class="pill" id="row-count">0 rows</span>
+                </div>
+
+                <label for="name-input">Habit</label>
+                <input id="name-input" type="text" placeholder="Morning walk">
+
+                <div class="pair">
+                    <div>
+                        <label for="cadence-input">Cadence</label>
+                        <input id="cadence-input" type="text" placeholder="Daily">
+                    </div>
+                    <div>
+                        <label for="target-input">Target streak</label>
+                        <input id="target-input" type="number" min="1" step="1" placeholder="14">
+                    </div>
+                </div>
+
+                <label>Zone</label>
+                <div id="zone-group" class="chips">
+                    <button type="button" data-zone="body" class="is-active">Body</button>
+                    <button type="button" data-zone="mind">Mind</button>
+                    <button type="button" data-zone="studio">Studio</button>
+                    <button type="button" data-zone="home">Home</button>
+                </div>
+
+                <button id="save-habit-button" type="button">Save habit</button>
+            </article>
+
+            <section class="stack">
+                <article class="panel filters">
+                    <div class="section-head">
+                        <div><p class="eyebrow">Filter</p><h2>Zone lens</h2></div>
+                        <span class="pill" id="visible-count">0 visible</span>
+                    </div>
+                    <div id="filter-group" class="chips">
+                        <button type="button" data-filter="all" class="is-active">All</button>
+                        <button type="button" data-filter="body">Body</button>
+                        <button type="button" data-filter="mind">Mind</button>
+                        <button type="button" data-filter="studio">Studio</button>
+                        <button type="button" data-filter="home">Home</button>
+                    </div>
+                    <label for="search-input">Search</label>
+                    <input id="search-input" type="text" placeholder="Search habit, cadence, or zone">
+                </article>
+
+                <article class="panel zones">
+                    <div class="section-head">
+                        <div><p class="eyebrow">Breakdown</p><h2>Zone energy</h2></div>
+                        <span class="pill">Live</span>
+                    </div>
+                    <div id="zone-list" class="zone-list"></div>
+                </article>
+            </section>
+
+            <article class="panel habits">
+                <div class="section-head">
+                    <div><p class="eyebrow">Habits</p><h2>Current streaks</h2></div>
+                    <span class="pill">SQLite-backed</span>
+                </div>
+                <div id="habits-list" class="habits-list"></div>
+                <div class="log-panel">
+                    <p class="eyebrow">Runtime log</p>
+                    <pre id="log-output">Ember Habits is booting.</pre>
+                </div>
+            </article>
+        </section>
+    </main>
+
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

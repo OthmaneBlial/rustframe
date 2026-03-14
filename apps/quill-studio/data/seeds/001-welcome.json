@@ -1,0 +1,49 @@
+{
+  "entries": [
+    {
+      "table": "stories",
+      "rows": [
+        {
+          "title": "How boutique brands are rebuilding offline retail",
+          "desk": "Business",
+          "editor": "Maya",
+          "deadline": "2026-03-14",
+          "angle": "Retail is becoming performance, not just distribution.",
+          "channel": "web",
+          "status": "editing",
+          "priority": 3
+        },
+        {
+          "title": "The quiet return of audio essays",
+          "desk": "Culture",
+          "editor": "Lina",
+          "deadline": "2026-03-18",
+          "angle": "Podcast feeds are opening a lane for slower long-form work.",
+          "channel": "podcast",
+          "status": "pitch",
+          "priority": 2
+        },
+        {
+          "title": "What product teams can learn from boutique hotels",
+          "desk": "Design",
+          "editor": "Ari",
+          "deadline": "2026-03-16",
+          "angle": "Hospitality rituals offer a better model for onboarding.",
+          "channel": "newsletter",
+          "status": "drafting",
+          "priority": 2
+        },
+        {
+          "title": "Inside the camera cart of a one-person studio",
+          "desk": "Video",
+          "editor": "Nina",
+          "deadline": "2026-03-12",
+          "angle": "A gear story that doubles as a workflow guide.",
+          "channel": "video",
+          "status": "scheduled",
+          "priority": 3
+        }
+      ]
+    }
+  ]
+}

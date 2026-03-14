@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "deals",
+      "columns": [
+        { "name": "company", "type": "text", "required": true },
+        { "name": "contact", "type": "text", "required": true },
+        { "name": "owner", "type": "text", "required": true },
+        { "name": "value", "type": "real", "required": true },
+        { "name": "nextStep", "type": "text", "required": true },
+        { "name": "stage", "type": "text", "required": true, "default": "lead" },
+        { "name": "heat", "type": "integer", "required": true, "default": 2 }
+      ],
+      "indexes": [
+        { "columns": ["stage"] },
+        { "columns": ["heat"] }
+      ]
+    }
+  ]
+}
