@@ -886,16 +886,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
-name = "hello-rustframe"
-version = "0.1.0"
-dependencies = [
- "rust-embed",
- "rustframe",
- "serde",
- "toml",
-]
-
-[[package]]
 name = "html5ever"
 version = "0.36.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1342,16 +1332,6 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
-
-[[package]]
-name = "orbit-desk"
-version = "0.1.0"
-dependencies = [
- "rust-embed",
- "rustframe",
- "serde",
- "toml",
-]
 
 [[package]]
 name = "pango"

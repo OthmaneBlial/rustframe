@@ -1,0 +1,13 @@
+[package]
+name = "{{runner_package_name}}"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "{{binary_name}}"
+path = "src/main.rs"
+
+[workspace]
+
+[dependencies]
+rustframe = { path = {{rustframe_path}} }

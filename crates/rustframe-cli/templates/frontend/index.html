@@ -3,6 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="rustframe:width" content="{{window_width}}">
+    <meta name="rustframe:height" content="{{window_height}}">
     <title>{{app_title}}</title>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -56,10 +58,10 @@
                     <h2>Edit these files</h2>
                 </div>
                 <ul class="checklist">
-                    <li><code>frontend/index.html</code> for structure</li>
-                    <li><code>frontend/styles.css</code> for styling and motion</li>
-                    <li><code>frontend/app.js</code> for app behavior</li>
-                    <li><code>rustframe.toml</code> for title, size, and permissions</li>
+                    <li><code>index.html</code> for structure and window metadata</li>
+                    <li><code>styles.css</code> for styling and motion</li>
+                    <li><code>app.js</code> for app behavior</li>
+                    <li><code>bridge.js</code> for the native desktop bridge</li>
                 </ul>
             </article>
 

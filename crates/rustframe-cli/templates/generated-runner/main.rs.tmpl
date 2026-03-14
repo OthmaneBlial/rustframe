@@ -1,0 +1,23 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use std::borrow::Cow;
+
+use rustframe::{EmbeddedAssets, Result, RustFrame};
+
+struct AppAssets;
+
+impl EmbeddedAssets for AppAssets {
+    fn get(path: &str) -> Option<Cow<'static, [u8]>> {
+        match path {
+{{asset_match_arms}}        }
+    }
+}
+
+fn main() -> Result<()> {
+    let builder = RustFrame::builder()
+        .title({{window_title}})
+        .size({{window_width}}, {{window_height}})
+        .embedded_assets::<AppAssets>(){{dev_url_chain}};
+
+    builder.run()
+}
