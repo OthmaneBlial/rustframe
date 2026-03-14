@@ -131,6 +131,7 @@ impl RustFrameBuilder {
             .build(&event_loop)?;
 
         let builder = WebViewBuilder::new()
+            .with_background_color((6, 9, 18, 255))
             .with_custom_protocol("app".into(), move |_id, request| {
                 asset_response(assets, request)
             })

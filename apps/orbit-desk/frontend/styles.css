@@ -34,6 +34,11 @@ body {
     font-family: "Avenir Next", "Segoe UI", sans-serif;
 }
 
+body:not(.is-ready) .layout {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
 .grid,
 .glow {
     position: fixed;
@@ -66,6 +71,7 @@ body {
     display: grid;
     gap: 18px;
     grid-template-columns: 332px minmax(0, 1fr) 360px;
+    transition: opacity 220ms ease, transform 260ms ease;
 }
 
 .panel {
@@ -117,9 +123,14 @@ body {
 }
 
 .brand-lockup h1 {
-    font-size: clamp(2.7rem, 4vw, 4.7rem);
-    line-height: 0.92;
-    max-width: 8ch;
+    font-size: clamp(2.25rem, 3vw, 3.95rem);
+    line-height: 0.9;
+    max-width: 6.8ch;
+    text-wrap: balance;
+}
+
+.brand-lockup h1 span {
+    display: block;
 }
 
 .eyebrow,
@@ -187,14 +198,12 @@ body {
     gap: 14px;
 }
 
-.dual,
 .hero-actions {
     display: flex;
     gap: 12px;
     min-width: 0;
 }
 
-.dual > *,
 .search-field {
     flex: 1 1 0;
     min-width: 0;
@@ -298,6 +307,7 @@ button:disabled {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+    width: 100%;
 }
 
 .priority-option {
@@ -308,6 +318,7 @@ button:disabled {
     text-align: left;
     padding: 11px 12px;
     background: rgba(8, 11, 21, 0.94);
+    min-width: 0;
 }
 
 .priority-option.is-active {
@@ -602,7 +613,6 @@ button:disabled {
         grid-template-columns: 1fr;
     }
 
-    .dual,
     .hero-actions {
         flex-direction: column;
     }

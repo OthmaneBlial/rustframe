@@ -1,4 +1,4 @@
-const STORAGE_KEY = "orbit-desk:v2";
+const STORAGE_KEY = "orbit-desk:v3";
 const DEFAULT_FOCUS_MINUTES = 25;
 const PRIORITIES = ["critical", "high", "medium", "low"];
 const TODAY = startOfDay(new Date());
@@ -61,6 +61,9 @@ render();
 bindEvents();
 syncTimerLoop();
 syncWindowTitle();
+window.requestAnimationFrame(() => {
+    document.body.classList.add("is-ready");
+});
 
 function loadState() {
     const fallback = createInitialState();

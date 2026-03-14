@@ -4,9 +4,81 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Orbit Desk</title>
+    <style>
+        html, body {
+            min-height: 100%;
+            margin: 0;
+            background: #060912;
+            color: #f2f5ff;
+            font-family: "Avenir Next", "Segoe UI", sans-serif;
+        }
+
+        .boot-loader {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: grid;
+            place-items: center;
+            background:
+                radial-gradient(circle at 20% 18%, rgba(143, 125, 255, 0.18), transparent 24%),
+                radial-gradient(circle at 80% 72%, rgba(100, 230, 197, 0.14), transparent 24%),
+                linear-gradient(150deg, #04060d 0%, #090f19 44%, #050912 100%);
+            transition: opacity 220ms ease, visibility 220ms ease;
+        }
+
+        .boot-loader__card {
+            display: grid;
+            gap: 12px;
+            justify-items: center;
+            padding: 24px 28px;
+            border: 1px solid rgba(111, 130, 240, 0.26);
+            background: rgba(12, 16, 27, 0.9);
+        }
+
+        .boot-loader__mark {
+            width: 42px;
+            height: 42px;
+            border-radius: 999px;
+            border: 2px solid rgba(143, 125, 255, 0.18);
+            border-top-color: rgba(100, 230, 197, 0.92);
+            animation: orbit-spin 900ms linear infinite;
+        }
+
+        .boot-loader__eyebrow {
+            margin: 0;
+            color: #8f7dff;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            font-size: 0.72rem;
+            font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+        }
+
+        .boot-loader__title {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        body.is-ready .boot-loader {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        @keyframes orbit-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <div class="boot-loader" id="boot-loader">
+        <div class="boot-loader__card">
+            <div class="boot-loader__mark" aria-hidden="true"></div>
+            <p class="boot-loader__eyebrow">Orbit Desk</p>
+            <p class="boot-loader__title">Preparing workspace…</p>
+        </div>
+    </div>
     <div class="grid"></div>
     <div class="glow glow-a"></div>
     <div class="glow glow-b"></div>
@@ -15,7 +87,7 @@
         <aside class="rail panel">
             <div class="brand-lockup">
                 <p class="eyebrow">Orbit Desk</p>
-                <h1>Work the plan. Hold the line.</h1>
+                <h1><span>Work the plan.</span><span>Hold the line.</span></h1>
                 <p class="lede">
                     A desktop workspace for planning, prioritizing, and staying in flow without
                     leaving a single window.
@@ -49,20 +121,18 @@
                         <input id="task-title" name="title" type="text" placeholder="Ship release notes" required>
                     </label>
 
-                    <div class="dual">
-                        <label class="field">
-                            <span>Project</span>
-                            <input id="task-project" name="project" type="text" placeholder="Orbit">
-                        </label>
+                    <label class="field">
+                        <span>Project</span>
+                        <input id="task-project" name="project" type="text" placeholder="Orbit">
+                    </label>
 
-                        <div class="field">
-                            <span>Priority</span>
-                            <div id="priority-picker" class="priority-picker" role="radiogroup" aria-label="Priority">
-                                <button type="button" class="priority-option" data-priority="critical">Critical</button>
-                                <button type="button" class="priority-option" data-priority="high">High</button>
-                                <button type="button" class="priority-option" data-priority="medium">Medium</button>
-                                <button type="button" class="priority-option" data-priority="low">Low</button>
-                            </div>
+                    <div class="field">
+                        <span>Priority</span>
+                        <div id="priority-picker" class="priority-picker" role="radiogroup" aria-label="Priority">
+                            <button type="button" class="priority-option" data-priority="critical">Critical</button>
+                            <button type="button" class="priority-option" data-priority="high">High</button>
+                            <button type="button" class="priority-option" data-priority="medium">Medium</button>
+                            <button type="button" class="priority-option" data-priority="low">Low</button>
                         </div>
                     </div>
 
