@@ -269,6 +269,10 @@ fn resolve_current_app_name(workspace: &Path) -> CliResult<String> {
     let current_dir = env::current_dir()
         .and_then(fs::canonicalize)
         .map_err(|error| format!("failed to resolve current directory: {error}"))?;
+    resolve_current_app_name_from(workspace, &current_dir)
+}
+
+fn resolve_current_app_name_from(workspace: &Path, current_dir: &Path) -> CliResult<String> {
     let apps_dir = fs::canonicalize(workspace.join("apps"))
         .map_err(|error| format!("failed to resolve apps directory: {error}"))?;
 
@@ -292,7 +296,10 @@ fn resolve_current_app_name(workspace: &Path) -> CliResult<String> {
 fn find_workspace_root() -> CliResult<PathBuf> {
     let current_dir = env::current_dir()
         .map_err(|error| format!("failed to resolve current directory: {error}"))?;
+    find_workspace_root_from(&current_dir)
+}
 
+fn find_workspace_root_from(current_dir: &Path) -> CliResult<PathBuf> {
     current_dir
         .ancestors()
         .find(|candidate| is_workspace_root(candidate))
@@ -699,14 +706,23 @@ fn print_help() {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use std::{fs, path::Path};
 
     use tempfile::tempdir;
 
     use super::{
-        AppConfig, AppProject, collect_embedded_assets, prepare_runner, read_app_config,
-        render_asset_match_arms, render_database_chain, render_template,
+        AppConfig, AppProject, collect_embedded_assets, find_workspace_root_from,
+        load_app_project, prepare_runner, read_app_config, render_asset_match_arms,
+        render_database_chain, render_template, resolve_current_app_name_from,
     };
+
+    fn write_workspace_manifest(root: &Path) {
+        fs::write(
+            root.join("Cargo.toml"),
+            "[workspace]\nmembers = []\n# crates/rustframe\n",
+        )
+        .unwrap();
+    }
 
     #[test]
     fn reads_app_config_from_html_meta_tags() {
@@ -737,6 +753,52 @@ mod tests {
     }
 
     #[test]
+    fn app_config_falls_back_to_defaults_when_meta_is_missing() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("index.html"), "<html><head></head></html>").unwrap();
+
+        let config = read_app_config("ember-habits", temp.path()).unwrap();
+
+        assert_eq!(config.title, "Ember Habits");
+        assert_eq!(config.width, 1280.0);
+        assert_eq!(config.height, 820.0);
+        assert_eq!(config.dev_url, None);
+    }
+
+    #[test]
+    fn app_config_supports_single_quoted_meta_attributes() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            r#"
+            <title>Atlas CRM</title>
+            <meta name='rustframe:width' content='1380'>
+            <meta name='rustframe:height' content='880'>
+            "#,
+        )
+        .unwrap();
+
+        let config = read_app_config("atlas-crm", temp.path()).unwrap();
+
+        assert_eq!(config.title, "Atlas CRM");
+        assert_eq!(config.width, 1380.0);
+        assert_eq!(config.height, 880.0);
+    }
+
+    #[test]
+    fn app_config_rejects_invalid_dimensions() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            r#"<meta name="rustframe:width" content="zero">"#,
+        )
+        .unwrap();
+
+        let error = read_app_config("ember-habits", temp.path()).unwrap_err();
+        assert!(error.contains("rustframe:width must be a number"));
+    }
+
+    #[test]
     fn collect_embedded_assets_skips_dist_and_hidden_entries() {
         let temp = tempdir().unwrap();
         fs::write(temp.path().join("index.html"), "<!doctype html>").unwrap();
@@ -761,6 +823,34 @@ mod tests {
     }
 
     #[test]
+    fn collect_embedded_assets_recurses_and_sorts_paths() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("index.html"), "<!doctype html>").unwrap();
+        fs::create_dir_all(temp.path().join("nested/a")).unwrap();
+        fs::create_dir_all(temp.path().join(".hidden")).unwrap();
+        fs::write(temp.path().join("nested/a/app.js"), "console.log('ok')").unwrap();
+        fs::write(temp.path().join("nested/logo.svg"), "<svg/>").unwrap();
+        fs::write(temp.path().join(".hidden/ignored.txt"), "nope").unwrap();
+
+        let assets = collect_embedded_assets(temp.path()).unwrap();
+        let paths = assets
+            .iter()
+            .map(|asset| asset.request_path.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(paths, vec!["index.html", "nested/a/app.js", "nested/logo.svg"]);
+    }
+
+    #[test]
+    fn collect_embedded_assets_requires_index_html() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("styles.css"), "body {}").unwrap();
+
+        let error = collect_embedded_assets(temp.path()).unwrap_err();
+        assert!(error.contains("must contain index.html"));
+    }
+
+    #[test]
     fn renders_database_chain_only_when_schema_exists() {
         let temp = tempdir().unwrap();
         fs::write(temp.path().join("index.html"), "<!doctype html>").unwrap();
@@ -773,6 +863,17 @@ mod tests {
 
         assert!(chain.contains(".embedded_database(\"data/schema.json\""));
         assert!(chain.contains("\"data/seeds/001.json\""));
+    }
+
+    #[test]
+    fn render_database_chain_is_empty_without_schema() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("index.html"), "<!doctype html>").unwrap();
+        fs::create_dir_all(temp.path().join("data/seeds")).unwrap();
+        fs::write(temp.path().join("data/seeds/001.json"), "{}").unwrap();
+        let assets = collect_embedded_assets(temp.path()).unwrap();
+
+        assert!(render_database_chain(&assets).is_empty());
     }
 
     #[test]
@@ -822,6 +923,45 @@ mod tests {
     }
 
     #[test]
+    fn prepare_runner_omits_database_chain_when_schema_is_missing() {
+        let workspace = tempdir().unwrap();
+        fs::create_dir_all(workspace.path().join("crates/rustframe")).unwrap();
+        let app_dir = workspace.path().join("apps/atlas-crm");
+        fs::create_dir_all(&app_dir).unwrap();
+        fs::write(
+            app_dir.join("index.html"),
+            r#"
+            <title>Atlas CRM</title>
+            <meta name="rustframe:width" content="1280">
+            <meta name="rustframe:height" content="820">
+            "#,
+        )
+        .unwrap();
+        fs::write(app_dir.join("app.js"), "console.log('ok')").unwrap();
+        fs::write(app_dir.join("bridge.js"), "window.RustFrame = {}").unwrap();
+        fs::write(app_dir.join("styles.css"), "body {}").unwrap();
+
+        let app = AppProject {
+            name: "atlas-crm".into(),
+            app_dir: app_dir.clone(),
+            asset_dir: app_dir,
+            config: AppConfig {
+                title: "Atlas CRM".into(),
+                width: 1280.0,
+                height: 820.0,
+                dev_url: None,
+            },
+        };
+
+        let runner = prepare_runner(workspace.path(), &app).unwrap();
+        let main =
+            fs::read_to_string(runner.manifest_path.parent().unwrap().join("src/main.rs")).unwrap();
+
+        assert!(main.contains(".app_id(\"atlas-crm\")"));
+        assert!(!main.contains(".embedded_database("));
+    }
+
+    #[test]
     fn render_asset_match_arms_embeds_absolute_paths() {
         let temp = tempdir().unwrap();
         fs::write(temp.path().join("index.html"), "<!doctype html>").unwrap();
@@ -831,5 +971,61 @@ mod tests {
 
         assert!(arms.contains("index.html"));
         assert!(arms.contains(temp.path().to_string_lossy().as_ref()));
+    }
+
+    #[test]
+    fn resolves_current_app_name_from_nested_directory() {
+        let temp = tempdir().unwrap();
+        let workspace = temp.path();
+        fs::create_dir_all(workspace.join("apps/orbit-desk/frontend/components")).unwrap();
+
+        let current = workspace.join("apps/orbit-desk/frontend/components");
+        let name = resolve_current_app_name_from(workspace, &current).unwrap();
+
+        assert_eq!(name, "orbit-desk");
+    }
+
+    #[test]
+    fn resolve_current_app_name_from_rejects_non_app_directory() {
+        let temp = tempdir().unwrap();
+        let workspace = temp.path();
+        fs::create_dir_all(workspace.join("apps")).unwrap();
+        fs::create_dir_all(workspace.join("docs")).unwrap();
+
+        let error =
+            resolve_current_app_name_from(workspace, &workspace.join("docs")).unwrap_err();
+
+        assert!(error.contains("missing app name"));
+    }
+
+    #[test]
+    fn finds_workspace_root_from_nested_path() {
+        let temp = tempdir().unwrap();
+        write_workspace_manifest(temp.path());
+        fs::create_dir_all(temp.path().join("apps/prism-gallery/assets")).unwrap();
+
+        let root = find_workspace_root_from(&temp.path().join("apps/prism-gallery/assets")).unwrap();
+
+        assert_eq!(root, temp.path());
+    }
+
+    #[test]
+    fn load_app_project_supports_legacy_frontend_subdirectory() {
+        let temp = tempdir().unwrap();
+        write_workspace_manifest(temp.path());
+        let app_dir = temp.path().join("apps/legacy-demo/frontend");
+        fs::create_dir_all(&app_dir).unwrap();
+        fs::write(
+            app_dir.join("index.html"),
+            r#"<title>Legacy Demo</title><meta name="rustframe:width" content="1024">"#,
+        )
+        .unwrap();
+
+        let project = load_app_project(temp.path(), "legacy-demo").unwrap();
+
+        assert_eq!(project.name, "legacy-demo");
+        assert_eq!(project.asset_dir, app_dir);
+        assert_eq!(project.config.title, "Legacy Demo");
+        assert_eq!(project.config.width, 1024.0);
     }
 }

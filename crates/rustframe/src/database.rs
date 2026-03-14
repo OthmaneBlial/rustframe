@@ -1590,6 +1590,48 @@ mod tests {
     }
 
     #[test]
+    fn supports_like_and_in_filters() {
+        let capability = open_database(sample_schema(), Vec::new());
+        capability
+            .insert("tasks", json!({ "title": "Alpha", "priority": "high" }))
+            .unwrap();
+        capability
+            .insert("tasks", json!({ "title": "Beta", "priority": "medium" }))
+            .unwrap();
+        capability
+            .insert("tasks", json!({ "title": "Halo", "priority": "critical" }))
+            .unwrap();
+
+        let rows = capability
+            .list(&DatabaseListQuery {
+                table: "tasks".into(),
+                filters: vec![
+                    DatabaseFilter {
+                        field: "title".into(),
+                        op: DatabaseFilterOp::Like,
+                        value: json!("%a%"),
+                    },
+                    DatabaseFilter {
+                        field: "priority".into(),
+                        op: DatabaseFilterOp::In,
+                        value: json!(["high", "critical"]),
+                    },
+                ],
+                order_by: vec![DatabaseOrder {
+                    field: "title".into(),
+                    direction: DatabaseOrderDirection::Asc,
+                }],
+                limit: None,
+                offset: None,
+            })
+            .unwrap();
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["title"], "Alpha");
+        assert_eq!(rows[1]["title"], "Halo");
+    }
+
+    #[test]
     fn applies_seed_files_once() {
         let seed = DatabaseSeedFile::from_json(
             "data/seeds/001-defaults.json",
@@ -1694,6 +1736,15 @@ mod tests {
     }
 
     #[test]
+    fn rejects_seed_file_without_entries() {
+        let error =
+            DatabaseSeedFile::from_json("data/seeds/001-empty.json", r#"{ "entries": [] }"#)
+                .unwrap_err();
+
+        assert!(error.to_string().contains("must define at least one entry"));
+    }
+
+    #[test]
     fn supports_additive_schema_upgrade() {
         let temp = tempdir().unwrap();
         let data_dir = temp.path().join("data");
@@ -1779,6 +1830,28 @@ mod tests {
     }
 
     #[test]
+    fn rejects_missing_required_fields_on_insert() {
+        let capability = open_database(sample_schema(), Vec::new());
+        let error = capability.insert("settings", json!({ "value": "night" })).unwrap_err();
+
+        assert!(error.to_string().contains("missing required field 'key'"));
+    }
+
+    #[test]
+    fn enforces_unique_constraints() {
+        let capability = open_database(sample_schema(), Vec::new());
+        capability
+            .insert("settings", json!({ "key": "theme", "value": "night" }))
+            .unwrap();
+
+        let error = capability
+            .insert("settings", json!({ "key": "theme", "value": "day" }))
+            .unwrap_err();
+
+        assert!(error.to_string().contains("UNIQUE constraint failed"));
+    }
+
+    #[test]
     fn creates_meta_tables() {
         let capability = open_database(sample_schema(), Vec::new());
         let connection = Connection::open(capability.info().database_path.as_str()).unwrap();
@@ -1831,5 +1904,22 @@ mod tests {
             schema.tables[0].columns[0].kind,
             DatabaseColumnType::Text
         ));
+    }
+
+    #[test]
+    fn rejects_zero_schema_version() {
+        let error = DatabaseSchema::from_json(
+            r#"
+            {
+              "version": 0,
+              "tables": [
+                { "name": "tasks", "columns": [{ "name": "title", "type": "text" }] }
+              ]
+            }
+            "#,
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("greater than zero"));
     }
 }

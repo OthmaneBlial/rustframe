@@ -592,9 +592,11 @@ fn pump_linux_events() {}
 mod tests {
     use std::borrow::Cow;
 
+    use wry::http::Request;
+
     use super::{
-        EmbeddedAssetRouter, EmbeddedDatabaseConfig, active_dev_url, load_database_capability,
-        normalize_asset_path,
+        EmbeddedAssetRouter, EmbeddedDatabaseConfig, active_dev_url, asset_response,
+        load_database_capability, normalize_asset_path,
     };
 
     fn fixture(path: &str) -> Option<Cow<'static, [u8]>> {
@@ -660,5 +662,64 @@ mod tests {
 
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0]["title"], "Welcome");
+    }
+
+    #[test]
+    fn asset_response_falls_back_to_index_for_extensionless_routes() {
+        fn fixture(path: &str) -> Option<Cow<'static, [u8]>> {
+            match path {
+                "index.html" => Some(Cow::Borrowed(b"<html>ok</html>")),
+                _ => None,
+            }
+        }
+
+        let response = asset_response(
+            EmbeddedAssetRouter { fetch: fixture },
+            Request::builder()
+                .uri("app://localhost/dashboard")
+                .body(Vec::new())
+                .unwrap(),
+        );
+
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.headers().get("content-type").unwrap(), "text/html");
+    }
+
+    #[test]
+    fn asset_response_returns_not_found_for_missing_extension_asset() {
+        let response = asset_response(
+            EmbeddedAssetRouter { fetch: |_| None },
+            Request::builder()
+                .uri("app://localhost/missing.js")
+                .body(Vec::new())
+                .unwrap(),
+        );
+
+        assert_eq!(response.status(), 404);
+    }
+
+    #[test]
+    fn database_loader_returns_none_when_database_is_not_configured() {
+        let result =
+            load_database_capability(EmbeddedAssetRouter { fetch: fixture }, None, None, None)
+                .unwrap();
+
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn database_loader_requires_app_id_when_database_is_enabled() {
+        let error = load_database_capability(
+            EmbeddedAssetRouter { fetch: fixture },
+            None,
+            None,
+            Some(EmbeddedDatabaseConfig {
+                schema_path: "data/schema.json".into(),
+                seed_paths: Vec::new(),
+            }),
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("app_id"));
     }
 }
