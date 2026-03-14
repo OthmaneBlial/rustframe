@@ -58,6 +58,15 @@
         }),
         shell: Object.freeze({
             exec: (command, args = []) => invoke("shell.exec", { command, args })
+        }),
+        db: Object.freeze({
+            info: () => invoke("db.info"),
+            get: (table, id) => invoke("db.get", { table, id }),
+            list: (table, options = {}) => invoke("db.list", { table, ...options }),
+            count: (table, options = {}) => invoke("db.count", { table, ...options }),
+            insert: (table, record) => invoke("db.insert", { table, record }),
+            update: (table, id, patch) => invoke("db.update", { table, id, patch }),
+            delete: (table, id) => invoke("db.delete", { table, id })
         })
     });
 })();

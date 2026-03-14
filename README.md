@@ -38,6 +38,8 @@ Edit:
 - `apps/hello-rustframe/styles.css`
 - `apps/hello-rustframe/app.js`
 - `apps/hello-rustframe/bridge.js`
+- `apps/hello-rustframe/data/schema.json`
+- `apps/hello-rustframe/data/seeds/*.json`
 
 Window metadata is defined directly in `index.html`:
 
@@ -85,6 +87,8 @@ cargo run -p rustframe-cli -- export
 - Everything in the app root is treated as frontend assets, except `dist/` and hidden files.
 - The CLI generates a hidden Rust runner under `target/rustframe/apps/<name>/runner/`.
 - Exported binaries are copied into `apps/<name>/dist/`.
+- If `data/schema.json` exists, RustFrame creates a SQLite database in the user app-data directory on first launch.
+- Seed files in `data/seeds/*.json` are embedded into the binary and applied once.
 - Use a dev server when you want tooling like Vite; the production export remains a single embedded binary.
 
 See [FRONTEND_APP_RULES.md](/home/othmane/Downloads/RustFrame/FRONTEND_APP_RULES.md) for the full contract app authors should follow.

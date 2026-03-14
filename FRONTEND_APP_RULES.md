@@ -20,6 +20,8 @@ RustFrame apps are frontend-first desktop apps. The app folder should feel like 
 - `styles.css`
 - `app.js`
 - `bridge.js`
+- `data/schema.json` when the app needs persistent data
+- `data/seeds/*.json` for optional first-run rows
 - `dist/`
 
 ## Window Metadata
@@ -50,6 +52,8 @@ Rules:
 - Everything in the app root, except `dist/` and hidden files, is treated as exportable app content.
 - Do not keep `node_modules`, screenshots, docs, archives, or random tooling files in the app root if you plan to export directly from it.
 - If you need a bundler, use a dev server during development and export only the built static assets into the app root before running `export`.
+- If you define `data/schema.json`, it is embedded into the app and used to initialize the SQLite database on first launch.
+- Seed files under `data/seeds/` are also embedded and applied once to the user database.
 
 ## HTML Rules
 
@@ -82,11 +86,22 @@ Available by default in frontend-only apps:
 - `window.RustFrame.window.maximize()`
 - `window.RustFrame.window.setTitle(title)`
 
+Available when `data/schema.json` exists:
+
+- `window.RustFrame.db.info()`
+- `window.RustFrame.db.get(table, id)`
+- `window.RustFrame.db.list(table, options)`
+- `window.RustFrame.db.count(table, options)`
+- `window.RustFrame.db.insert(table, record)`
+- `window.RustFrame.db.update(table, id, patch)`
+- `window.RustFrame.db.delete(table, id)`
+
 Important limitation:
 
 - `window.RustFrame.fs.readText(...)` exists in the bridge, but frontend-only apps do not grant filesystem roots by default.
 - `window.RustFrame.shell.exec(...)` exists in the bridge, but frontend-only apps do not allow shell commands by default.
 - If you call those APIs in the current frontend-only workflow, expect permission errors unless RustFrame is extended to grant them.
+- The SQLite file is not stored inside `dist/` or the executable. RustFrame creates it in the user app-data directory.
 
 ## CSS and UI Rules
 
@@ -100,6 +115,7 @@ Important limitation:
 - Run export from the workspace root with an app name, or from inside the app folder with no app name.
 - The exported binary is copied into `apps/<app-name>/dist/`.
 - The hidden generated runner lives under `target/rustframe/apps/<app-name>/runner/`.
+- Database schema and seeds are embedded into the binary, but user data is written to the OS app-data directory.
 
 Examples:
 
@@ -145,4 +161,5 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 - `bridge.js` loads before `app.js`.
 - All asset references are relative.
 - The app works without a localhost server.
+- If persistent data is needed, `data/schema.json` exists and is valid JSON.
 - Export places a binary in `dist/`.

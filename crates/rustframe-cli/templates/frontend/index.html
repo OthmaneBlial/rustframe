@@ -54,15 +54,31 @@
 
             <article class="panel notes">
                 <div class="panel-header">
-                    <p class="eyebrow">How to build</p>
-                    <h2>Edit these files</h2>
+                    <p class="eyebrow">Database API</p>
+                    <h2>Seeded SQLite notes</h2>
                 </div>
-                <ul class="checklist">
-                    <li><code>index.html</code> for structure and window metadata</li>
-                    <li><code>styles.css</code> for styling and motion</li>
-                    <li><code>app.js</code> for app behavior</li>
-                    <li><code>bridge.js</code> for the native desktop bridge</li>
-                </ul>
+                <div class="db-meta">
+                    <div class="meta-chip">
+                        <span>Rows</span>
+                        <strong id="notes-count">0</strong>
+                    </div>
+                    <div class="meta-chip">
+                        <span>Storage</span>
+                        <strong id="db-status">Connecting…</strong>
+                    </div>
+                </div>
+
+                <label class="title-label" for="note-title">Note title</label>
+                <input id="note-title" type="text" placeholder="Design launch checklist">
+
+                <label class="title-label" for="note-body">Body</label>
+                <textarea id="note-body" rows="5" placeholder="This app ships with data/schema.json and data/seeds/... embedded into the binary."></textarea>
+
+                <div class="actions">
+                    <button id="save-note-button">Save note</button>
+                </div>
+
+                <div id="notes-list" class="notes-list"></div>
             </article>
 
             <article class="panel terminal">
@@ -74,6 +90,14 @@
                     <span class="pill">starter</span>
                 </div>
                 <pre id="log-output">Starter app ready.</pre>
+                <ul class="checklist checklist-compact">
+                    <li><code>index.html</code> for structure and metadata</li>
+                    <li><code>styles.css</code> for styling</li>
+                    <li><code>app.js</code> for behavior</li>
+                    <li><code>bridge.js</code> for native APIs</li>
+                    <li><code>data/schema.json</code> for tables</li>
+                    <li><code>data/seeds/*.json</code> for initial rows</li>
+                </ul>
             </article>
         </section>
     </main>

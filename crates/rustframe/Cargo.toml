@@ -8,9 +8,13 @@ default = ["desktop"]
 desktop = ["dep:gtk", "dep:mime_guess", "dep:tao", "dep:wry"]
 
 [dependencies]
+dirs = "6.0.0"
+rusqlite = { version = "0.37.0", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha2 = "0.10.9"
 thiserror = "2.0"
+time = { version = "0.3.44", features = ["formatting"] }
 
 [dependencies.mime_guess]
 version = "2.0.5"

@@ -1,6 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap, path::PathBuf};
 
 use mime_guess::MimeGuess;
+use serde::Deserialize;
 use serde_json::{Value, json};
 use tao::{
     event::{Event, WindowEvent},
@@ -13,6 +14,7 @@ use wry::{
 };
 
 use crate::{
+    DatabaseCapability, DatabaseListQuery, DatabaseOpenConfig, DatabaseSchema, DatabaseSeedFile,
     FsCapability, IpcRequest, IpcResponse, Result, RuntimeError, ShellCapability, ShellCommand,
 };
 
@@ -62,11 +64,20 @@ impl EmbeddedAssetRouter {
     }
 }
 
+#[derive(Clone, Debug)]
+struct EmbeddedDatabaseConfig {
+    schema_path: String,
+    seed_paths: Vec<String>,
+}
+
 #[derive(Default)]
 pub struct RustFrameBuilder {
     window: WindowOptions,
+    app_id: Option<String>,
+    data_dir: Option<PathBuf>,
     dev_url: Option<String>,
     assets: Option<EmbeddedAssetRouter>,
+    database: Option<EmbeddedDatabaseConfig>,
     fs_roots: Vec<PathBuf>,
     shell_commands: BTreeMap<String, ShellCommand>,
 }
@@ -74,6 +85,16 @@ pub struct RustFrameBuilder {
 impl RustFrameBuilder {
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.window.title = title.into();
+        self
+    }
+
+    pub fn app_id(mut self, id: impl Into<String>) -> Self {
+        self.app_id = Some(id.into());
+        self
+    }
+
+    pub fn data_dir(mut self, path: impl Into<PathBuf>) -> Self {
+        self.data_dir = Some(path.into());
         self
     }
 
@@ -90,6 +111,21 @@ impl RustFrameBuilder {
 
     pub fn embedded_assets<A: EmbeddedAssets>(mut self) -> Self {
         self.assets = Some(EmbeddedAssetRouter::from_type::<A>());
+        self
+    }
+
+    pub fn embedded_database<I, S>(mut self, schema_path: impl Into<String>, seed_paths: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        self.database = Some(EmbeddedDatabaseConfig {
+            schema_path: schema_path.into(),
+            seed_paths: seed_paths
+                .into_iter()
+                .map(|path| path.as_ref().to_string())
+                .collect(),
+        });
         self
     }
 
@@ -117,6 +153,8 @@ impl RustFrameBuilder {
         let assets = self.assets.ok_or(RuntimeError::MissingAssets)?;
         let fs_capability = FsCapability::new(self.fs_roots)?;
         let shell_capability = ShellCapability::new(self.shell_commands);
+        let database_capability =
+            load_database_capability(assets, self.app_id, self.data_dir, self.database)?;
 
         prepare_linux_runtime()?;
 
@@ -160,8 +198,13 @@ impl RustFrameBuilder {
                     *control_flow = ControlFlow::Exit;
                 }
                 Event::UserEvent(UserEvent::Ipc(body)) => {
-                    let outcome =
-                        handle_ipc_message(&body, &window, &fs_capability, &shell_capability);
+                    let outcome = handle_ipc_message(
+                        &body,
+                        &window,
+                        &fs_capability,
+                        &shell_capability,
+                        database_capability.as_ref(),
+                    );
 
                     if let Ok(serialized) = serde_json::to_string(&outcome.response) {
                         let script = format!("window.RustFrame.__resolveFromNative({serialized});");
@@ -196,14 +239,40 @@ struct IpcOutcome {
     should_exit: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct DbRecordParams {
+    table: String,
+    record: Value,
+}
+
+#[derive(Debug, Deserialize)]
+struct DbUpdateParams {
+    table: String,
+    id: i64,
+    patch: Value,
+}
+
+#[derive(Debug, Deserialize)]
+struct DbGetParams {
+    table: String,
+    id: i64,
+}
+
 fn handle_ipc_message(
     body: &str,
     window: &Window,
     fs_capability: &FsCapability,
     shell_capability: &ShellCapability,
+    database_capability: Option<&DatabaseCapability>,
 ) -> IpcOutcome {
     match serde_json::from_str::<IpcRequest>(body) {
-        Ok(request) => handle_request(request, window, fs_capability, shell_capability),
+        Ok(request) => handle_request(
+            request,
+            window,
+            fs_capability,
+            shell_capability,
+            database_capability,
+        ),
         Err(error) => IpcOutcome {
             response: IpcResponse::failure(0, &RuntimeError::Json(error)),
             should_exit: false,
@@ -216,6 +285,7 @@ fn handle_request(
     window: &Window,
     fs_capability: &FsCapability,
     shell_capability: &ShellCapability,
+    database_capability: Option<&DatabaseCapability>,
 ) -> IpcOutcome {
     let mut should_exit = false;
     let result: Result<Value> = match request.method.as_str() {
@@ -247,6 +317,35 @@ fn handle_request(
             let output = shell_capability.exec(&command, &args)?;
             Ok(json!(output))
         })(),
+        "db.info" => (|| Ok(json!(database(database_capability)?.info())))(),
+        "db.get" => (|| {
+            let params: DbGetParams = parse_params(&request.params)?;
+            Ok(database(database_capability)?
+                .get(&params.table, params.id)?
+                .unwrap_or(Value::Null))
+        })(),
+        "db.list" => (|| {
+            let query: DatabaseListQuery = parse_params(&request.params)?;
+            Ok(Value::Array(database(database_capability)?.list(&query)?))
+        })(),
+        "db.count" => (|| {
+            let query: DatabaseListQuery = parse_params(&request.params)?;
+            Ok(json!(database(database_capability)?.count(&query)?))
+        })(),
+        "db.insert" => (|| {
+            let params: DbRecordParams = parse_params(&request.params)?;
+            database(database_capability)?.insert(&params.table, params.record)
+        })(),
+        "db.update" => (|| {
+            let params: DbUpdateParams = parse_params(&request.params)?;
+            database(database_capability)?.update(&params.table, params.id, params.patch)
+        })(),
+        "db.delete" => (|| {
+            let params: DbGetParams = parse_params(&request.params)?;
+            Ok(json!({
+                "deleted": database(database_capability)?.delete(&params.table, params.id)?
+            }))
+        })(),
         method => Err(RuntimeError::UnknownMethod(method.to_string())),
     };
 
@@ -259,6 +358,17 @@ fn handle_request(
         response,
         should_exit,
     }
+}
+
+fn database(database: Option<&DatabaseCapability>) -> Result<&DatabaseCapability> {
+    database.ok_or(RuntimeError::DatabaseUnavailable)
+}
+
+fn parse_params<T>(params: &Value) -> Result<T>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    serde_json::from_value(params.clone()).map_err(Into::into)
 }
 
 fn required_string(params: &Value, key: &str) -> Result<String> {
@@ -290,6 +400,51 @@ fn optional_string_vec(params: &Value, key: &str) -> Result<Vec<String>> {
             })
         })
         .collect()
+}
+
+fn load_database_capability(
+    assets: EmbeddedAssetRouter,
+    app_id: Option<String>,
+    data_dir: Option<PathBuf>,
+    config: Option<EmbeddedDatabaseConfig>,
+) -> Result<Option<DatabaseCapability>> {
+    let Some(config) = config else {
+        return Ok(None);
+    };
+
+    let app_id = app_id.ok_or_else(|| {
+        RuntimeError::InvalidConfiguration(
+            "database capability requires RustFrameBuilder::app_id(...)".into(),
+        )
+    })?;
+    let schema_text = embedded_text_asset(assets, &config.schema_path)?;
+    let schema = DatabaseSchema::from_json(&schema_text)?;
+    let mut seed_files = Vec::new();
+    for seed_path in &config.seed_paths {
+        let seed_text = embedded_text_asset(assets, seed_path)?;
+        seed_files.push(DatabaseSeedFile::from_json(seed_path.clone(), &seed_text)?);
+    }
+
+    DatabaseCapability::open(DatabaseOpenConfig {
+        app_id,
+        data_dir,
+        schema,
+        seed_files,
+    })
+    .map(Some)
+}
+
+fn embedded_text_asset(assets: EmbeddedAssetRouter, path: &str) -> Result<String> {
+    let bytes = assets.get(path).ok_or_else(|| {
+        RuntimeError::InvalidConfiguration(format!("embedded asset '{}' is missing", path))
+    })?;
+
+    String::from_utf8(bytes.into_owned()).map_err(|error| {
+        RuntimeError::InvalidConfiguration(format!(
+            "embedded asset '{}' is not valid UTF-8: {}",
+            path, error
+        ))
+    })
 }
 
 fn active_dev_url(configured: Option<String>) -> Option<String> {
@@ -432,3 +587,78 @@ fn pump_linux_events() {
     target_os = "openbsd",
 )))]
 fn pump_linux_events() {}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+
+    use super::{
+        EmbeddedAssetRouter, EmbeddedDatabaseConfig, active_dev_url, load_database_capability,
+        normalize_asset_path,
+    };
+
+    fn fixture(path: &str) -> Option<Cow<'static, [u8]>> {
+        match path {
+            "data/schema.json" => Some(Cow::Borrowed(
+                br#"{"version":1,"tables":[{"name":"notes","columns":[{"name":"title","type":"text","required":true}]}]}"#,
+            )),
+            "data/seeds/001-defaults.json" => Some(Cow::Borrowed(
+                br#"{"entries":[{"table":"notes","rows":[{"title":"Welcome"}]}]}"#,
+            )),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn normalizes_root_asset_path() {
+        assert_eq!(normalize_asset_path("/"), "index.html");
+        assert_eq!(normalize_asset_path("/styles.css"), "styles.css");
+    }
+
+    #[test]
+    fn prefers_environment_dev_url() {
+        let previous = std::env::var("RUSTFRAME_DEV_URL").ok();
+        unsafe {
+            std::env::set_var("RUSTFRAME_DEV_URL", "http://127.0.0.1:4321");
+        }
+        assert_eq!(
+            active_dev_url(Some("http://127.0.0.1:5173".into())).as_deref(),
+            Some("http://127.0.0.1:4321")
+        );
+        if let Some(value) = previous {
+            unsafe {
+                std::env::set_var("RUSTFRAME_DEV_URL", value);
+            }
+        } else {
+            unsafe {
+                std::env::remove_var("RUSTFRAME_DEV_URL");
+            }
+        }
+    }
+
+    #[test]
+    fn loads_embedded_database_from_assets() {
+        let temp = tempfile::tempdir().unwrap();
+        let database = load_database_capability(
+            EmbeddedAssetRouter { fetch: fixture },
+            Some("orbit_desk".into()),
+            Some(temp.path().join("data")),
+            Some(EmbeddedDatabaseConfig {
+                schema_path: "data/schema.json".into(),
+                seed_paths: vec!["data/seeds/001-defaults.json".into()],
+            }),
+        )
+        .unwrap()
+        .unwrap();
+
+        let rows = database
+            .list(&crate::DatabaseListQuery {
+                table: "notes".into(),
+                ..Default::default()
+            })
+            .unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["title"], "Welcome");
+    }
+}

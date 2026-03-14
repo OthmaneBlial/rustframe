@@ -177,6 +177,22 @@ input:focus {
     border-color: var(--accent);
 }
 
+textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 120px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    background: rgba(4, 10, 17, 0.92);
+    color: var(--text);
+    font: inherit;
+}
+
+textarea:focus {
+    outline: 1px solid var(--accent);
+    border-color: var(--accent);
+}
+
 .actions {
     margin-top: 16px;
     display: flex;
@@ -213,6 +229,10 @@ button.ghost {
     line-height: 1.8;
 }
 
+.checklist-compact {
+    margin-top: 18px;
+}
+
 code {
     color: #dff6ff;
     font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
@@ -237,6 +257,59 @@ code {
     font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
 }
 
+.db-meta {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 18px;
+}
+
+.meta-chip {
+    padding: 14px;
+    border: 1px solid var(--line);
+    background: rgba(4, 10, 17, 0.72);
+}
+
+.meta-chip span {
+    display: block;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 0.72rem;
+    font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+}
+
+.meta-chip strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+}
+
+.notes-list {
+    margin-top: 18px;
+    display: grid;
+    gap: 12px;
+}
+
+.note-card {
+    padding: 16px;
+    border: 1px solid var(--line);
+    background: rgba(4, 10, 17, 0.72);
+}
+
+.note-card h3 {
+    margin: 0 0 10px;
+    font-size: 1rem;
+}
+
+.note-card p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
 #log-output {
     min-height: 240px;
     margin: 0;
@@ -259,5 +332,9 @@ code {
 
     .hero h1 {
         max-width: 100%;
+    }
+
+    .db-meta {
+        grid-template-columns: 1fr;
     }
 }

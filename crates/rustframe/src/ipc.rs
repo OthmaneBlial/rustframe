@@ -53,6 +53,10 @@ impl From<&RuntimeError> for IpcErrorResponse {
                 code: "missing_assets",
                 message: error.to_string(),
             },
+            RuntimeError::DatabaseUnavailable => Self {
+                code: "database_unavailable",
+                message: error.to_string(),
+            },
             RuntimeError::InvalidConfiguration(_) => Self {
                 code: "invalid_configuration",
                 message: error.to_string(),
@@ -65,8 +69,16 @@ impl From<&RuntimeError> for IpcErrorResponse {
                 code: "permission_denied",
                 message: error.to_string(),
             },
+            RuntimeError::RecordNotFound(_) => Self {
+                code: "not_found",
+                message: error.to_string(),
+            },
             RuntimeError::UnknownMethod(_) => Self {
                 code: "unknown_method",
+                message: error.to_string(),
+            },
+            RuntimeError::Database(_) => Self {
+                code: "database_error",
                 message: error.to_string(),
             },
             RuntimeError::Io(_) => Self {
@@ -75,6 +87,10 @@ impl From<&RuntimeError> for IpcErrorResponse {
             },
             RuntimeError::Json(_) => Self {
                 code: "invalid_request",
+                message: error.to_string(),
+            },
+            RuntimeError::Time(_) => Self {
+                code: "time_error",
                 message: error.to_string(),
             },
             #[cfg(feature = "desktop")]

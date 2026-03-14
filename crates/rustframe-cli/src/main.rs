@@ -9,6 +9,8 @@ type CliResult<T> = Result<T, String>;
 const TEMPLATE_RUNNER_CARGO_TOML: &str =
     include_str!("../templates/generated-runner/Cargo.toml.tmpl");
 const TEMPLATE_RUNNER_MAIN_RS: &str = include_str!("../templates/generated-runner/main.rs.tmpl");
+const TEMPLATE_DATA_SCHEMA: &str = include_str!("../templates/data/schema.json");
+const TEMPLATE_DATA_SEED: &str = include_str!("../templates/data/seeds/001-welcome.json");
 const TEMPLATE_INDEX_HTML: &str = include_str!("../templates/frontend/index.html");
 const TEMPLATE_STYLES_CSS: &str = include_str!("../templates/frontend/styles.css");
 const TEMPLATE_APP_JS: &str = include_str!("../templates/frontend/app.js");
@@ -113,6 +115,17 @@ fn command_new(name: &str) -> CliResult<()> {
         ),
     )?;
     write_text_file(&app_dir.join("bridge.js"), TEMPLATE_BRIDGE_JS)?;
+    write_text_file(&app_dir.join("data/schema.json"), TEMPLATE_DATA_SCHEMA)?;
+    write_text_file(
+        &app_dir.join("data/seeds/001-welcome.json"),
+        &render_template(
+            TEMPLATE_DATA_SEED,
+            &[
+                ("{{app_title}}", title.clone()),
+                ("{{app_name}}", name.to_string()),
+            ],
+        ),
+    )?;
     fs::create_dir_all(app_dir.join("dist")).map_err(|error| {
         format!(
             "failed to create dist directory '{}': {error}",
@@ -369,6 +382,8 @@ fn prepare_runner(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject
         .as_ref()
         .map(|url| format!("\n        .dev_url({})", quoted_literal(url)))
         .unwrap_or_default();
+    let app_id_chain = format!("\n        .app_id({})", quoted_literal(&app.name));
+    let database_chain = render_database_chain(&assets);
 
     let manifest_contents = render_template(
         TEMPLATE_RUNNER_CARGO_TOML,
@@ -391,7 +406,9 @@ fn prepare_runner(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject
             ("{{window_title}}", quoted_literal(&app.config.title)),
             ("{{window_width}}", format_float(app.config.width)),
             ("{{window_height}}", format_float(app.config.height)),
+            ("{{app_id_chain}}", app_id_chain),
             ("{{dev_url_chain}}", dev_url_chain),
+            ("{{database_chain}}", database_chain),
             ("{{asset_match_arms}}", render_asset_match_arms(&assets)),
         ],
     );
@@ -480,6 +497,27 @@ fn render_asset_match_arms(assets: &[EmbeddedAsset]) -> String {
 
     arms.push_str("            _ => None,\n");
     arms
+}
+
+fn render_database_chain(assets: &[EmbeddedAsset]) -> String {
+    let has_schema = assets
+        .iter()
+        .any(|asset| asset.request_path == "data/schema.json");
+    if !has_schema {
+        return String::new();
+    }
+
+    let seed_paths = assets
+        .iter()
+        .filter(|asset| asset.request_path.starts_with("data/seeds/"))
+        .map(|asset| quoted_literal(&asset.request_path))
+        .collect::<Vec<_>>();
+
+    format!(
+        "\n        .embedded_database({}, &[{}])",
+        quoted_literal("data/schema.json"),
+        seed_paths.join(", ")
+    )
 }
 
 fn extract_title(html: &str) -> Option<String> {
@@ -657,4 +695,141 @@ fn print_help() {
     println!("  <title>My App</title>");
     println!("  <meta name=\"rustframe:width\" content=\"1280\">");
     println!("  <meta name=\"rustframe:height\" content=\"820\">");
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::{
+        AppConfig, AppProject, collect_embedded_assets, prepare_runner, read_app_config,
+        render_asset_match_arms, render_database_chain, render_template,
+    };
+
+    #[test]
+    fn reads_app_config_from_html_meta_tags() {
+        let temp = tempdir().unwrap();
+        let index = temp.path().join("index.html");
+        fs::write(
+            &index,
+            r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Orbit Desk</title>
+              <meta name="rustframe:width" content="1440">
+              <meta name="rustframe:height" content="920">
+              <meta name="rustframe:dev-url" content="http://127.0.0.1:5173">
+            </head>
+            </html>
+            "#,
+        )
+        .unwrap();
+
+        let config = read_app_config("orbit-desk", temp.path()).unwrap();
+
+        assert_eq!(config.title, "Orbit Desk");
+        assert_eq!(config.width, 1440.0);
+        assert_eq!(config.height, 920.0);
+        assert_eq!(config.dev_url.as_deref(), Some("http://127.0.0.1:5173"));
+    }
+
+    #[test]
+    fn collect_embedded_assets_skips_dist_and_hidden_entries() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("index.html"), "<!doctype html>").unwrap();
+        fs::write(temp.path().join("styles.css"), "body {}").unwrap();
+        fs::create_dir_all(temp.path().join("dist")).unwrap();
+        fs::write(temp.path().join("dist/app"), "ignored").unwrap();
+        fs::write(temp.path().join(".DS_Store"), "ignored").unwrap();
+        fs::create_dir_all(temp.path().join("data")).unwrap();
+        fs::write(temp.path().join("data/schema.json"), "{}").unwrap();
+
+        let assets = collect_embedded_assets(temp.path()).unwrap();
+        let paths = assets
+            .iter()
+            .map(|asset| asset.request_path.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(paths.contains(&"index.html"));
+        assert!(paths.contains(&"styles.css"));
+        assert!(paths.contains(&"data/schema.json"));
+        assert!(!paths.iter().any(|path| path.starts_with("dist/")));
+        assert!(!paths.iter().any(|path| path.starts_with('.')));
+    }
+
+    #[test]
+    fn renders_database_chain_only_when_schema_exists() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("index.html"), "<!doctype html>").unwrap();
+        fs::create_dir_all(temp.path().join("data/seeds")).unwrap();
+        fs::write(temp.path().join("data/schema.json"), "{}").unwrap();
+        fs::write(temp.path().join("data/seeds/001.json"), "{}").unwrap();
+        let assets = collect_embedded_assets(temp.path()).unwrap();
+
+        let chain = render_database_chain(&assets);
+
+        assert!(chain.contains(".embedded_database(\"data/schema.json\""));
+        assert!(chain.contains("\"data/seeds/001.json\""));
+    }
+
+    #[test]
+    fn prepare_runner_writes_database_enabled_runner() {
+        let workspace = tempdir().unwrap();
+        fs::create_dir_all(workspace.path().join("crates/rustframe")).unwrap();
+        let app_dir = workspace.path().join("apps/orbit-desk");
+        fs::create_dir_all(app_dir.join("data/seeds")).unwrap();
+        fs::write(
+            app_dir.join("index.html"),
+            render_template(
+                r#"
+                <title>Orbit Desk</title>
+                <meta name="rustframe:width" content="1440">
+                <meta name="rustframe:height" content="920">
+                "#,
+                &[],
+            ),
+        )
+        .unwrap();
+        fs::write(app_dir.join("app.js"), "console.log('ok')").unwrap();
+        fs::write(app_dir.join("bridge.js"), "window.RustFrame = {}").unwrap();
+        fs::write(app_dir.join("styles.css"), "body {}").unwrap();
+        fs::write(app_dir.join("data/schema.json"), "{}").unwrap();
+        fs::write(app_dir.join("data/seeds/001.json"), "{}").unwrap();
+
+        let app = AppProject {
+            name: "orbit-desk".into(),
+            app_dir: app_dir.clone(),
+            asset_dir: app_dir,
+            config: AppConfig {
+                title: "Orbit Desk".into(),
+                width: 1440.0,
+                height: 920.0,
+                dev_url: None,
+            },
+        };
+
+        let runner = prepare_runner(workspace.path(), &app).unwrap();
+        let main =
+            fs::read_to_string(runner.manifest_path.parent().unwrap().join("src/main.rs")).unwrap();
+
+        assert!(main.contains(".app_id(\"orbit-desk\")"));
+        assert!(
+            main.contains(".embedded_database(\"data/schema.json\", &[\"data/seeds/001.json\"])")
+        );
+    }
+
+    #[test]
+    fn render_asset_match_arms_embeds_absolute_paths() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("index.html"), "<!doctype html>").unwrap();
+        let assets = collect_embedded_assets(temp.path()).unwrap();
+
+        let arms = render_asset_match_arms(&assets);
+
+        assert!(arms.contains("index.html"));
+        assert!(arms.contains(temp.path().to_string_lossy().as_ref()));
+    }
 }
