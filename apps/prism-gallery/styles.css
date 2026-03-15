@@ -280,3 +280,74 @@ pre {
         align-items: stretch;
     }
 }
+
+/* 2026 desktop polish */
+.shell {
+    width: min(1620px, calc(100vw - 24px));
+    min-height: 100vh;
+    padding: 16px;
+    gap: 14px;
+}
+
+.panel,
+.status-block,
+.metric,
+.asset-card {
+    border-radius: 24px;
+}
+
+.hero {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 14px;
+}
+
+.intro h1 {
+    max-width: 13ch;
+    font-size: clamp(1.9rem, 2.7vw, 3rem);
+    line-height: 1;
+}
+
+.lede {
+    max-width: 50ch;
+    margin-top: 12px;
+    font-size: 0.96rem;
+    line-height: 1.62;
+}
+
+.metrics,
+.gallery-grid {
+    gap: 12px;
+}
+
+.metric strong {
+    font-size: clamp(1.55rem, 2vw, 2.25rem);
+}
+
+.workspace {
+    gap: 14px;
+    align-items: start;
+}
+
+.section-head h2 {
+    font-size: 1.4rem;
+}
+
+label {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.78rem;
+}
+
+input {
+    border-radius: 16px;
+    min-height: 46px;
+}
+
+.chips button,
+.hero-actions button,
+#save-asset-button,
+.asset-actions button,
+.pill,
+.tag {
+    border-radius: 999px;
+}

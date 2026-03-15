@@ -398,3 +398,75 @@ pre {
         align-items: stretch;
     }
 }
+
+/* 2026 desktop polish */
+.shell {
+    width: min(1640px, calc(100vw - 24px));
+    min-height: 100vh;
+    padding: 16px;
+    gap: 14px;
+}
+
+.card,
+.metric-card,
+.metric-stack,
+.category-row,
+.entry-card {
+    border-radius: 24px;
+}
+
+.hero {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 14px;
+}
+
+.hero-copy h1 {
+    max-width: 12ch;
+    font-size: clamp(1.95rem, 2.8vw, 3rem);
+    line-height: 1;
+}
+
+.lede {
+    max-width: 50ch;
+    margin-top: 12px;
+    font-size: 0.96rem;
+    line-height: 1.62;
+}
+
+.metrics {
+    gap: 12px;
+}
+
+.metric-card strong {
+    font-size: clamp(1.6rem, 2.1vw, 2.25rem);
+}
+
+.workspace {
+    gap: 14px;
+    align-items: start;
+}
+
+.section-head h2 {
+    font-size: 1.4rem;
+}
+
+label {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.78rem;
+}
+
+input,
+textarea {
+    border-radius: 16px;
+    min-height: 46px;
+}
+
+.segmented button,
+.hero-actions button,
+#save-entry-button,
+.entry-actions button,
+.pill,
+.chip {
+    border-radius: 999px;
+}
