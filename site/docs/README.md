@@ -18,6 +18,8 @@ RustFrame is a stripped-down desktop application framework in Rust built around 
 
 ## Repo Sources
 
-- The project overview still lives in the root `README.md`.
-- The raw app contract still lives in the root `FRONTEND_APP_RULES.md`.
-- This `docs/` folder reorganizes that information into shorter product and implementation guides.
+- Project overview: [README.md](https://github.com/OthmaneBlial/rustframe/blob/main/README.md)
+- App contract: [FRONTEND_APP_RULES.md](https://github.com/OthmaneBlial/rustframe/blob/main/FRONTEND_APP_RULES.md)
+- Repository root: [github.com/OthmaneBlial/rustframe](https://github.com/OthmaneBlial/rustframe)
+
+This `docs/` folder reorganizes that material into shorter product and implementation guides.
