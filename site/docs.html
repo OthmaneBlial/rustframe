@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RustFrame Docs</title>
+    <meta name="description" content="Repository-derived documentation for RustFrame.">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page-docs">
+    <header class="docs-topbar">
+        <a class="brand" href="index.html">
+            <span class="brand-mark">RF</span>
+            <span class="brand-copy">
+                <strong>RustFrame</strong>
+                <span>Docs</span>
+            </span>
+        </a>
+
+        <div class="docs-actions">
+            <a class="button button-ghost" href="index.html">Back to site</a>
+        </div>
+    </header>
+
+    <main class="docs-layout">
+        <aside class="docs-sidebar">
+            <div class="docs-sidebar-head">
+                <p class="eyebrow">Docs</p>
+                <h1>Repository guides</h1>
+                <p>All content on this page is copied from the repo-level `docs/` folder so the site stays portable.</p>
+            </div>
+
+            <label class="docs-search">
+                <span>Filter docs</span>
+                <input id="docs-search" type="search" placeholder="Search docs by title">
+            </label>
+
+            <nav class="docs-nav" aria-label="Documentation">
+                <a href="docs.html?doc=readme" data-doc-link="readme">Docs index</a>
+                <a href="docs.html?doc=getting-started" data-doc-link="getting-started">Getting started</a>
+                <a href="docs.html?doc=runtime-and-capabilities" data-doc-link="runtime-and-capabilities">Runtime and capabilities</a>
+                <a href="docs.html?doc=frontend-app-rules" data-doc-link="frontend-app-rules">Frontend app rules</a>
+                <a href="docs.html?doc=example-apps" data-doc-link="example-apps">Example apps</a>
+            </nav>
+        </aside>
+
+        <section class="docs-panel">
+            <div class="docs-meta">
+                <p class="eyebrow">Current doc</p>
+                <strong id="docs-title">Loading…</strong>
+                <span id="docs-source">docs/README.md</span>
+            </div>
+
+            <article id="docs-content" class="docs-content">
+                <p>Loading documentation…</p>
+            </article>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

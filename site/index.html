@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RustFrame</title>
+    <meta
+        name="description"
+        content="RustFrame is a stripped-down desktop application framework in Rust for frontend-first apps with embedded assets, direct native IPC, and optional SQLite."
+    >
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page-home">
+    <div class="site-grid" aria-hidden="true"></div>
+    <div class="site-glow site-glow-a" aria-hidden="true"></div>
+    <div class="site-glow site-glow-b" aria-hidden="true"></div>
+
+    <header class="topbar">
+        <a class="brand" href="index.html">
+            <span class="brand-mark">RF</span>
+            <span class="brand-copy">
+                <strong>RustFrame</strong>
+                <span>Repo-driven desktop site</span>
+            </span>
+        </a>
+
+        <nav class="topnav" aria-label="Primary">
+            <a href="#overview">Overview</a>
+            <a href="#workflow">Workflow</a>
+            <a href="#examples">Examples</a>
+            <a href="#docs">Docs</a>
+            <a class="topnav-cta" href="docs.html">Open Docs</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero frame reveal" id="overview">
+            <div class="hero-copy">
+                <p class="eyebrow">Rust / Tao / Wry</p>
+                <h1>Frontend-first desktop apps without the usual framework pileup.</h1>
+                <p class="lede">
+                    RustFrame keeps the app folder plain, embeds real frontend assets into a native
+                    window, exposes a small IPC bridge, and enables SQLite, filesystem, or shell
+                    capabilities only when the runtime explicitly allows them.
+                </p>
+
+                <div class="hero-actions">
+                    <a class="button button-primary" href="#workflow">See the workflow</a>
+                    <a class="button button-ghost" href="docs.html?doc=getting-started">Read getting started</a>
+                </div>
+
+                <div class="signal-strip">
+                    <article>
+                        <span>Runtime</span>
+                        <strong>`tao` + `wry`</strong>
+                    </article>
+                    <article>
+                        <span>Transport</span>
+                        <strong>Direct native IPC</strong>
+                    </article>
+                    <article>
+                        <span>Storage</span>
+                        <strong>Embedded schema + SQLite</strong>
+                    </article>
+                    <article>
+                        <span>Current focus</span>
+                        <strong>Linux-first desktop</strong>
+                    </article>
+                </div>
+            </div>
+
+            <aside class="hero-stack">
+                <article class="command-card">
+                    <div class="card-head">
+                        <p class="eyebrow">CLI Surface</p>
+                        <span class="status-pill">workspace</span>
+                    </div>
+                    <h2>Three commands define most of the workflow.</h2>
+                    <div class="command-list">
+                        <button class="command-chip is-active" type="button" data-command-tab="new">New</button>
+                        <button class="command-chip" type="button" data-command-tab="dev">Dev</button>
+                        <button class="command-chip" type="button" data-command-tab="export">Export</button>
+                    </div>
+                    <div class="command-panel" data-command-panel="new">
+                        <pre><code>cargo run -p rustframe-cli -- new hello-rustframe</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- new hello-rustframe">Copy</button>
+                    </div>
+                    <div class="command-panel is-hidden" data-command-panel="dev">
+                        <pre><code>cargo run -p rustframe-cli -- dev hello-rustframe</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- dev hello-rustframe">Copy</button>
+                    </div>
+                    <div class="command-panel is-hidden" data-command-panel="export">
+                        <pre><code>cargo run -p rustframe-cli -- export hello-rustframe</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- export hello-rustframe">Copy</button>
+                    </div>
+                </article>
+
+                <article class="feature-stack">
+                    <figure class="shot-card shot-card-large">
+                        <img src="assets/screenshots/orbit-desk.png" alt="Orbit Desk screenshot">
+                        <figcaption>
+                            <strong>Orbit Desk</strong>
+                            <span>Frontend-only planning surface backed by browser storage.</span>
+                        </figcaption>
+                    </figure>
+                    <figure class="shot-card shot-card-small">
+                        <img src="assets/screenshots/prism-gallery.png" alt="Prism Gallery screenshot">
+                        <figcaption>
+                            <strong>Prism Gallery</strong>
+                            <span>Seeded SQLite example with a dense media grid.</span>
+                        </figcaption>
+                    </figure>
+                </article>
+            </aside>
+        </section>
+
+        <section class="frame section-grid reveal">
+            <div class="section-heading">
+                <p class="eyebrow">Workspace</p>
+                <h2>What actually lives in this repo</h2>
+            </div>
+
+            <div class="tile-grid">
+                <article class="info-tile">
+                    <span class="tile-kicker">Runtime crate</span>
+                    <h3>`crates/rustframe`</h3>
+                    <p>Owns the desktop shell, custom protocol, IPC dispatch, SQLite capability, filesystem scope, and shell allowlist support.</p>
+                </article>
+                <article class="info-tile">
+                    <span class="tile-kicker">CLI crate</span>
+                    <h3>`crates/rustframe-cli`</h3>
+                    <p>Scaffolds apps, reads window metadata from `index.html`, embeds assets, and writes the hidden runner under `target/rustframe/`.</p>
+                </article>
+                <article class="info-tile">
+                    <span class="tile-kicker">Capability demo</span>
+                    <h3>`examples/capability-demo`</h3>
+                    <p>Shows native window controls, sandboxed file reads, and allowlisted process execution without a localhost bridge.</p>
+                </article>
+                <article class="info-tile">
+                    <span class="tile-kicker">App catalog</span>
+                    <h3>`apps/*`</h3>
+                    <p>Ships multiple frontend-first desktop examples ranging from note-taking and task planning to CRM, inventory, and editorial workflows.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="frame workflow reveal" id="workflow">
+            <div class="section-heading">
+                <p class="eyebrow">Workflow</p>
+                <h2>Keep the app folder plain. Let the runner stay hidden.</h2>
+            </div>
+
+            <div class="workflow-grid">
+                <article class="workflow-step">
+                    <span class="step-index">01</span>
+                    <h3>Generate an app folder</h3>
+                    <p>RustFrame writes `index.html`, `styles.css`, `app.js`, `bridge.js`, and an optional `data/` directory into `apps/<name>/`.</p>
+                </article>
+                <article class="workflow-step">
+                    <span class="step-index">02</span>
+                    <h3>Build the UI with plain web files</h3>
+                    <p>Window title and size come from the HTML itself. The app folder stays frontend-first and free of visible Rust runner code.</p>
+                </article>
+                <article class="workflow-step">
+                    <span class="step-index">03</span>
+                    <h3>Run through a generated runner</h3>
+                    <p>`dev` and `export` materialize the hidden Rust runner under `target/rustframe/apps/<name>/runner/` and carry forward the embedded assets.</p>
+                </article>
+                <article class="workflow-step">
+                    <span class="step-index">04</span>
+                    <h3>Gate capabilities explicitly</h3>
+                    <p>SQLite turns on when `data/schema.json` exists. Filesystem and shell methods stay unavailable unless the runtime grants them.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="frame runtime reveal">
+            <div class="section-heading">
+                <p class="eyebrow">Capabilities</p>
+                <h2>Small native surface, explicit scope</h2>
+            </div>
+
+            <div class="capability-grid">
+                <article class="capability-card">
+                    <span class="capability-label">Window</span>
+                    <h3>Close, minimize, maximize, rename</h3>
+                    <p>The bridge exposes a small `window.RustFrame.window.*` surface instead of a large plugin system.</p>
+                </article>
+                <article class="capability-card">
+                    <span class="capability-label">Database</span>
+                    <h3>Schema and seeds embedded into the app</h3>
+                    <p>When `data/schema.json` exists, RustFrame provisions SQLite and exposes CRUD methods with automatic `id`, `createdAt`, and `updatedAt` fields.</p>
+                </article>
+                <article class="capability-card">
+                    <span class="capability-label">Filesystem</span>
+                    <h3>Read access is root-scoped</h3>
+                    <p>`fs.readText(...)` only succeeds inside explicitly allowed directories and rejects parent escapes or outside paths.</p>
+                </article>
+                <article class="capability-card">
+                    <span class="capability-label">Shell</span>
+                    <h3>Commands must be allowlisted by name</h3>
+                    <p>`shell.exec(...)` resolves to structured output, but only for commands that the runtime registered ahead of time.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="frame gallery reveal" id="examples">
+            <div class="section-heading">
+                <p class="eyebrow">Example Apps</p>
+                <h2>Desktop surfaces already living in the repository</h2>
+            </div>
+
+            <div class="gallery-grid">
+                <article class="gallery-card gallery-card-wide">
+                    <img src="assets/screenshots/atlas-crm.png" alt="Atlas CRM screenshot">
+                    <div class="gallery-copy">
+                        <span class="gallery-kicker">Seeded SQLite example</span>
+                        <h3>Atlas CRM</h3>
+                        <p>Pipeline lanes, deal capture, and native title sync backed by a `deals` table.</p>
+                        <code>apps/atlas-crm</code>
+                    </div>
+                </article>
+                <article class="gallery-card">
+                    <img src="assets/screenshots/daybreak-notes.png" alt="Daybreak Notes screenshot">
+                    <div class="gallery-copy">
+                        <span class="gallery-kicker">CRUD surface</span>
+                        <h3>Daybreak Notes</h3>
+                        <p>A calm local notes library backed by `notes`.</p>
+                    </div>
+                </article>
+                <article class="gallery-card">
+                    <img src="assets/screenshots/hello-rustframe.png" alt="Hello RustFrame screenshot">
+                    <div class="gallery-copy">
+                        <span class="gallery-kicker">Starter app</span>
+                        <h3>Hello Rustframe</h3>
+                        <p>The template path for title sync, embedded seeds, and the smallest useful app.</p>
+                    </div>
+                </article>
+                <article class="gallery-card">
+                    <img src="assets/screenshots/orbit-desk.png" alt="Orbit Desk screenshot">
+                    <div class="gallery-copy">
+                        <span class="gallery-kicker">Frontend-only app</span>
+                        <h3>Orbit Desk</h3>
+                        <p>Task planning, notes, and a focus timer backed by browser storage instead of SQLite.</p>
+                    </div>
+                </article>
+                <article class="gallery-card">
+                    <img src="assets/screenshots/prism-gallery.png" alt="Prism Gallery screenshot">
+                    <div class="gallery-copy">
+                        <span class="gallery-kicker">Media-forward example</span>
+                        <h3>Prism Gallery</h3>
+                        <p>A bright asset library showing how far the visual layer can move without changing the runtime contract.</p>
+                    </div>
+                </article>
+                <article class="gallery-card">
+                    <img src="assets/screenshots/quill-studio.png" alt="Quill Studio screenshot">
+                    <div class="gallery-copy">
+                        <span class="gallery-kicker">Editorial board</span>
+                        <h3>Quill Studio</h3>
+                        <p>Story lanes, deadlines, and multi-channel workflow backed by a `stories` table.</p>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="frame docs-strip reveal" id="docs">
+            <div class="section-heading">
+                <p class="eyebrow">Docs</p>
+                <h2>Move from the landing page into the actual contract</h2>
+            </div>
+
+            <div class="docs-grid">
+                <a class="doc-card" href="docs.html?doc=readme">
+                    <span>Docs index</span>
+                    <strong>Start with the repo map</strong>
+                    <p>Use the docs index to move through the workspace, runtime model, app contract, and example set.</p>
+                </a>
+                <a class="doc-card" href="docs.html?doc=getting-started">
+                    <span>Guide</span>
+                    <strong>Getting started</strong>
+                    <p>Run the capability demo, scaffold an app, and export a release build.</p>
+                </a>
+                <a class="doc-card" href="docs.html?doc=runtime-and-capabilities">
+                    <span>Runtime</span>
+                    <strong>Capabilities</strong>
+                    <p>See how embedded assets, direct IPC, SQLite, filesystem roots, and shell allowlists fit together.</p>
+                </a>
+                <a class="doc-card" href="docs.html?doc=frontend-app-rules">
+                    <span>Contract</span>
+                    <strong>Frontend app rules</strong>
+                    <p>Everything app folders must do to dev cleanly and export without surprises.</p>
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <p>RustFrame is currently Linux-first and built around the native GTK and WebKitGTK stack required by `wry`.</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
