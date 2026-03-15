@@ -17,6 +17,8 @@ That means an app in `apps/<name>/` can stay plain HTML, CSS, and JavaScript, wh
 
 Repository: [github.com/OthmaneBlial/rustframe](https://github.com/OthmaneBlial/rustframe)
 
+RustFrame is especially aimed at local-first tools, internal software, and vanilla-web desktop apps that should be shippable in hours, not after a week of framework ceremony.
+
 ## Why Build This?
 
 RustFrame exists because there is a real gap between:
@@ -71,13 +73,13 @@ RustFrame reads desktop window settings directly from `index.html`:
 
 That keeps the source of truth close to the UI.
 
-### 3. SQLite is optional, not a whole subsystem
+### 3. Zero-config local data is a real differentiator
 
 If `data/schema.json` exists, RustFrame initializes a SQLite database in the user app-data directory on first launch.
 
 If `data/seeds/*.json` exists, those rows are embedded into the binary and applied once.
 
-If you do not need a database, you do not carry one in the app contract.
+That means a frontend-only app can gain a local database by dropping files into the app folder instead of wiring a custom backend, a custom IPC layer, and a migration story by hand.
 
 ### 4. Native capabilities stay explicit
 
@@ -89,6 +91,22 @@ The runtime can expose:
 - allowlisted shell commands
 
 Nothing about that needs a localhost bridge or a plugin marketplace.
+
+### 5. The example apps prove the thesis
+
+RustFrame does not just show one tiny starter app and call it a day.
+
+The repo ships eleven vanilla JS/CSS example apps plus a capability demo to prove that the same runtime model can handle:
+
+- notes
+- CRM
+- inventory
+- habits
+- editorial workflows
+- task planning
+- media libraries
+
+That matters because it shows the framework is not just elegant on paper. It already scales to real UI density and varied product shapes.
 
 ## What Is In This Repo
 
@@ -104,6 +122,19 @@ Nothing about that needs a localhost bridge or a plugin marketplace.
   Repo docs covering getting started, runtime capabilities, app rules, and the example app set.
 - `site/`
   Portable static project site generated from the repository itself.
+
+## Who RustFrame Is For
+
+RustFrame is a strong fit when you want to build:
+
+- local-first desktop apps
+- internal business tools
+- solo-dev and indie-hacker products
+- vanilla web apps that need a native shell and local data
+
+It is especially attractive if you want the desktop runtime without adopting a heavyweight desktop framework mental model.
+
+If you are trying to build something in the class of Discord, Figma, or VS Code, RustFrame is not really trying to compete there yet.
 
 ## Quick Start
 
@@ -210,6 +241,16 @@ The repo ships multiple example apps to prove that this model is not just a toy:
 - `quill-studio`
 
 Some are SQLite-backed. One is local-storage-first. All of them keep the same core idea: the app starts as a frontend, and RustFrame gives it a native shell without taking over the whole project.
+
+## Current Limitations
+
+RustFrame is promising, but it is still honest software:
+
+- the current implementation is Linux-first
+- the current app model is still mainly single-window
+- there is no CLI `eject` path yet for power users who want to take over the Rust runner
+
+That is a conscious tradeoff for simplicity today, not the end state.
 
 ## Linux Notes
 
