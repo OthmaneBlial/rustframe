@@ -14,8 +14,9 @@ use wry::{
 };
 
 use crate::{
-    DatabaseCapability, DatabaseListQuery, DatabaseOpenConfig, DatabaseSchema, DatabaseSeedFile,
-    FsCapability, IpcRequest, IpcResponse, Result, RuntimeError, ShellCapability, ShellCommand,
+    DatabaseCapability, DatabaseListQuery, DatabaseMigrationFile, DatabaseOpenConfig,
+    DatabaseSchema, DatabaseSeedFile, FsCapability, IpcRequest, IpcResponse, Result, RuntimeError,
+    ShellCapability, ShellCommand,
 };
 
 const APP_URL: &str = "app://localhost/";
@@ -68,6 +69,7 @@ impl EmbeddedAssetRouter {
 struct EmbeddedDatabaseConfig {
     schema_path: String,
     seed_paths: Vec<String>,
+    migration_paths: Vec<String>,
 }
 
 #[derive(Default)]
@@ -122,6 +124,33 @@ impl RustFrameBuilder {
         self.database = Some(EmbeddedDatabaseConfig {
             schema_path: schema_path.into(),
             seed_paths: seed_paths
+                .into_iter()
+                .map(|path| path.as_ref().to_string())
+                .collect(),
+            migration_paths: Vec::new(),
+        });
+        self
+    }
+
+    pub fn embedded_database_with_migrations<I, S, J, T>(
+        mut self,
+        schema_path: impl Into<String>,
+        seed_paths: I,
+        migration_paths: J,
+    ) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+        J: IntoIterator<Item = T>,
+        T: AsRef<str>,
+    {
+        self.database = Some(EmbeddedDatabaseConfig {
+            schema_path: schema_path.into(),
+            seed_paths: seed_paths
+                .into_iter()
+                .map(|path| path.as_ref().to_string())
+                .collect(),
+            migration_paths: migration_paths
                 .into_iter()
                 .map(|path| path.as_ref().to_string())
                 .collect(),
@@ -508,6 +537,14 @@ fn load_database_capability(
     })?;
     let schema_text = embedded_text_asset(assets, &config.schema_path)?;
     let schema = DatabaseSchema::from_json(&schema_text)?;
+    let mut migration_files = Vec::new();
+    for migration_path in &config.migration_paths {
+        let migration_text = embedded_text_asset(assets, migration_path)?;
+        migration_files.push(DatabaseMigrationFile::from_sql(
+            migration_path.clone(),
+            &migration_text,
+        )?);
+    }
     let mut seed_files = Vec::new();
     for seed_path in &config.seed_paths {
         let seed_text = embedded_text_asset(assets, seed_path)?;
@@ -518,6 +555,7 @@ fn load_database_capability(
         app_id,
         data_dir,
         schema,
+        migration_files,
         seed_files,
     })
     .map(Some)
@@ -748,6 +786,7 @@ mod tests {
             Some(EmbeddedDatabaseConfig {
                 schema_path: "data/schema.json".into(),
                 seed_paths: vec!["data/seeds/001-defaults.json".into()],
+                migration_paths: Vec::new(),
             }),
         )
         .unwrap()
@@ -816,6 +855,7 @@ mod tests {
             Some(EmbeddedDatabaseConfig {
                 schema_path: "data/schema.json".into(),
                 seed_paths: Vec::new(),
+                migration_paths: Vec::new(),
             }),
         )
         .unwrap_err();

@@ -19,6 +19,7 @@ This is the working app contract for frontend-first RustFrame apps.
 - `rustframe.json` when the app needs native capabilities or typed runtime config
 - `data/schema.json` when the app needs persistent data
 - `data/seeds/*.json` for first-run rows
+- `data/migrations/*.sql` for versioned database upgrades and backfills
 - `dist/`
 
 ## HTML Contract
@@ -95,7 +96,13 @@ If `data/schema.json` exists:
 
 - RustFrame creates the SQLite database on first launch.
 - Seed files under `data/seeds/` are embedded and applied once.
+- SQL migration files under `data/migrations/` are applied in version order during upgrades.
 - The database file lives in the user app-data directory.
+
+Use these roles:
+
+- `data/seeds/*.json` for immutable first-run data.
+- `data/migrations/*.sql` for schema evolution and data changes after release.
 
 ## Filesystem And Shell Limits
 

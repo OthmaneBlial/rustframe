@@ -781,11 +781,25 @@ fn render_database_chain(assets: &[EmbeddedAsset]) -> String {
         .filter(|asset| asset.request_path.starts_with("data/seeds/"))
         .map(|asset| quoted_literal(&asset.request_path))
         .collect::<Vec<_>>();
+    let migration_paths = assets
+        .iter()
+        .filter(|asset| asset.request_path.starts_with("data/migrations/"))
+        .map(|asset| quoted_literal(&asset.request_path))
+        .collect::<Vec<_>>();
+
+    if migration_paths.is_empty() {
+        return format!(
+            "\n        .embedded_database({}, &[{}])",
+            quoted_literal("data/schema.json"),
+            seed_paths.join(", ")
+        );
+    }
 
     format!(
-        "\n        .embedded_database({}, &[{}])",
+        "\n        .embedded_database_with_migrations({}, &[{}], &[{}])",
         quoted_literal("data/schema.json"),
-        seed_paths.join(", ")
+        seed_paths.join(", "),
+        migration_paths.join(", ")
     )
 }
 
@@ -1389,6 +1403,27 @@ mod tests {
 
         assert!(chain.contains(".embedded_database(\"data/schema.json\""));
         assert!(chain.contains("\"data/seeds/001.json\""));
+    }
+
+    #[test]
+    fn render_database_chain_includes_sql_migrations_when_present() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("index.html"), "<!doctype html>").unwrap();
+        fs::create_dir_all(temp.path().join("data/seeds")).unwrap();
+        fs::create_dir_all(temp.path().join("data/migrations")).unwrap();
+        fs::write(temp.path().join("data/schema.json"), "{}").unwrap();
+        fs::write(temp.path().join("data/seeds/001.json"), "{}").unwrap();
+        fs::write(
+            temp.path().join("data/migrations/002-rename.sql"),
+            "ALTER TABLE",
+        )
+        .unwrap();
+        let assets = collect_embedded_assets(temp.path()).unwrap();
+
+        let chain = render_database_chain(&assets);
+
+        assert!(chain.contains(".embedded_database_with_migrations("));
+        assert!(chain.contains("\"data/migrations/002-rename.sql\""));
     }
 
     #[test]

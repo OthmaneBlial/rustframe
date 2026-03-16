@@ -45,6 +45,7 @@ Edit these files directly:
 - `apps/hello-rustframe/rustframe.json`
 - `apps/hello-rustframe/data/schema.json`
 - `apps/hello-rustframe/data/seeds/*.json`
+- `apps/hello-rustframe/data/migrations/*.sql`
 
 ## Run An App In Development
 
@@ -108,6 +109,22 @@ Supported path tokens:
 - `${SOURCE_APP_DIR}` resolves to the source app folder.
 - `${SOURCE_ASSET_DIR}` resolves to the embedded asset folder.
 - `${EXE_DIR}` resolves to the runtime executable directory.
+
+## Evolve The Database Safely
+
+Use the database files with these roles:
+
+- `data/schema.json` is the latest desired schema.
+- `data/seeds/*.json` is first-run data and should stay immutable once applied.
+- `data/migrations/*.sql` is for versioned upgrades, data backfills, column renames, drops, and type changes.
+
+Example:
+
+```text
+data/migrations/002-rename-title.sql
+```
+
+Migration files are applied in schema-version order before RustFrame runs its additive schema reconciliation.
 
 ## Export A Release Build
 

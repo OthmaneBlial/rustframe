@@ -81,6 +81,8 @@ If `data/schema.json` exists, RustFrame initializes a SQLite database in the use
 
 If `data/seeds/*.json` exists, those rows are embedded into the binary and applied once.
 
+If `data/migrations/*.sql` exists, versioned SQL migrations are embedded and applied during schema upgrades before the runtime falls back to additive reconciliation.
+
 That means a frontend-only app can gain a local database by dropping files into the app folder instead of wiring a custom backend, a custom IPC layer, and a migration story by hand.
 
 ### 4. Native capabilities stay explicit

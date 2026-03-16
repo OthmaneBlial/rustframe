@@ -23,6 +23,7 @@ RustFrame apps are frontend-first desktop apps. The app folder should feel like 
 - `rustframe.json` when the app needs native capabilities or typed runtime config
 - `data/schema.json` when the app needs persistent data
 - `data/seeds/*.json` for optional first-run rows
+- `data/migrations/*.sql` for versioned database upgrades and backfills
 - `dist/`
 
 ## Window Metadata
@@ -85,6 +86,7 @@ Rules:
 - If you need a bundler, use a dev server during development and export only the built static assets into the app root before running `export`.
 - If you define `data/schema.json`, it is embedded into the app and used to initialize the SQLite database on first launch.
 - Seed files under `data/seeds/` are also embedded and applied once to the user database.
+- SQL migration files under `data/migrations/` are embedded and applied in version order during upgrades.
 
 ## HTML Rules
 

@@ -84,7 +84,14 @@ The runtime manages these record fields automatically:
 - `createdAt`
 - `updatedAt`
 
-Schema files and seed files are embedded into the app binary. The actual SQLite file is created in the user's app-data directory, not inside `dist/`.
+Schema files, seed files, and versioned SQL migration files under `data/migrations/` are embedded into the app binary. The actual SQLite file is created in the user's app-data directory, not inside `dist/`.
+
+Migration files:
+
+- are discovered from `data/migrations/*.sql`
+- are versioned by the numeric prefix in the filename, such as `002-rename-title.sql`
+- run during upgrades before the runtime falls back to additive table reconciliation
+- are the supported path for non-additive changes such as column renames, drops, type changes, and backfills
 
 ## Filesystem Capability
 
