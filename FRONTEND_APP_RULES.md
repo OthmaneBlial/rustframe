@@ -19,7 +19,6 @@ RustFrame apps are frontend-first desktop apps. The app folder should feel like 
 - `index.html`
 - `styles.css`
 - `app.js`
-- `bridge.js`
 - `rustframe.json` when the app needs native capabilities or typed runtime config
 - `assets/icon.svg` when the app will be packaged for Linux
 - `data/schema.json` when the app needs persistent data
@@ -46,6 +45,7 @@ Rules:
 - `rustframe:height` must be a positive number.
 - If width or height is missing, RustFrame falls back to defaults.
 - You may also set `<meta name="rustframe:dev-url" content="http://127.0.0.1:5173">` for development.
+- The runtime injects `window.RustFrame` before your app scripts run, so frontend-only apps do not need a `bridge.js` asset.
 
 ## Manifest Rules
 
@@ -106,14 +106,13 @@ Rules:
 ## HTML Rules
 
 - `index.html` must be a valid standalone entrypoint.
-- Load `bridge.js` before `app.js`.
+- `window.RustFrame` is injected by the runtime before your app scripts run.
 - Keep script and stylesheet references relative.
 - If you use client-side routing, route paths without file extensions are safest because RustFrame falls back to `index.html` for extensionless routes.
 
 Recommended footer pattern:
 
 ```html
-<script src="bridge.js"></script>
 <script src="app.js"></script>
 ```
 
@@ -217,7 +216,6 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 - The supported ejected location is `apps/<app-name>/native/`.
 - Do not treat `dist/` as source input.
 - Do not put unrelated non-app files in the app root.
-- Do not load `app.js` before `bridge.js`.
 - Do not assume filesystem or shell access exists by default.
 - Do not point `packaging.linux.icon` at a missing or unsupported file type.
 - Do not ship a UI that starts on a blank page.
@@ -227,7 +225,6 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 - The app folder contains frontend files only.
 - `index.html` has a `<title>`.
 - `index.html` defines `rustframe:width` and `rustframe:height`.
-- `bridge.js` loads before `app.js`.
 - All asset references are relative.
 - The app works without a localhost server.
 - If persistent data is needed, `data/schema.json` exists and is valid JSON.

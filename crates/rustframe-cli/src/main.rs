@@ -24,7 +24,6 @@ const TEMPLATE_DATA_SEED: &str = include_str!("../templates/data/seeds/001-welco
 const TEMPLATE_INDEX_HTML: &str = include_str!("../templates/frontend/index.html");
 const TEMPLATE_STYLES_CSS: &str = include_str!("../templates/frontend/styles.css");
 const TEMPLATE_APP_JS: &str = include_str!("../templates/frontend/app.js");
-const TEMPLATE_BRIDGE_JS: &str = include_str!("../templates/frontend/bridge.js");
 const TEMPLATE_MANIFEST_JSON: &str = include_str!("../templates/frontend/rustframe.json");
 const TEMPLATE_APP_ICON_SVG: &str = include_str!("../templates/frontend/assets/icon.svg");
 
@@ -249,7 +248,6 @@ fn command_new(name: &str) -> CliResult<()> {
             ],
         ),
     )?;
-    write_text_file(&app_dir.join("bridge.js"), TEMPLATE_BRIDGE_JS)?;
     write_text_file(
         &app_dir.join("assets/icon.svg"),
         &render_template(
@@ -295,7 +293,6 @@ fn command_new(name: &str) -> CliResult<()> {
     println!("  {}/index.html", app_dir.display());
     println!("  {}/styles.css", app_dir.display());
     println!("  {}/app.js", app_dir.display());
-    println!("  {}/bridge.js", app_dir.display());
     println!("  {}/rustframe.json", app_dir.display());
     println!("Run it with: cargo run -p rustframe-cli -- dev {name}");
     Ok(())
@@ -2155,7 +2152,6 @@ mod tests {
         )
         .unwrap();
         fs::write(app_dir.join("app.js"), "console.log('ok')").unwrap();
-        fs::write(app_dir.join("bridge.js"), "window.RustFrame = {}").unwrap();
         fs::write(app_dir.join("styles.css"), "body {}").unwrap();
         fs::write(app_dir.join("data/schema.json"), "{}").unwrap();
         fs::write(app_dir.join("data/seeds/001.json"), "{}").unwrap();
@@ -2202,7 +2198,6 @@ mod tests {
         )
         .unwrap();
         fs::write(app_dir.join("app.js"), "console.log('ok')").unwrap();
-        fs::write(app_dir.join("bridge.js"), "window.RustFrame = {}").unwrap();
         fs::write(app_dir.join("styles.css"), "body {}").unwrap();
 
         let app = AppProject {
@@ -2306,7 +2301,6 @@ mod tests {
         fs::create_dir_all(&app_dir).unwrap();
         fs::write(app_dir.join("index.html"), "<title>Capability App</title>").unwrap();
         fs::write(app_dir.join("app.js"), "console.log('ok')").unwrap();
-        fs::write(app_dir.join("bridge.js"), "window.RustFrame = {}").unwrap();
         fs::write(app_dir.join("styles.css"), "body {}").unwrap();
 
         let app = AppProject {
@@ -2365,7 +2359,6 @@ mod tests {
         fs::create_dir_all(app_dir.join("data/seeds")).unwrap();
         fs::write(app_dir.join("index.html"), "<title>Ejected Demo</title>").unwrap();
         fs::write(app_dir.join("app.js"), "console.log('ok')").unwrap();
-        fs::write(app_dir.join("bridge.js"), "window.RustFrame = {}").unwrap();
         fs::write(app_dir.join("styles.css"), "body {}").unwrap();
         fs::write(app_dir.join("data/schema.json"), "{}").unwrap();
         fs::write(app_dir.join("data/seeds/001.json"), "{}").unwrap();

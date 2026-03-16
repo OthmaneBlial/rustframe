@@ -20,6 +20,7 @@ use crate::{
 };
 
 const APP_URL: &str = "app://localhost/";
+const RUSTFRAME_BRIDGE_SCRIPT: &str = include_str!("bridge.js");
 
 pub trait EmbeddedAssets {
     fn get(path: &str) -> Option<Cow<'static, [u8]>>;
@@ -205,6 +206,7 @@ impl RustFrameBuilder {
 
         let builder = WebViewBuilder::new()
             .with_background_color((6, 9, 18, 255))
+            .with_initialization_script(RUSTFRAME_BRIDGE_SCRIPT)
             .with_custom_protocol("app".into(), move |_id, request| {
                 asset_response(assets, request)
             })
@@ -365,7 +367,9 @@ fn dispatch_request(
 
 fn resolve_ipc_response(webview: &WebView, response: &IpcResponse) {
     if let Ok(serialized) = serde_json::to_string(response) {
-        let script = format!("window.RustFrame.__resolveFromNative({serialized});");
+        let script = format!(
+            "if (window.RustFrame && typeof window.RustFrame.__resolveFromNative === 'function') {{ window.RustFrame.__resolveFromNative({serialized}); }}"
+        );
         let _ = webview.evaluate_script(&script);
     }
 }

@@ -170,7 +170,6 @@ Edit these files directly:
 - `apps/hello-rustframe/index.html`
 - `apps/hello-rustframe/styles.css`
 - `apps/hello-rustframe/app.js`
-- `apps/hello-rustframe/bridge.js`
 - `apps/hello-rustframe/assets/icon.svg`
 - `apps/hello-rustframe/data/schema.json`
 - `apps/hello-rustframe/data/seeds/*.json`
@@ -247,7 +246,7 @@ At a practical level, RustFrame asks app authors to follow a very small contract
 - `apps/<name>/index.html` is required
 - everything in the app root is treated as frontend assets except `dist/` and hidden files
 - `rustframe.json` can declare native capabilities and Linux packaging metadata
-- `bridge.js` should load before `app.js`
+- `window.RustFrame` is injected by the runtime before your app scripts run
 - if `data/schema.json` exists, the app gets embedded SQLite support
 - seed files in `data/seeds/*.json` are embedded and applied once
 - use a dev server when you want frontend tooling, but keep production export static and embedded

@@ -7,7 +7,7 @@ RustFrame is not trying to be a full Tauri replacement. The current workspace in
 - The desktop shell is built around `tao` and `wry`.
 - Frontend assets are served from a custom `app://localhost/` protocol when embedded.
 - Development can switch to an HTTP dev server through `RUSTFRAME_DEV_URL` or a `rustframe:dev-url` meta tag.
-- The runtime talks to the frontend through a small promise bridge in `bridge.js`, not through a localhost IPC server.
+- The runtime injects a small promise bridge onto `window.RustFrame`, not through a localhost IPC server.
 
 ## App Metadata Comes From HTML Plus An Optional Manifest
 
@@ -136,6 +136,7 @@ target/rustframe/apps/<name>/runner/
 That runner:
 
 - embeds the app assets
+- injects the canonical `window.RustFrame` bridge at document start
 - carries forward window metadata from `index.html` and optional overrides from `rustframe.json`
 - wires in the database capability when `data/schema.json` exists
 - wires in filesystem roots and shell commands declared in `rustframe.json`

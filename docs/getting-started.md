@@ -41,12 +41,13 @@ Edit these files directly:
 - `apps/hello-rustframe/index.html`
 - `apps/hello-rustframe/styles.css`
 - `apps/hello-rustframe/app.js`
-- `apps/hello-rustframe/bridge.js`
 - `apps/hello-rustframe/assets/icon.svg`
 - `apps/hello-rustframe/rustframe.json`
 - `apps/hello-rustframe/data/schema.json`
 - `apps/hello-rustframe/data/seeds/*.json`
 - `apps/hello-rustframe/data/migrations/*.sql`
+
+The native bridge is injected by the runtime, so frontend-only apps do not need to ship a `bridge.js` file.
 
 ## Run An App In Development
 

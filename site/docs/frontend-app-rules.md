@@ -15,7 +15,6 @@ This is the working app contract for frontend-first RustFrame apps.
 - `index.html`
 - `styles.css`
 - `app.js`
-- `bridge.js`
 - `rustframe.json` when the app needs native capabilities or typed runtime config
 - `assets/icon.svg` when the app will be packaged for Linux
 - `data/schema.json` when the app needs persistent data
@@ -25,10 +24,9 @@ This is the working app contract for frontend-first RustFrame apps.
 
 ## HTML Contract
 
-Load `bridge.js` before `app.js`:
+The runtime injects `window.RustFrame` before your app scripts run, so frontend-only apps can load `app.js` directly:
 
 ```html
-<script src="bridge.js"></script>
 <script src="app.js"></script>
 ```
 
@@ -189,7 +187,6 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 - Do not add a visible `Cargo.toml` or `src/` to app folders unless you intentionally used `rustframe-cli eject`.
 - The supported ejected location is `apps/<app-name>/native/`.
 - Do not treat `dist/` as source input.
-- Do not load `app.js` before `bridge.js`.
 - Do not assume filesystem or shell access exists.
 - Do not point `packaging.linux.icon` at a missing or unsupported file type.
 - Do not ship a UI that boots to a blank screen.

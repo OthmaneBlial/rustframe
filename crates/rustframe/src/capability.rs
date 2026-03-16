@@ -189,12 +189,12 @@ mod tests {
         let temp = tempdir().unwrap();
         let root = temp.path().join("frontend");
         fs::create_dir_all(&root).unwrap();
-        let file = root.join("bridge.js");
+        let file = root.join("note.txt");
         fs::write(&file, "console.log('hello');").unwrap();
 
         let capability = FsCapability::new([root]).unwrap();
 
-        let content = capability.read_text("bridge.js").unwrap();
+        let content = capability.read_text("note.txt").unwrap();
 
         assert_eq!(content, "console.log('hello');");
     }

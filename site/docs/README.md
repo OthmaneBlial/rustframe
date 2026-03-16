@@ -14,7 +14,7 @@ RustFrame is a stripped-down desktop application framework in Rust built around 
 - `crates/rustframe` is the reusable runtime crate.
 - `crates/rustframe-cli` creates, exports, and Linux-packages frontend-first desktop apps.
 - `examples/capability-demo` proves embedded assets, native IPC, sandboxed filesystem access, and allowlisted shell execution.
-- `apps/*` contains frontend-only desktop apps with root-level `index.html`, `styles.css`, `app.js`, `bridge.js`, optional `data/`, raw binaries in `dist/`, and Linux bundles in `dist/linux/`.
+- `apps/*` contains frontend-only desktop apps with root-level `index.html`, `styles.css`, `app.js`, optional `data/`, raw binaries in `dist/`, and Linux bundles in `dist/linux/`.
 
 ## Repo Sources
 
