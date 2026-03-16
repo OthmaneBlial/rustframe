@@ -47,6 +47,8 @@ Edit these files directly:
 - `apps/hello-rustframe/data/seeds/*.json`
 - `apps/hello-rustframe/data/migrations/*.sql`
 
+Use `rustframe.json` as the primary typed config for window settings, dev URLs, capabilities, and packaging. `<title>` plus `rustframe:*` meta tags still work as fallback.
+
 The native bridge is injected by the runtime, so frontend-only apps do not need to ship a `bridge.js` file.
 
 ## Run An App In Development
@@ -70,18 +72,26 @@ To use a frontend dev server:
 cargo run -p rustframe-cli -- dev hello-rustframe http://127.0.0.1:5173
 ```
 
-You can also declare the dev server in `index.html` with:
-
-```html
-<meta name="rustframe:dev-url" content="http://127.0.0.1:5173">
-```
-
-Or in `rustframe.json`:
+Prefer `rustframe.json`:
 
 ```json
 {
+  "window": {
+    "title": "Hello Rustframe",
+    "width": 1280,
+    "height": 820
+  },
   "devUrl": "http://127.0.0.1:5173"
 }
+```
+
+HTML fallback still works when you want a minimal setup:
+
+```html
+<title>Hello Rustframe</title>
+<meta name="rustframe:width" content="1280">
+<meta name="rustframe:height" content="820">
+<meta name="rustframe:dev-url" content="http://127.0.0.1:5173">
 ```
 
 ## Declare Native Capabilities

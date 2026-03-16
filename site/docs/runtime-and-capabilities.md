@@ -9,25 +9,18 @@ RustFrame is not trying to be a full Tauri replacement. The current workspace in
 - Development can switch to an HTTP dev server through `RUSTFRAME_DEV_URL` or a `rustframe:dev-url` meta tag.
 - The runtime injects a small promise bridge onto `window.RustFrame`, not through a localhost IPC server.
 
-## App Metadata Comes From HTML Plus An Optional Manifest
+## App Metadata Comes Primarily From The Manifest
 
-The CLI still reads desktop metadata from `index.html` by default:
-
-```html
-<title>Hello Rustframe</title>
-<meta name="rustframe:width" content="1280">
-<meta name="rustframe:height" content="820">
-```
-
-- `<title>` becomes the native window title.
-- `rustframe:width` and `rustframe:height` set the initial window size.
-- `rustframe:dev-url` can override the embedded asset mode during development.
-
-Frontend-only apps can also add `apps/<name>/rustframe.json` for typed configuration:
+Frontend-only apps can add `apps/<name>/rustframe.json` for typed configuration:
 
 ```json
 {
   "appId": "hello-rustframe",
+  "window": {
+    "title": "Hello Rustframe",
+    "width": 1280,
+    "height": 820
+  },
   "devUrl": "http://127.0.0.1:5173",
   "packaging": {
     "version": "0.1.0",
@@ -51,6 +44,16 @@ Frontend-only apps can also add `apps/<name>/rustframe.json` for typed configura
     ]
   }
 }
+```
+
+That manifest is now the primary typed contract for window settings, development URLs, capabilities, and packaging.
+HTML fallback still works:
+
+```html
+<title>Hello Rustframe</title>
+<meta name="rustframe:width" content="1280">
+<meta name="rustframe:height" content="820">
+<meta name="rustframe:dev-url" content="http://127.0.0.1:5173">
 ```
 
 When both HTML metadata and `rustframe.json` set the same window fields, the manifest wins.

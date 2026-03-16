@@ -64,17 +64,21 @@ Your app folder stays readable and boring on purpose.
 
 When you outgrow that path, `rustframe-cli eject <name>` materializes an app-owned runner under `apps/<name>/native/` without forking the `rustframe` library.
 
-### 2. Window metadata lives in HTML
+### 2. Window metadata is typed, with HTML fallback
 
-RustFrame reads desktop window settings directly from `index.html`:
+RustFrame now treats `rustframe.json` as the primary config contract for desktop window settings:
 
-```html
-<title>Hello Rustframe</title>
-<meta name="rustframe:width" content="1280">
-<meta name="rustframe:height" content="820">
+```json
+{
+  "window": {
+    "title": "Hello Rustframe",
+    "width": 1280,
+    "height": 820
+  }
+}
 ```
 
-That keeps the source of truth close to the UI.
+`<title>` and the `rustframe:*` meta tags still work as a lightweight fallback, but the manifest is the long-term typed path.
 
 ### 3. Zero-config local data is a real differentiator
 
@@ -170,6 +174,7 @@ Edit these files directly:
 - `apps/hello-rustframe/index.html`
 - `apps/hello-rustframe/styles.css`
 - `apps/hello-rustframe/app.js`
+- `apps/hello-rustframe/rustframe.json`
 - `apps/hello-rustframe/assets/icon.svg`
 - `apps/hello-rustframe/data/schema.json`
 - `apps/hello-rustframe/data/seeds/*.json`
@@ -245,7 +250,7 @@ At a practical level, RustFrame asks app authors to follow a very small contract
 
 - `apps/<name>/index.html` is required
 - everything in the app root is treated as frontend assets except `dist/` and hidden files
-- `rustframe.json` can declare native capabilities and Linux packaging metadata
+- `rustframe.json` is the primary typed config contract for window, runtime, capabilities, and packaging metadata
 - `window.RustFrame` is injected by the runtime before your app scripts run
 - if `data/schema.json` exists, the app gets embedded SQLite support
 - seed files in `data/seeds/*.json` are embedded and applied once

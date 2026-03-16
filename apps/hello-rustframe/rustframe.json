@@ -1,0 +1,16 @@
+{
+  "appId": "hello-rustframe",
+  "window": {
+    "title": "Hello Rustframe",
+    "width": 1280,
+    "height": 820
+  },
+  "packaging": {
+    "version": "0.1.0",
+    "description": "Hello Rustframe",
+    "linux": {
+      "categories": ["Utility"],
+      "keywords": ["desktop", "rustframe"]
+    }
+  }
+}

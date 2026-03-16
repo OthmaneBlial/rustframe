@@ -28,9 +28,21 @@ RustFrame apps are frontend-first desktop apps. The app folder should feel like 
 
 ## Window Metadata
 
-RustFrame reads desktop window metadata directly from `index.html`.
+RustFrame prefers `rustframe.json` as the typed source for desktop window metadata.
 
-Required pattern:
+Preferred manifest pattern:
+
+```json
+{
+  "window": {
+    "title": "My App",
+    "width": 1280,
+    "height": 820
+  }
+}
+```
+
+Fallback HTML pattern:
 
 ```html
 <title>My App</title>
@@ -40,10 +52,11 @@ Required pattern:
 
 Rules:
 
-- `<title>` becomes the native window title at launch.
+- `window.title`, `window.width`, and `window.height` are the primary typed source for native window config.
+- `<title>` becomes the native window title at launch when the manifest omits `window.title`.
 - `rustframe:width` must be a positive number.
 - `rustframe:height` must be a positive number.
-- If width or height is missing, RustFrame falls back to defaults.
+- If manifest and HTML both omit width or height, RustFrame falls back to defaults.
 - You may also set `<meta name="rustframe:dev-url" content="http://127.0.0.1:5173">` for development.
 - The runtime injects `window.RustFrame` before your app scripts run, so frontend-only apps do not need a `bridge.js` asset.
 

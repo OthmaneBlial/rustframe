@@ -1,5 +1,10 @@
 {
   "appId": "{{app_name}}",
+  "window": {
+    "title": "{{app_title}}",
+    "width": {{window_width}},
+    "height": {{window_height}}
+  },
   "packaging": {
     "version": "0.1.0",
     "description": "{{app_description}}",

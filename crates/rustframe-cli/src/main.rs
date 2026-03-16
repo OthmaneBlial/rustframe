@@ -47,6 +47,14 @@ struct AppConfig {
     packaging: AppPackagingConfig,
 }
 
+#[derive(Debug, Default)]
+struct HtmlConfigFallback {
+    title: Option<String>,
+    width: Option<f64>,
+    height: Option<f64>,
+    dev_url: Option<String>,
+}
+
 #[derive(Debug)]
 struct RunnerProject {
     manifest_path: PathBuf,
@@ -524,35 +532,38 @@ fn read_app_config(name: &str, app_dir: &Path, asset_dir: &Path) -> CliResult<Ap
     let html = fs::read_to_string(&index_path)
         .map_err(|error| format!("failed to read '{}': {error}", index_path.display()))?;
     let manifest = read_app_manifest(app_dir)?;
-    let window = manifest.window.as_ref();
+    let html_fallback = read_html_config_fallback(&html)?;
+    let window = manifest.window.unwrap_or_default();
 
-    let title = window
-        .and_then(|window| window.title.clone())
-        .or_else(|| extract_title(&html))
+    let title = normalize_optional_string("window.title", window.title)?
+        .or(html_fallback.title)
         .unwrap_or_else(|| humanize_name(name));
-    let width = if let Some(value) = window.and_then(|window| window.width) {
+    let width = if let Some(value) = window.width {
         validate_dimension("window.width", value)?
     } else {
-        extract_meta_content(&html, "rustframe:width")
-            .map(|value| parse_dimension("rustframe:width", &value))
-            .transpose()?
-            .unwrap_or(1280.0)
+        html_fallback.width.unwrap_or(1280.0)
     };
-    let height = if let Some(value) = window.and_then(|window| window.height) {
+    let height = if let Some(value) = window.height {
         validate_dimension("window.height", value)?
     } else {
-        extract_meta_content(&html, "rustframe:height")
-            .map(|value| parse_dimension("rustframe:height", &value))
-            .transpose()?
-            .unwrap_or(820.0)
+        html_fallback.height.unwrap_or(820.0)
     };
     let dev_url = manifest
         .dev_url
-        .or_else(|| extract_meta_content(&html, "rustframe:dev-url"));
-    let app_id = manifest.app_id.unwrap_or_else(|| name.to_string());
+        .map(|value| validate_dev_url("devUrl", &value))
+        .transpose()?
+        .or(html_fallback.dev_url);
+    let app_id =
+        normalize_optional_string("appId", manifest.app_id)?.unwrap_or_else(|| name.to_string());
     validate_app_id(&app_id)?;
 
-    let fs_roots = manifest.filesystem.unwrap_or_default().roots;
+    let fs_roots = manifest
+        .filesystem
+        .unwrap_or_default()
+        .roots
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .collect::<Vec<_>>();
     validate_fs_roots(&fs_roots)?;
     let shell_commands = manifest
         .shell
@@ -560,8 +571,8 @@ fn read_app_config(name: &str, app_dir: &Path, asset_dir: &Path) -> CliResult<Ap
         .commands
         .into_iter()
         .map(|command| AppShellCommand {
-            name: command.name,
-            program: command.program,
+            name: command.name.trim().to_string(),
+            program: command.program.trim().to_string(),
             args: command.args,
         })
         .collect::<Vec<_>>();
@@ -577,6 +588,26 @@ fn read_app_config(name: &str, app_dir: &Path, asset_dir: &Path) -> CliResult<Ap
         fs_roots,
         shell_commands,
         packaging,
+    })
+}
+
+fn read_html_config_fallback(html: &str) -> CliResult<HtmlConfigFallback> {
+    let title = extract_title(html).map(|value| value.trim().to_string());
+    let width = extract_meta_content(html, "rustframe:width")
+        .map(|value| parse_dimension("rustframe:width", &value))
+        .transpose()?;
+    let height = extract_meta_content(html, "rustframe:height")
+        .map(|value| parse_dimension("rustframe:height", &value))
+        .transpose()?;
+    let dev_url = extract_meta_content(html, "rustframe:dev-url")
+        .map(|value| validate_dev_url("rustframe:dev-url", &value))
+        .transpose()?;
+
+    Ok(HtmlConfigFallback {
+        title,
+        width,
+        height,
+        dev_url,
     })
 }
 
@@ -966,6 +997,33 @@ fn validate_dimension(field: &str, value: f64) -> CliResult<f64> {
     } else {
         Err(format!("{field} must be greater than zero"))
     }
+}
+
+fn normalize_optional_string(field: &str, value: Option<String>) -> CliResult<Option<String>> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+
+    let normalized = value.trim().to_string();
+    if normalized.is_empty() {
+        return Err(format!("{field} must not be empty"));
+    }
+
+    Ok(Some(normalized))
+}
+
+fn validate_dev_url(field: &str, value: &str) -> CliResult<String> {
+    let normalized = value.trim();
+    if normalized.is_empty() {
+        return Err(format!("{field} must not be empty"));
+    }
+    if !looks_like_url(normalized) {
+        return Err(format!(
+            "{field} must start with http:// or https://, received '{value}'"
+        ));
+    }
+
+    Ok(normalized.to_string())
 }
 
 fn validate_app_id(value: &str) -> CliResult<()> {
@@ -1748,11 +1806,10 @@ fn print_help() {
     );
     println!();
     println!("Run `dev`, `export`, and `package` from inside apps/<name>/ to omit the app name.");
-    println!("Window title and size are read from index.html:");
-    println!("  <title>My App</title>");
-    println!("  <meta name=\"rustframe:width\" content=\"1280\">");
-    println!("  <meta name=\"rustframe:height\" content=\"820\">");
-    println!("Optional native capabilities live in apps/<name>/rustframe.json.");
+    println!("Primary app config lives in apps/<name>/rustframe.json:");
+    println!("  \"window\": {{ \"title\": \"My App\", \"width\": 1280, \"height\": 820 }}");
+    println!("  \"devUrl\": \"http://127.0.0.1:5173\"");
+    println!("HTML <title> and rustframe:* meta tags still work as fallback.");
 }
 
 #[cfg(test)]
@@ -2005,6 +2062,31 @@ mod tests {
     }
 
     #[test]
+    fn manifest_window_config_works_without_html_meta_tags() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("index.html"), "<title>HTML Title</title>").unwrap();
+        fs::write(
+            temp.path().join("rustframe.json"),
+            r#"
+            {
+              "window": {
+                "title": "Manifest Window",
+                "width": 1366,
+                "height": 900
+              }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let config = read_app_config("window-demo", temp.path(), temp.path()).unwrap();
+
+        assert_eq!(config.title, "Manifest Window");
+        assert_eq!(config.width, 1366.0);
+        assert_eq!(config.height, 900.0);
+    }
+
+    #[test]
     fn manifest_rejects_duplicate_shell_command_names() {
         let temp = tempdir().unwrap();
         fs::write(
@@ -2029,6 +2111,44 @@ mod tests {
 
         let error = read_app_config("manifest-demo", temp.path(), temp.path()).unwrap_err();
         assert!(error.contains("shell.commands defines 'sync' more than once"));
+    }
+
+    #[test]
+    fn manifest_rejects_invalid_dev_url() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("index.html"), "<title>Config Demo</title>").unwrap();
+        fs::write(
+            temp.path().join("rustframe.json"),
+            r#"
+            {
+              "devUrl": "ftp://127.0.0.1:5173"
+            }
+            "#,
+        )
+        .unwrap();
+
+        let error = read_app_config("config-demo", temp.path(), temp.path()).unwrap_err();
+        assert!(error.contains("devUrl must start with http:// or https://"));
+    }
+
+    #[test]
+    fn manifest_rejects_blank_window_title() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("index.html"), "<title>Config Demo</title>").unwrap();
+        fs::write(
+            temp.path().join("rustframe.json"),
+            r#"
+            {
+              "window": {
+                "title": "   "
+              }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let error = read_app_config("config-demo", temp.path(), temp.path()).unwrap_err();
+        assert!(error.contains("window.title must not be empty"));
     }
 
     #[test]

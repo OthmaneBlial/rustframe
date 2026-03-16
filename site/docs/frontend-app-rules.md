@@ -34,6 +34,23 @@ Window metadata also lives in `index.html`:
 
 ```html
 <title>My App</title>
+```
+
+The manifest is the preferred typed source for native window config:
+
+```json
+{
+  "window": {
+    "title": "My App",
+    "width": 1280,
+    "height": 820
+  }
+}
+```
+
+HTML fallback is still supported when you want the lightest possible setup:
+
+```html
 <meta name="rustframe:width" content="1280">
 <meta name="rustframe:height" content="820">
 ```
@@ -51,6 +68,11 @@ Use `apps/<app-name>/rustframe.json` for typed runtime config that should not li
 ```json
 {
   "appId": "my-app",
+  "window": {
+    "title": "My App",
+    "width": 1280,
+    "height": 820
+  },
   "packaging": {
     "version": "0.1.0",
     "description": "My App desktop package",
@@ -78,6 +100,7 @@ Use `apps/<app-name>/rustframe.json` for typed runtime config that should not li
 Rules:
 
 - `appId` is optional and defaults to the app folder name.
+- `window.title`, `window.width`, and `window.height` are the primary typed source for native window config.
 - `packaging.version` defaults to `0.1.0` when omitted.
 - `packaging.description` defaults to the app title when omitted.
 - `packaging.linux.icon` may point to an `.svg` or `.png` file relative to the app root.
@@ -87,6 +110,7 @@ Rules:
 - `packaging.linux.keywords[]` entries must not contain semicolons.
 - `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` are supported inside declared values.
 - Relative filesystem roots resolve against the source app folder in debug builds and against the executable directory in release builds.
+- HTML `<title>` and `rustframe:*` meta tags remain available as fallback when the manifest omits those window fields.
 
 ## Asset Rules
 
