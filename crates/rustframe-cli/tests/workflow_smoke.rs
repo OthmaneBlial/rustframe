@@ -153,6 +153,7 @@ fn new_creates_manifest_first_app_scaffold() {
     assert_eq!(manifest["window"]["title"], app_title(&app_name));
     assert_eq!(manifest["window"]["width"], 1280);
     assert_eq!(manifest["window"]["height"], 820);
+    assert_eq!(manifest["security"]["model"], "local-first");
 }
 
 #[test]
@@ -179,6 +180,10 @@ fn dev_and_export_support_runtime_smoke_checks() {
     assert_eq!(dev_report["launchMode"], "dev-server");
     assert_eq!(dev_report["activeDevUrl"], "http://127.0.0.1:43123");
     assert_eq!(dev_report["window"]["title"], expected_title);
+    assert_eq!(dev_report["security"]["model"], "local-first");
+    assert_eq!(dev_report["security"]["database"], true);
+    assert_eq!(dev_report["security"]["filesystem"], false);
+    assert_eq!(dev_report["security"]["shell"], false);
     assert_eq!(dev_report["hasIndexHtml"], true);
     assert_eq!(dev_report["bridgeInjected"], true);
     assert_eq!(dev_report["database"]["schemaVersion"], 1);
@@ -213,6 +218,8 @@ fn dev_and_export_support_runtime_smoke_checks() {
     assert_eq!(export_report["launchMode"], "embedded");
     assert_eq!(export_report["activeDevUrl"], Value::Null);
     assert_eq!(export_report["window"]["title"], expected_title);
+    assert_eq!(export_report["security"]["model"], "local-first");
+    assert_eq!(export_report["security"]["database"], true);
     assert_eq!(export_report["database"]["schemaVersion"], 1);
     assert!(
         export_report["database"]["tables"]

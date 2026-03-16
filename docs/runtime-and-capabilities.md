@@ -21,6 +21,9 @@ Frontend-only apps can add `apps/<name>/rustframe.json` for typed configuration:
     "width": 1280,
     "height": 820
   },
+  "security": {
+    "model": "local-first"
+  },
   "devUrl": "http://127.0.0.1:5173",
   "packaging": {
     "version": "0.1.0",
@@ -59,6 +62,18 @@ HTML fallback still works:
 When both HTML metadata and `rustframe.json` set the same window fields, the manifest wins.
 The same manifest also provides Linux packaging metadata for `rustframe-cli package`.
 
+## Frontend Trust Model
+
+RustFrame assumes a trusted frontend by default.
+
+- `security.model = "local-first"` is the default. Configured database, filesystem, and shell bridges are exposed to the frontend.
+- `security.model = "networked"` treats the frontend as less trusted. Only the window bridge stays exposed by default.
+- `security.bridge.database`, `security.bridge.filesystem`, and `security.bridge.shell` can selectively re-enable those namespaces in `networked` mode.
+- The runtime enforces that boundary both in the injected JS bridge and in native IPC dispatch, so raw `window.ipc.postMessage(...)` calls do not bypass it.
+- `window.RustFrame.security` exposes the active trust model and the currently available bridge namespaces.
+
+If your app loads remote content, embeds third-party scripts, renders user HTML, or has a meaningful XSS surface, use `networked` mode and keep the bridge scope minimal.
+
 ## Embedded Assets
 
 When you run `dev`, `export`, or `package`, the CLI walks the app asset directory and embeds everything except:
@@ -70,7 +85,7 @@ When you run `dev`, `export`, or `package`, the CLI walks the app asset director
 
 ## Native IPC Surface
 
-The shipped bridge exposes these methods:
+The shipped bridge exposes these methods according to the active trust model:
 
 ### Window
 
@@ -81,7 +96,7 @@ The shipped bridge exposes these methods:
 
 ### Database
 
-If the app contains `data/schema.json`, RustFrame enables a SQLite capability with:
+If the app contains `data/schema.json` and the frontend trust settings allow database access, RustFrame exposes:
 
 - `window.RustFrame.db.info()`
 - `window.RustFrame.db.get(table, id)`

@@ -5,6 +5,9 @@
     "width": 1280,
     "height": 820
   },
+  "security": {
+    "model": "local-first"
+  },
   "packaging": {
     "version": "0.1.0",
     "description": "Hello Rustframe",

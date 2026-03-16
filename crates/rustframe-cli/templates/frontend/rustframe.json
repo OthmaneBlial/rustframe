@@ -5,6 +5,9 @@
     "width": {{window_width}},
     "height": {{window_height}}
   },
+  "security": {
+    "model": "local-first"
+  },
   "packaging": {
     "version": "0.1.0",
     "description": "{{app_description}}",

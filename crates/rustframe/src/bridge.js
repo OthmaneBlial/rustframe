@@ -1,6 +1,18 @@
 (function () {
     const pending = new Map();
     let nextId = 1;
+    const bridgeConfig = (() => {
+        const raw = window.__RUSTFRAME_BRIDGE_CONFIG__;
+        const config = raw && typeof raw === "object" ? raw : {};
+        const asBoolean = (value, fallback) => typeof value === "boolean" ? value : fallback;
+
+        return Object.freeze({
+            model: config.model === "networked" ? "networked" : "local-first",
+            database: asBoolean(config.database, true),
+            filesystem: asBoolean(config.filesystem, true),
+            shell: asBoolean(config.shell, true)
+        });
+    })();
 
     function normalizeError(payload) {
         if (payload && typeof payload === "object") {
@@ -28,6 +40,13 @@
         });
     }
 
+    function rejectRestrictedBridge(message) {
+        return Promise.reject({
+            code: "permission_denied",
+            message
+        });
+    }
+
     function resolveFromNative(message) {
         const callback = pending.get(message.id);
         if (!callback) {
@@ -47,6 +66,7 @@
     window.RustFrame = Object.freeze({
         __resolveFromNative: resolveFromNative,
         invoke,
+        security: bridgeConfig,
         window: Object.freeze({
             close: () => invoke("window.close"),
             minimize: () => invoke("window.minimize"),
@@ -54,19 +74,37 @@
             setTitle: (title) => invoke("window.setTitle", { title })
         }),
         fs: Object.freeze({
-            readText: (path) => invoke("fs.readText", { path })
+            readText: (path) => bridgeConfig.filesystem
+                ? invoke("fs.readText", { path })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend")
         }),
         shell: Object.freeze({
-            exec: (command, args = []) => invoke("shell.exec", { command, args })
+            exec: (command, args = []) => bridgeConfig.shell
+                ? invoke("shell.exec", { command, args })
+                : rejectRestrictedBridge("shell bridge is disabled for this frontend")
         }),
         db: Object.freeze({
-            info: () => invoke("db.info"),
-            get: (table, id) => invoke("db.get", { table, id }),
-            list: (table, options = {}) => invoke("db.list", { table, ...options }),
-            count: (table, options = {}) => invoke("db.count", { table, ...options }),
-            insert: (table, record) => invoke("db.insert", { table, record }),
-            update: (table, id, patch) => invoke("db.update", { table, id, patch }),
-            delete: (table, id) => invoke("db.delete", { table, id })
+            info: () => bridgeConfig.database
+                ? invoke("db.info")
+                : rejectRestrictedBridge("database bridge is disabled for this frontend"),
+            get: (table, id) => bridgeConfig.database
+                ? invoke("db.get", { table, id })
+                : rejectRestrictedBridge("database bridge is disabled for this frontend"),
+            list: (table, options = {}) => bridgeConfig.database
+                ? invoke("db.list", { table, ...options })
+                : rejectRestrictedBridge("database bridge is disabled for this frontend"),
+            count: (table, options = {}) => bridgeConfig.database
+                ? invoke("db.count", { table, ...options })
+                : rejectRestrictedBridge("database bridge is disabled for this frontend"),
+            insert: (table, record) => bridgeConfig.database
+                ? invoke("db.insert", { table, record })
+                : rejectRestrictedBridge("database bridge is disabled for this frontend"),
+            update: (table, id, patch) => bridgeConfig.database
+                ? invoke("db.update", { table, id, patch })
+                : rejectRestrictedBridge("database bridge is disabled for this frontend"),
+            delete: (table, id) => bridgeConfig.database
+                ? invoke("db.delete", { table, id })
+                : rejectRestrictedBridge("database bridge is disabled for this frontend")
         })
     });
 })();

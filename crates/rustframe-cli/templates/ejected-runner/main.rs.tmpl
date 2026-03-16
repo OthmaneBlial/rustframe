@@ -84,7 +84,7 @@ fn main() -> Result<()> {
     let builder = RustFrame::builder()
         .title({{window_title}})
         .size({{window_width}}, {{window_height}})
-        .embedded_assets::<AppAssets>(){{app_id_chain}}{{dev_url_chain}}{{database_chain}}{{fs_root_chain}}{{shell_command_chain}};
+        .embedded_assets::<AppAssets>(){{app_id_chain}}{{dev_url_chain}}{{database_chain}}{{security_chain}}{{fs_root_chain}}{{shell_command_chain}};
 
     builder.run()
 }

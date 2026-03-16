@@ -105,6 +105,8 @@ Rules:
 - `packaging.description` defaults to the app title when omitted.
 - `packaging.linux.icon` may point to an `.svg` or `.png` file relative to the app root.
 - `packaging.linux.categories` defaults to `["Utility"]`.
+- `security.model` defaults to `"local-first"` and may also be `"networked"`.
+- `security.bridge.database`, `security.bridge.filesystem`, and `security.bridge.shell` only matter when you need to selectively re-enable bridge namespaces for a `networked` frontend.
 - `filesystem.roots` entries must be non-empty strings.
 - `shell.commands[].name` values must be unique.
 - `shell.commands[].args` and `shell.commands[].allowedArgs` entries must be non-empty when present.
@@ -131,6 +133,15 @@ Rules:
 - Handle Promise rejections from native calls.
 - Keep startup fast and resilient.
 
+## Trust Rules
+
+- RustFrame assumes a trusted frontend by default.
+- If the app loads remote content, uses third-party scripts, renders user HTML, or has a meaningful XSS surface, set `security.model` to `"networked"`.
+- In `networked` mode, only the window bridge stays exposed by default. Database, filesystem, and shell access must be re-enabled explicitly through `security.bridge.*`.
+- The runtime enforces those bridge boundaries in both JS and native IPC. Hidden calls to `window.ipc.postMessage(...)` do not bypass them.
+- `window.RustFrame.security` reports the active trust model and exposed bridge namespaces.
+- Keep the template CSP strict unless you have a concrete reason to loosen it. If you loosen CSP or load remote scripts, treat the app as `networked`.
+
 ## Database Rules
 
 If `data/schema.json` exists:
@@ -147,10 +158,11 @@ Use these roles:
 
 ## Filesystem And Shell Limits
 
-Frontend-only apps do not get filesystem or shell access by default.
+Frontend-only apps do not get filesystem or shell access by default, and `networked` apps do not get database bridge access by default.
 
 - `window.RustFrame.fs.readText(...)` exists in the bridge, but requires the runtime to allow one or more filesystem roots.
 - `window.RustFrame.shell.exec(...)` exists in the bridge, but requires the runtime to allow a named command.
+- `window.RustFrame.db.*` only stays exposed by default for `local-first` apps.
 - `shell.exec` frontend args are denied unless that named command explicitly allowlists them.
 - Declared shell commands run with bounded time and bounded captured output.
 - `rustframe.json` is the frontend-only way to declare those capabilities.

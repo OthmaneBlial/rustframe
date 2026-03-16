@@ -42,9 +42,44 @@ struct AppConfig {
     width: f64,
     height: f64,
     dev_url: Option<String>,
+    security: AppSecurityConfig,
     fs_roots: Vec<String>,
     shell_commands: Vec<AppShellCommand>,
     packaging: AppPackagingConfig,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AppSecurityModel {
+    LocalFirst,
+    Networked,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AppSecurityConfig {
+    model: AppSecurityModel,
+    database: bool,
+    filesystem: bool,
+    shell: bool,
+}
+
+impl AppSecurityConfig {
+    fn local_first() -> Self {
+        Self {
+            model: AppSecurityModel::LocalFirst,
+            database: true,
+            filesystem: true,
+            shell: true,
+        }
+    }
+
+    fn networked() -> Self {
+        Self {
+            model: AppSecurityModel::Networked,
+            database: false,
+            filesystem: false,
+            shell: false,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -113,6 +148,8 @@ struct AppManifest {
     #[serde(default)]
     window: Option<ManifestWindow>,
     #[serde(default)]
+    security: Option<ManifestSecurity>,
+    #[serde(default)]
     filesystem: Option<ManifestFilesystem>,
     #[serde(default)]
     shell: Option<ManifestShell>,
@@ -129,6 +166,33 @@ struct ManifestWindow {
     width: Option<f64>,
     #[serde(default)]
     height: Option<f64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManifestSecurity {
+    #[serde(default)]
+    model: Option<ManifestSecurityModel>,
+    #[serde(default)]
+    bridge: Option<ManifestSecurityBridge>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum ManifestSecurityModel {
+    LocalFirst,
+    Networked,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManifestSecurityBridge {
+    #[serde(default)]
+    database: Option<bool>,
+    #[serde(default)]
+    filesystem: Option<bool>,
+    #[serde(default)]
+    shell: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -573,6 +637,7 @@ fn read_app_config(name: &str, app_dir: &Path, asset_dir: &Path) -> CliResult<Ap
         .map(|value| validate_dev_url("devUrl", &value))
         .transpose()?
         .or(html_fallback.dev_url);
+    let security = read_security_config(manifest.security);
     let app_id =
         normalize_optional_string("appId", manifest.app_id)?.unwrap_or_else(|| name.to_string());
     validate_app_id(&app_id)?;
@@ -619,6 +684,7 @@ fn read_app_config(name: &str, app_dir: &Path, asset_dir: &Path) -> CliResult<Ap
         width,
         height,
         dev_url,
+        security,
         fs_roots,
         shell_commands,
         packaging,
@@ -657,6 +723,28 @@ fn read_app_manifest(app_dir: &Path) -> CliResult<AppManifest> {
         .map_err(|error| format!("failed to parse '{}': {error}", manifest_path.display()))
 }
 
+fn read_security_config(manifest: Option<ManifestSecurity>) -> AppSecurityConfig {
+    let manifest = manifest.unwrap_or_default();
+    let mut security = match manifest.model.unwrap_or(ManifestSecurityModel::LocalFirst) {
+        ManifestSecurityModel::LocalFirst => AppSecurityConfig::local_first(),
+        ManifestSecurityModel::Networked => AppSecurityConfig::networked(),
+    };
+
+    if let Some(bridge) = manifest.bridge {
+        if let Some(database) = bridge.database {
+            security.database = database;
+        }
+        if let Some(filesystem) = bridge.filesystem {
+            security.filesystem = filesystem;
+        }
+        if let Some(shell) = bridge.shell {
+            security.shell = shell;
+        }
+    }
+
+    security
+}
+
 fn resolve_runner_project(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject> {
     if let Some(runner) = find_ejected_runner(workspace, app) {
         return Ok(runner);
@@ -684,6 +772,7 @@ fn prepare_generated_runner(workspace: &Path, app: &AppProject) -> CliResult<Run
         .unwrap_or_default();
     let app_id_chain = format!("\n        .app_id({})", quoted_literal(&app.config.app_id));
     let database_chain = render_database_chain(&assets);
+    let security_chain = render_security_chain(&app.config.security);
     let fs_root_chain = render_fs_root_chain(&app.config.fs_roots);
     let shell_command_chain = render_shell_command_chain(&app.config.shell_commands);
 
@@ -719,6 +808,7 @@ fn prepare_generated_runner(workspace: &Path, app: &AppProject) -> CliResult<Run
             ("{{app_id_chain}}", app_id_chain),
             ("{{dev_url_chain}}", dev_url_chain),
             ("{{database_chain}}", database_chain),
+            ("{{security_chain}}", security_chain),
             ("{{fs_root_chain}}", fs_root_chain),
             ("{{shell_command_chain}}", shell_command_chain),
             ("{{asset_match_arms}}", render_asset_match_arms(&assets)),
@@ -758,6 +848,7 @@ fn prepare_ejected_runner(workspace: &Path, app: &AppProject) -> CliResult<Runne
         .unwrap_or_default();
     let app_id_chain = format!("\n        .app_id({})", quoted_literal(&app.config.app_id));
     let database_chain = render_database_chain(&assets);
+    let security_chain = render_security_chain(&app.config.security);
     let fs_root_chain = render_fs_root_chain(&app.config.fs_roots);
     let shell_command_chain = render_shell_command_chain(&app.config.shell_commands);
     let rustframe_path = quoted_literal(&relative_path(
@@ -792,6 +883,7 @@ fn prepare_ejected_runner(workspace: &Path, app: &AppProject) -> CliResult<Runne
             ("{{app_id_chain}}", app_id_chain),
             ("{{dev_url_chain}}", dev_url_chain),
             ("{{database_chain}}", database_chain),
+            ("{{security_chain}}", security_chain),
             ("{{fs_root_chain}}", fs_root_chain),
             ("{{shell_command_chain}}", shell_command_chain),
         ],
@@ -932,6 +1024,32 @@ fn render_database_chain(assets: &[EmbeddedAsset]) -> String {
         seed_paths.join(", "),
         migration_paths.join(", ")
     )
+}
+
+fn render_security_chain(security: &AppSecurityConfig) -> String {
+    let defaults = match security.model {
+        AppSecurityModel::LocalFirst => AppSecurityConfig::local_first(),
+        AppSecurityModel::Networked => AppSecurityConfig::networked(),
+    };
+
+    let mut chain = match security.model {
+        AppSecurityModel::LocalFirst => "rustframe::FrontendSecurity::local_first()".to_string(),
+        AppSecurityModel::Networked => "rustframe::FrontendSecurity::networked()".to_string(),
+    };
+
+    if security.database != defaults.database {
+        chain.push_str(&format!(".database({})", security.database));
+    }
+
+    if security.filesystem != defaults.filesystem {
+        chain.push_str(&format!(".filesystem({})", security.filesystem));
+    }
+
+    if security.shell != defaults.shell {
+        chain.push_str(&format!(".shell({})", security.shell));
+    }
+
+    format!("\n        .frontend_security({chain})")
 }
 
 fn render_fs_root_chain(roots: &[String]) -> String {
@@ -1949,11 +2067,12 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        AppConfig, AppPackagingConfig, AppProject, AppShellCommand, LinuxPackagingConfig,
-        build_linux_package, collect_embedded_assets, find_workspace_root_from, load_app_project,
-        prepare_ejected_runner, prepare_generated_runner, read_app_config, relative_path,
-        render_asset_match_arms, render_database_chain, render_template,
-        resolve_current_app_name_from, resolve_runner_project,
+        AppConfig, AppPackagingConfig, AppProject, AppSecurityConfig, AppSecurityModel,
+        AppShellCommand, LinuxPackagingConfig, build_linux_package, collect_embedded_assets,
+        find_workspace_root_from, load_app_project, prepare_ejected_runner,
+        prepare_generated_runner, read_app_config, relative_path, render_asset_match_arms,
+        render_database_chain, render_template, resolve_current_app_name_from,
+        resolve_runner_project,
     };
 
     fn write_workspace_manifest(root: &Path) {
@@ -2071,6 +2190,12 @@ mod tests {
             r#"
             {
               "appId": "manifest_demo",
+              "security": {
+                "model": "networked",
+                "bridge": {
+                  "database": true
+                }
+              },
               "filesystem": {
                 "roots": ["fixtures", "${EXE_DIR}/imports"]
               },
@@ -2099,6 +2224,10 @@ mod tests {
         let config = read_app_config("manifest-demo", temp.path(), temp.path()).unwrap();
 
         assert_eq!(config.app_id, "manifest_demo");
+        assert_eq!(config.security.model, AppSecurityModel::Networked);
+        assert!(config.security.database);
+        assert!(!config.security.filesystem);
+        assert!(!config.security.shell);
         assert_eq!(config.fs_roots, vec!["fixtures", "${EXE_DIR}/imports"]);
         assert_eq!(config.shell_commands.len(), 1);
         assert_eq!(config.shell_commands[0].name, "listFixtures");
@@ -2119,6 +2248,23 @@ mod tests {
         assert!(config.shell_commands[0].clear_env);
         assert_eq!(config.shell_commands[0].timeout_ms, Some(2500));
         assert_eq!(config.shell_commands[0].max_output_bytes, Some(8192));
+    }
+
+    #[test]
+    fn app_config_defaults_to_local_first_security() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            "<title>Security Demo</title>",
+        )
+        .unwrap();
+
+        let config = read_app_config("security-demo", temp.path(), temp.path()).unwrap();
+
+        assert_eq!(config.security.model, AppSecurityModel::LocalFirst);
+        assert!(config.security.database);
+        assert!(config.security.filesystem);
+        assert!(config.security.shell);
     }
 
     #[test]
@@ -2498,6 +2644,7 @@ mod tests {
                 width: 1440.0,
                 height: 920.0,
                 dev_url: None,
+                security: AppSecurityConfig::local_first(),
                 fs_roots: Vec::new(),
                 shell_commands: Vec::new(),
                 packaging: default_packaging_config("Orbit Desk"),
@@ -2509,6 +2656,7 @@ mod tests {
             fs::read_to_string(runner.manifest_path.parent().unwrap().join("src/main.rs")).unwrap();
 
         assert!(main.contains(".app_id(\"orbit-desk\")"));
+        assert!(main.contains(".frontend_security(rustframe::FrontendSecurity::local_first())"));
         assert!(
             main.contains(".embedded_database(\"data/schema.json\", &[\"data/seeds/001.json\"])")
         );
@@ -2542,6 +2690,7 @@ mod tests {
                 width: 1280.0,
                 height: 820.0,
                 dev_url: None,
+                security: AppSecurityConfig::local_first(),
                 fs_roots: Vec::new(),
                 shell_commands: Vec::new(),
                 packaging: default_packaging_config("Atlas CRM"),
@@ -2634,6 +2783,8 @@ mod tests {
         fs::write(app_dir.join("index.html"), "<title>Capability App</title>").unwrap();
         fs::write(app_dir.join("app.js"), "console.log('ok')").unwrap();
         fs::write(app_dir.join("styles.css"), "body {}").unwrap();
+        let mut security = AppSecurityConfig::networked();
+        security.database = true;
 
         let app = AppProject {
             name: "capability-app".into(),
@@ -2645,6 +2796,7 @@ mod tests {
                 width: 1280.0,
                 height: 820.0,
                 dev_url: None,
+                security,
                 fs_roots: vec!["fixtures".into(), "${EXE_DIR}/imports".into()],
                 shell_commands: vec![AppShellCommand {
                     name: "listFixtures".into(),
@@ -2667,6 +2819,9 @@ mod tests {
 
         assert!(main.contains("fn resolve_declared_fs_root"));
         assert!(main.contains(".allow_fs_root(resolve_declared_fs_root(\"fixtures\"))"));
+        assert!(main.contains(
+            ".frontend_security(rustframe::FrontendSecurity::networked().database(true))"
+        ));
         assert!(main.contains("${SOURCE_APP_DIR}"));
         assert!(main.contains(".allow_shell_command_configured(\"listFixtures\""));
         assert!(main.contains("resolve_declared_shell_value(\"ls\")"));
@@ -2718,6 +2873,7 @@ mod tests {
                 width: 1280.0,
                 height: 820.0,
                 dev_url: None,
+                security: AppSecurityConfig::local_first(),
                 fs_roots: vec!["fixtures".into()],
                 shell_commands: vec![AppShellCommand {
                     name: "sync".into(),
@@ -2751,6 +2907,7 @@ mod tests {
         assert!(
             main.contains(".embedded_database(\"data/schema.json\", &[\"data/seeds/001.json\"])")
         );
+        assert!(main.contains(".frontend_security(rustframe::FrontendSecurity::local_first())"));
         assert!(main.contains(".allow_fs_root(resolve_declared_fs_root(\"fixtures\"))"));
         assert!(main.contains("PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"..\")"));
     }
@@ -2779,6 +2936,7 @@ mod tests {
                 width: 1280.0,
                 height: 820.0,
                 dev_url: None,
+                security: AppSecurityConfig::local_first(),
                 fs_roots: Vec::new(),
                 shell_commands: Vec::new(),
                 packaging: default_packaging_config("Orbit Desk"),
@@ -2820,6 +2978,7 @@ mod tests {
                 width: 1280.0,
                 height: 820.0,
                 dev_url: None,
+                security: AppSecurityConfig::local_first(),
                 fs_roots: Vec::new(),
                 shell_commands: Vec::new(),
                 packaging: AppPackagingConfig {

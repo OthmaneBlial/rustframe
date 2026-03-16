@@ -13,6 +13,8 @@ pub use database::{
     DatabaseSchema, DatabaseSeedFile,
 };
 #[cfg(feature = "desktop")]
-pub use desktop::{EmbeddedAssets, RustFrame, RustFrameBuilder, WindowOptions};
+pub use desktop::{
+    EmbeddedAssets, FrontendSecurity, FrontendTrust, RustFrame, RustFrameBuilder, WindowOptions,
+};
 pub use error::{Result, RuntimeError};
 pub use ipc::{IpcErrorResponse, IpcRequest, IpcResponse};

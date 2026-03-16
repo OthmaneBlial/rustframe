@@ -44,6 +44,87 @@ impl Default for WindowOptions {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum FrontendTrust {
+    #[default]
+    LocalFirst,
+    Networked,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrontendSecurity {
+    pub model: FrontendTrust,
+    pub database: bool,
+    pub filesystem: bool,
+    pub shell: bool,
+}
+
+impl Default for FrontendSecurity {
+    fn default() -> Self {
+        Self::local_first()
+    }
+}
+
+impl FrontendSecurity {
+    pub fn local_first() -> Self {
+        Self {
+            model: FrontendTrust::LocalFirst,
+            database: true,
+            filesystem: true,
+            shell: true,
+        }
+    }
+
+    pub fn networked() -> Self {
+        Self {
+            model: FrontendTrust::Networked,
+            database: false,
+            filesystem: false,
+            shell: false,
+        }
+    }
+
+    pub fn database(mut self, allowed: bool) -> Self {
+        self.database = allowed;
+        self
+    }
+
+    pub fn filesystem(mut self, allowed: bool) -> Self {
+        self.filesystem = allowed;
+        self
+    }
+
+    pub fn shell(mut self, allowed: bool) -> Self {
+        self.shell = allowed;
+        self
+    }
+
+    fn resolve(
+        &self,
+        fs_capability: &FsCapability,
+        shell_capability: &ShellCapability,
+        database_capability: Option<&DatabaseCapability>,
+    ) -> ResolvedFrontendSecurity {
+        ResolvedFrontendSecurity {
+            model: self.model,
+            database: self.database && database_capability.is_some(),
+            filesystem: self.filesystem && !fs_capability.roots().is_empty(),
+            shell: self.shell && !shell_capability.command_names().is_empty(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ResolvedFrontendSecurity {
+    model: FrontendTrust,
+    database: bool,
+    filesystem: bool,
+    shell: bool,
+}
+
 #[derive(Debug)]
 struct RuntimeSmokeConfig {
     output_path: Option<PathBuf>,
@@ -71,6 +152,7 @@ struct RuntimeSmokeReport {
     launch_mode: String,
     active_dev_url: Option<String>,
     window: WindowOptions,
+    security: ResolvedFrontendSecurity,
     has_index_html: bool,
     bridge_injected: bool,
     fs_roots: Vec<String>,
@@ -111,6 +193,7 @@ struct EmbeddedDatabaseConfig {
 #[derive(Default)]
 pub struct RustFrameBuilder {
     window: WindowOptions,
+    security: FrontendSecurity,
     app_id: Option<String>,
     data_dir: Option<PathBuf>,
     dev_url: Option<String>,
@@ -129,6 +212,15 @@ impl RustFrameBuilder {
     pub fn app_id(mut self, id: impl Into<String>) -> Self {
         self.app_id = Some(id.into());
         self
+    }
+
+    pub fn frontend_security(mut self, security: FrontendSecurity) -> Self {
+        self.security = security;
+        self
+    }
+
+    pub fn networked_frontend(self) -> Self {
+        self.frontend_security(FrontendSecurity::networked())
     }
 
     pub fn data_dir(mut self, path: impl Into<PathBuf>) -> Self {
@@ -224,6 +316,7 @@ impl RustFrameBuilder {
     pub fn run(self) -> Result<()> {
         let RustFrameBuilder {
             window,
+            security,
             app_id,
             data_dir,
             dev_url,
@@ -244,6 +337,11 @@ impl RustFrameBuilder {
         let database_capability =
             load_database_capability(assets, app_id.clone(), database_data_dir, database)?;
         let dev_url = active_dev_url(dev_url);
+        let security = security.resolve(
+            &fs_capability,
+            &shell_capability,
+            database_capability.as_ref(),
+        );
 
         if let Some(smoke) = smoke {
             return run_runtime_smoke_check(
@@ -251,6 +349,7 @@ impl RustFrameBuilder {
                 &window,
                 app_id.as_deref(),
                 dev_url.as_deref(),
+                &security,
                 assets,
                 &fs_capability,
                 &shell_capability,
@@ -273,8 +372,10 @@ impl RustFrameBuilder {
             .with_inner_size(tao::dpi::LogicalSize::new(window.width, window.height))
             .build(&event_loop)?;
 
+        let bridge_config_script = bridge_config_script(&security)?;
         let builder = WebViewBuilder::new()
             .with_background_color((6, 9, 18, 255))
+            .with_initialization_script(&bridge_config_script)
             .with_initialization_script(RUSTFRAME_BRIDGE_SCRIPT)
             .with_custom_protocol("app".into(), move |_id, request| {
                 asset_response(assets, request)
@@ -303,7 +404,8 @@ impl RustFrameBuilder {
                     *control_flow = ControlFlow::Exit;
                 }
                 Event::UserEvent(UserEvent::Ipc(body)) => {
-                    if let Some(outcome) = dispatch_ipc_message(&body, &window, &worker) {
+                    if let Some(outcome) = dispatch_ipc_message(&body, &window, &worker, &security)
+                    {
                         resolve_ipc_response(&webview, &outcome.response);
                         if outcome.should_exit {
                             pending_exit = true;
@@ -333,6 +435,7 @@ fn run_runtime_smoke_check(
     window: &WindowOptions,
     app_id: Option<&str>,
     dev_url: Option<&str>,
+    security: &ResolvedFrontendSecurity,
     assets: EmbeddedAssetRouter,
     fs_capability: &FsCapability,
     shell_capability: &ShellCapability,
@@ -347,6 +450,7 @@ fn run_runtime_smoke_check(
         },
         active_dev_url: dev_url.map(ToOwned::to_owned),
         window: window.clone(),
+        security: security.clone(),
         has_index_html: assets.get("index.html").is_some(),
         bridge_injected: true,
         fs_roots: fs_capability
@@ -375,6 +479,13 @@ fn run_runtime_smoke_check(
     }
 
     Ok(())
+}
+
+fn bridge_config_script(security: &ResolvedFrontendSecurity) -> Result<String> {
+    let serialized = serde_json::to_string(security)?;
+    Ok(format!(
+        "window.__RUSTFRAME_BRIDGE_CONFIG__ = Object.freeze({serialized});"
+    ))
 }
 
 enum UserEvent {
@@ -445,9 +556,14 @@ struct DbGetParams {
     id: i64,
 }
 
-fn dispatch_ipc_message(body: &str, window: &Window, worker: &IpcWorker) -> Option<IpcOutcome> {
+fn dispatch_ipc_message(
+    body: &str,
+    window: &Window,
+    worker: &IpcWorker,
+    security: &ResolvedFrontendSecurity,
+) -> Option<IpcOutcome> {
     match serde_json::from_str::<IpcRequest>(body) {
-        Ok(request) => dispatch_request(request, window, worker),
+        Ok(request) => dispatch_request(request, window, worker, security),
         Err(error) => Some(IpcOutcome {
             response: IpcResponse::failure(0, &RuntimeError::Json(error)),
             should_exit: false,
@@ -459,7 +575,15 @@ fn dispatch_request(
     request: IpcRequest,
     window: &Window,
     worker: &IpcWorker,
+    security: &ResolvedFrontendSecurity,
 ) -> Option<IpcOutcome> {
+    if let Err(error) = authorize_method(&request.method, security) {
+        return Some(IpcOutcome {
+            response: IpcResponse::failure(request.id, &error),
+            should_exit: false,
+        });
+    }
+
     match method_execution(&request.method) {
         MethodExecution::MainThread => Some(handle_main_thread_request(request, window)),
         MethodExecution::Background => {
@@ -479,6 +603,25 @@ fn dispatch_request(
             ),
             should_exit: false,
         }),
+    }
+}
+
+fn authorize_method(method: &str, security: &ResolvedFrontendSecurity) -> Result<()> {
+    match method {
+        "fs.readText" if !security.filesystem => Err(RuntimeError::PermissionDenied(
+            "filesystem bridge is disabled for this frontend".into(),
+        )),
+        "shell.exec" if !security.shell => Err(RuntimeError::PermissionDenied(
+            "shell bridge is disabled for this frontend".into(),
+        )),
+        "db.info" | "db.get" | "db.list" | "db.count" | "db.insert" | "db.update" | "db.delete"
+            if !security.database =>
+        {
+            Err(RuntimeError::PermissionDenied(
+                "database bridge is disabled for this frontend".into(),
+            ))
+        }
+        _ => Ok(()),
     }
 }
 
@@ -843,8 +986,10 @@ mod tests {
     use wry::http::Request;
 
     use super::{
-        EmbeddedAssetRouter, EmbeddedDatabaseConfig, MethodExecution, active_dev_url,
-        asset_response, load_database_capability, method_execution, normalize_asset_path,
+        EmbeddedAssetRouter, EmbeddedDatabaseConfig, FrontendSecurity, FrontendTrust,
+        MethodExecution, ResolvedFrontendSecurity, active_dev_url, asset_response,
+        authorize_method, bridge_config_script, load_database_capability, method_execution,
+        normalize_asset_path,
     };
 
     fn fixture(path: &str) -> Option<Cow<'static, [u8]>> {
@@ -874,6 +1019,65 @@ mod tests {
         assert_eq!(method_execution("db.list"), MethodExecution::Background);
         assert_eq!(method_execution("shell.exec"), MethodExecution::Background);
         assert_eq!(method_execution("missing.method"), MethodExecution::Unknown);
+    }
+
+    #[test]
+    fn frontend_security_defaults_to_local_first() {
+        let security = FrontendSecurity::default();
+
+        assert_eq!(security.model, FrontendTrust::LocalFirst);
+        assert!(security.database);
+        assert!(security.filesystem);
+        assert!(security.shell);
+    }
+
+    #[test]
+    fn networked_frontend_blocks_database_shell_and_filesystem_methods() {
+        let security = ResolvedFrontendSecurity {
+            model: FrontendTrust::Networked,
+            database: false,
+            filesystem: false,
+            shell: false,
+        };
+
+        let db_error = authorize_method("db.list", &security).unwrap_err();
+        assert!(
+            db_error
+                .to_string()
+                .contains("database bridge is disabled for this frontend")
+        );
+
+        let fs_error = authorize_method("fs.readText", &security).unwrap_err();
+        assert!(
+            fs_error
+                .to_string()
+                .contains("filesystem bridge is disabled for this frontend")
+        );
+
+        let shell_error = authorize_method("shell.exec", &security).unwrap_err();
+        assert!(
+            shell_error
+                .to_string()
+                .contains("shell bridge is disabled for this frontend")
+        );
+
+        assert!(authorize_method("window.setTitle", &security).is_ok());
+    }
+
+    #[test]
+    fn bridge_config_script_serializes_frontend_security() {
+        let script = bridge_config_script(&ResolvedFrontendSecurity {
+            model: FrontendTrust::Networked,
+            database: true,
+            filesystem: false,
+            shell: false,
+        })
+        .unwrap();
+
+        assert!(script.contains("\"model\":\"networked\""));
+        assert!(script.contains("\"database\":true"));
+        assert!(script.contains("\"filesystem\":false"));
+        assert!(script.contains("\"shell\":false"));
     }
 
     #[test]

@@ -98,6 +98,8 @@ Rules:
 - `packaging.description` defaults to the app title when omitted.
 - `packaging.linux.icon` may point to an `.svg` or `.png` file relative to the app root.
 - `packaging.linux.categories` defaults to `["Utility"]`.
+- `security.model` defaults to `"local-first"` and may also be `"networked"`.
+- `security.bridge.database`, `security.bridge.filesystem`, and `security.bridge.shell` only matter when you need to selectively re-enable bridge namespaces for a `networked` frontend.
 - `filesystem.roots` entries must be non-empty strings.
 - `shell.commands[].name` values must be unique.
 - `shell.commands[].args` and `shell.commands[].allowedArgs` entries must be non-empty when present.
@@ -141,6 +143,15 @@ Recommended footer pattern:
 - Assume desktop startup should feel instant; avoid heavy blocking work on first render.
 - Keep app startup resilient if the WebView is running in embedded mode or dev-server mode.
 
+## Trust Rules
+
+- RustFrame assumes a trusted frontend by default.
+- If the app loads remote content, uses third-party scripts, renders user HTML, or has a meaningful XSS surface, set `security.model` to `"networked"`.
+- In `networked` mode, only the window bridge stays exposed by default. Database, filesystem, and shell access must be re-enabled explicitly through `security.bridge.*`.
+- The runtime enforces those bridge boundaries in both JS and native IPC. Hidden calls to `window.ipc.postMessage(...)` do not bypass them.
+- `window.RustFrame.security` reports the active trust model and exposed bridge namespaces.
+- Keep the template CSP strict unless you have a concrete reason to loosen it. If you loosen CSP or load remote scripts, treat the app as `networked`.
+
 ## Currently Safe Native APIs
 
 Available by default in frontend-only apps:
@@ -150,7 +161,7 @@ Available by default in frontend-only apps:
 - `window.RustFrame.window.maximize()`
 - `window.RustFrame.window.setTitle(title)`
 
-Available when `data/schema.json` exists:
+Available when `data/schema.json` exists and the frontend trust model allows database access:
 
 - `window.RustFrame.db.info()`
 - `window.RustFrame.db.get(table, id)`
@@ -164,6 +175,7 @@ Important limitation:
 
 - `window.RustFrame.fs.readText(...)` exists in the bridge, but frontend-only apps do not grant filesystem roots by default.
 - `window.RustFrame.shell.exec(...)` exists in the bridge, but frontend-only apps do not allow shell commands by default.
+- `window.RustFrame.db.*` only stays exposed by default for `local-first` apps.
 - `shell.exec` frontend args are denied unless that named command explicitly allowlists them.
 - Declared shell commands run with bounded time and bounded captured output.
 - `rustframe.json` is the frontend-only way to declare those capabilities.
