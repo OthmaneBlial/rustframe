@@ -297,7 +297,7 @@ Some are SQLite-backed. One is local-storage-first. All of them keep the same co
 RustFrame is promising, but it is still honest software:
 
 - native packaging and validation now exist on Linux, Windows, and macOS hosts, but cross-host validation still needs the matching native toolchain
-- signing, notarization, installers, and update channels are still early
+- signing, notarization, first-class installers, and update channels are still early
 - Linux still has extra runtime constraints around GTK/WebKitGTK and X11 vs Wayland
 
 That is a conscious tradeoff for simplicity today, not the end state.
