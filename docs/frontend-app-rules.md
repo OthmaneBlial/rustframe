@@ -124,6 +124,8 @@ cargo run -p rustframe-cli -- export
 
 Export copies the built binary into `apps/<name>/dist/`.
 
+If `apps/<name>/native/Cargo.toml` exists because the app was ejected, `dev` and `export` use that runner instead of the hidden generated runner.
+
 ## Dev Rules
 
 For a static app:
@@ -140,7 +142,8 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 
 ## Do Not Break These Rules
 
-- Do not add a visible `Cargo.toml` or `src/` to app folders.
+- Do not add a visible `Cargo.toml` or `src/` to app folders unless you intentionally used `rustframe-cli eject`.
+- The supported ejected location is `apps/<app-name>/native/`.
 - Do not treat `dist/` as source input.
 - Do not load `app.js` before `bridge.js`.
 - Do not assume filesystem or shell access exists.

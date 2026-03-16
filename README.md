@@ -61,6 +61,8 @@ target/rustframe/apps/<name>/runner/
 
 Your app folder stays readable and boring on purpose.
 
+When you outgrow that path, `rustframe-cli eject <name>` materializes an app-owned runner under `apps/<name>/native/` without forking the `rustframe` library.
+
 ### 2. Window metadata lives in HTML
 
 RustFrame reads desktop window settings directly from `index.html`:
@@ -248,7 +250,7 @@ RustFrame is promising, but it is still honest software:
 
 - the current implementation is Linux-first
 - the current app model is still mainly single-window
-- there is no CLI `eject` path yet for power users who want to take over the Rust runner
+- packaging and distribution are still early
 
 That is a conscious tradeoff for simplicity today, not the end state.
 

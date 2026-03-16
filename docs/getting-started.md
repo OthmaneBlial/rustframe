@@ -5,7 +5,7 @@
 RustFrame is a Rust workspace with two main moving parts:
 
 - A runtime crate that owns the desktop window, the custom `app://localhost/` protocol, the native IPC handler, and the optional SQLite, filesystem, and shell capabilities.
-- A CLI that scaffolds frontend-first apps and generates the hidden Rust runner under `target/` when you run `dev` or `export`.
+- A CLI that scaffolds frontend-first apps, generates the hidden Rust runner under `target/` for the simple path, and can eject an app-owned runner when you need native control.
 
 ## Prerequisites
 
@@ -135,6 +135,28 @@ The release binary is copied into:
 ```text
 apps/<name>/dist/
 ```
+
+## Eject To A Native Runner
+
+When you need tray work, deeper `tao` or `wry` configuration, extra native crates, or other runtime customization, eject the app:
+
+```bash
+cargo run -p rustframe-cli -- eject hello-rustframe
+```
+
+That creates an app-owned Rust project in:
+
+```text
+apps/<name>/native/
+```
+
+After that:
+
+- `cargo run -p rustframe-cli -- dev <name>` uses the ejected runner automatically.
+- `cargo run -p rustframe-cli -- export <name>` builds from the ejected runner automatically.
+- The ejected runner stays backed by the `rustframe` library instead of copying the runtime into your app.
+
+Stay on the hidden-runner path when the default runtime is enough. Eject when the app genuinely needs native customization.
 
 ## What To Read Next
 

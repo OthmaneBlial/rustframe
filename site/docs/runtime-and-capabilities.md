@@ -123,6 +123,17 @@ That runner:
 - wires in the database capability when `data/schema.json` exists
 - wires in filesystem roots and shell commands declared in `rustframe.json`
 
+## Ejected Runner Path
+
+When an app needs deeper native control, `rustframe-cli eject <name>` creates `apps/<name>/native/`.
+
+That ejected runner:
+
+- depends on the `rustframe` library instead of copying runtime code into the app
+- embeds the app assets directly from the app folder through `rust-embed`
+- becomes the runner used by `dev` and `export` for that app
+- is the place to add extra native crates, deeper `tao` or `wry` setup, menus, tray work, or shortcuts
+
 ## Practical Summary
 
 RustFrame's contract is simple on purpose:

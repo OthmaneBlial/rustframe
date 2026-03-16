@@ -147,6 +147,7 @@ Important limitation:
 - Run export from the workspace root with an app name, or from inside the app folder with no app name.
 - The exported binary is copied into `apps/<app-name>/dist/`.
 - The hidden generated runner lives under `target/rustframe/apps/<app-name>/runner/`.
+- If `apps/<app-name>/native/Cargo.toml` exists because the app was ejected, `dev` and `export` use that runner instead.
 - Database schema and seeds are embedded into the binary, but user data is written to the OS app-data directory.
 
 Examples:
@@ -178,7 +179,8 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 
 ## Do Not Break These Rules
 
-- Do not add `Cargo.toml`, `src/`, or Rust runner files inside app folders.
+- Do not add ad hoc Rust runner files inside app folders unless you intentionally used `rustframe-cli eject`.
+- The supported ejected location is `apps/<app-name>/native/`.
 - Do not treat `dist/` as source input.
 - Do not put unrelated non-app files in the app root.
 - Do not load `app.js` before `bridge.js`.

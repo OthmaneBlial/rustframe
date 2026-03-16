@@ -12,6 +12,10 @@ type CliResult<T> = Result<T, String>;
 const TEMPLATE_RUNNER_CARGO_TOML: &str =
     include_str!("../templates/generated-runner/Cargo.toml.tmpl");
 const TEMPLATE_RUNNER_MAIN_RS: &str = include_str!("../templates/generated-runner/main.rs.tmpl");
+const TEMPLATE_EJECTED_RUNNER_CARGO_TOML: &str =
+    include_str!("../templates/ejected-runner/Cargo.toml.tmpl");
+const TEMPLATE_EJECTED_RUNNER_MAIN_RS: &str =
+    include_str!("../templates/ejected-runner/main.rs.tmpl");
 const TEMPLATE_DATA_SCHEMA: &str = include_str!("../templates/data/schema.json");
 const TEMPLATE_DATA_SEED: &str = include_str!("../templates/data/seeds/001-welcome.json");
 const TEMPLATE_INDEX_HTML: &str = include_str!("../templates/frontend/index.html");
@@ -134,6 +138,11 @@ fn run() -> CliResult<()> {
             let name = parse_export_args(&workspace, &args[1..])?;
             command_export(&workspace, &name)
         }
+        Some("eject") => {
+            let workspace = find_workspace_root()?;
+            let name = parse_eject_args(&workspace, &args[1..])?;
+            command_eject(&workspace, &name)
+        }
         Some("help") | Some("--help") | Some("-h") | None => {
             print_help();
             Ok(())
@@ -216,7 +225,7 @@ fn command_new(name: &str) -> CliResult<()> {
 
 fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResult<()> {
     let app = load_app_project(workspace, name)?;
-    let runner = prepare_runner(workspace, &app)?;
+    let runner = resolve_runner_project(workspace, &app)?;
 
     let mut command = Command::new("cargo");
     command
@@ -248,7 +257,7 @@ fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResu
 
 fn command_export(workspace: &Path, name: &str) -> CliResult<()> {
     let app = load_app_project(workspace, name)?;
-    let runner = prepare_runner(workspace, &app)?;
+    let runner = resolve_runner_project(workspace, &app)?;
 
     let status = Command::new("cargo")
         .arg("build")
@@ -314,6 +323,26 @@ fn command_export(workspace: &Path, name: &str) -> CliResult<()> {
     Ok(())
 }
 
+fn command_eject(workspace: &Path, name: &str) -> CliResult<()> {
+    let app = load_app_project(workspace, name)?;
+    let runner_dir = ejected_runner_dir(&app);
+    if runner_dir.join("Cargo.toml").exists() {
+        return Err(format!(
+            "app '{}' is already ejected at {}",
+            name,
+            runner_dir.display()
+        ));
+    }
+
+    let runner = prepare_ejected_runner(workspace, &app)?;
+
+    println!("Ejected {}", app.name);
+    println!("Native runner: {}", runner.manifest_path.display());
+    println!("Customize it under: {}", runner_dir.display());
+    println!("`dev` and `export` will now use the ejected runner automatically.");
+    Ok(())
+}
+
 fn parse_dev_args(workspace: &Path, args: &[String]) -> CliResult<(String, Option<String>)> {
     match args {
         [] => Ok((resolve_current_app_name(workspace)?, None)),
@@ -326,6 +355,13 @@ fn parse_dev_args(workspace: &Path, args: &[String]) -> CliResult<(String, Optio
 }
 
 fn parse_export_args(workspace: &Path, args: &[String]) -> CliResult<String> {
+    match args {
+        [] => resolve_current_app_name(workspace),
+        [name, ..] => Ok(name.clone()),
+    }
+}
+
+fn parse_eject_args(workspace: &Path, args: &[String]) -> CliResult<String> {
     match args {
         [] => resolve_current_app_name(workspace),
         [name, ..] => Ok(name.clone()),
@@ -490,7 +526,15 @@ fn read_app_manifest(app_dir: &Path) -> CliResult<AppManifest> {
         .map_err(|error| format!("failed to parse '{}': {error}", manifest_path.display()))
 }
 
-fn prepare_runner(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject> {
+fn resolve_runner_project(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject> {
+    if let Some(runner) = find_ejected_runner(workspace, app) {
+        return Ok(runner);
+    }
+
+    prepare_generated_runner(workspace, app)
+}
+
+fn prepare_generated_runner(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject> {
     let runner_dir = workspace
         .join("target")
         .join("rustframe")
@@ -557,6 +601,94 @@ fn prepare_runner(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject
         manifest_path,
         target_dir,
     })
+}
+
+fn prepare_ejected_runner(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject> {
+    let runner_dir = ejected_runner_dir(app);
+    let manifest_path = runner_dir.join("Cargo.toml");
+    let main_path = runner_dir.join("src/main.rs");
+    let target_dir = workspace
+        .join("target")
+        .join("rustframe")
+        .join("ejected")
+        .join(&app.name);
+    fs::create_dir_all(&runner_dir).map_err(|error| {
+        format!(
+            "failed to create ejected runner directory '{}': {error}",
+            runner_dir.display()
+        )
+    })?;
+    let assets = collect_embedded_assets(&app.asset_dir)?;
+    let dev_url_chain = app
+        .config
+        .dev_url
+        .as_ref()
+        .map(|url| format!("\n        .dev_url({})", quoted_literal(url)))
+        .unwrap_or_default();
+    let app_id_chain = format!("\n        .app_id({})", quoted_literal(&app.config.app_id));
+    let database_chain = render_database_chain(&assets);
+    let fs_root_chain = render_fs_root_chain(&app.config.fs_roots);
+    let shell_command_chain = render_shell_command_chain(&app.config.shell_commands);
+    let rustframe_path = quoted_literal(&relative_path(
+        &runner_dir,
+        &workspace.join("crates").join("rustframe"),
+    )?);
+    let asset_folder = quoted_literal(&relative_path(&runner_dir, &app.asset_dir)?);
+    let relative_app_dir = quoted_literal(&relative_path(&runner_dir, &app.app_dir)?);
+    let relative_asset_dir = quoted_literal(&relative_path(&runner_dir, &app.asset_dir)?);
+
+    let manifest_contents = render_template(
+        TEMPLATE_EJECTED_RUNNER_CARGO_TOML,
+        &[
+            (
+                "{{runner_package_name}}",
+                format!("rustframe-app-{}", app.name),
+            ),
+            ("{{binary_name}}", app.name.clone()),
+            ("{{rustframe_path}}", rustframe_path),
+        ],
+    );
+
+    let main_contents = render_template(
+        TEMPLATE_EJECTED_RUNNER_MAIN_RS,
+        &[
+            ("{{asset_folder}}", asset_folder),
+            ("{{relative_app_dir}}", relative_app_dir),
+            ("{{relative_asset_dir}}", relative_asset_dir),
+            ("{{window_title}}", quoted_literal(&app.config.title)),
+            ("{{window_width}}", format_float(app.config.width)),
+            ("{{window_height}}", format_float(app.config.height)),
+            ("{{app_id_chain}}", app_id_chain),
+            ("{{dev_url_chain}}", dev_url_chain),
+            ("{{database_chain}}", database_chain),
+            ("{{fs_root_chain}}", fs_root_chain),
+            ("{{shell_command_chain}}", shell_command_chain),
+        ],
+    );
+
+    write_text_file(&manifest_path, &manifest_contents)?;
+    write_text_file(&main_path, &main_contents)?;
+
+    Ok(RunnerProject {
+        manifest_path,
+        target_dir,
+    })
+}
+
+fn find_ejected_runner(workspace: &Path, app: &AppProject) -> Option<RunnerProject> {
+    let manifest_path = ejected_runner_dir(app).join("Cargo.toml");
+    manifest_path.exists().then(|| RunnerProject {
+        manifest_path,
+        target_dir: workspace
+            .join("target")
+            .join("rustframe")
+            .join("ejected")
+            .join(&app.name),
+    })
+}
+
+fn ejected_runner_dir(app: &AppProject) -> PathBuf {
+    app.app_dir.join("native")
 }
 
 fn collect_embedded_assets(asset_dir: &Path) -> CliResult<Vec<EmbeddedAsset>> {
@@ -880,6 +1012,47 @@ fn write_text_file(path: &Path, contents: &str) -> CliResult<()> {
         .map_err(|error| format!("failed to write '{}': {error}", path.display()))
 }
 
+fn relative_path(from_dir: &Path, to: &Path) -> CliResult<String> {
+    let from = fs::canonicalize(from_dir)
+        .map_err(|error| format!("failed to resolve '{}': {error}", from_dir.display()))?;
+    let to = fs::canonicalize(to)
+        .map_err(|error| format!("failed to resolve '{}': {error}", to.display()))?;
+
+    let from_components = from.components().collect::<Vec<_>>();
+    let to_components = to.components().collect::<Vec<_>>();
+    let mut common = 0usize;
+
+    while common < from_components.len()
+        && common < to_components.len()
+        && from_components[common] == to_components[common]
+    {
+        common += 1;
+    }
+
+    if common == 0 {
+        return Ok(slash_path(&to));
+    }
+
+    let mut relative = PathBuf::new();
+    for component in &from_components[common..] {
+        use std::path::Component;
+
+        if !matches!(component, Component::CurDir) {
+            relative.push("..");
+        }
+    }
+
+    for component in &to_components[common..] {
+        relative.push(component.as_os_str());
+    }
+
+    if relative.as_os_str().is_empty() {
+        Ok(".".into())
+    } else {
+        Ok(slash_path(&relative))
+    }
+}
+
 fn slash_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
@@ -932,6 +1105,9 @@ fn print_help() {
     println!(
         "  rustframe-cli export [name]           Build a release binary into apps/<name>/dist/"
     );
+    println!(
+        "  rustframe-cli eject [name]            Materialize an app-owned Rust runner in apps/<name>/native/"
+    );
     println!();
     println!("Run `dev` and `export` from inside apps/<name>/ to omit the app name.");
     println!("Window title and size are read from index.html:");
@@ -949,8 +1125,9 @@ mod tests {
 
     use super::{
         AppConfig, AppProject, AppShellCommand, collect_embedded_assets, find_workspace_root_from,
-        load_app_project, prepare_runner, read_app_config, render_asset_match_arms,
-        render_database_chain, render_template, resolve_current_app_name_from,
+        load_app_project, prepare_ejected_runner, prepare_generated_runner, read_app_config,
+        relative_path, render_asset_match_arms, render_database_chain, render_template,
+        resolve_current_app_name_from, resolve_runner_project,
     };
 
     fn write_workspace_manifest(root: &Path) {
@@ -1226,7 +1403,7 @@ mod tests {
     }
 
     #[test]
-    fn prepare_runner_writes_database_enabled_runner() {
+    fn prepare_generated_runner_writes_database_enabled_runner() {
         let workspace = tempdir().unwrap();
         fs::create_dir_all(workspace.path().join("crates/rustframe")).unwrap();
         let app_dir = workspace.path().join("apps/orbit-desk");
@@ -1264,7 +1441,7 @@ mod tests {
             },
         };
 
-        let runner = prepare_runner(workspace.path(), &app).unwrap();
+        let runner = prepare_generated_runner(workspace.path(), &app).unwrap();
         let main =
             fs::read_to_string(runner.manifest_path.parent().unwrap().join("src/main.rs")).unwrap();
 
@@ -1275,7 +1452,7 @@ mod tests {
     }
 
     #[test]
-    fn prepare_runner_omits_database_chain_when_schema_is_missing() {
+    fn prepare_generated_runner_omits_database_chain_when_schema_is_missing() {
         let workspace = tempdir().unwrap();
         fs::create_dir_all(workspace.path().join("crates/rustframe")).unwrap();
         let app_dir = workspace.path().join("apps/atlas-crm");
@@ -1308,7 +1485,7 @@ mod tests {
             },
         };
 
-        let runner = prepare_runner(workspace.path(), &app).unwrap();
+        let runner = prepare_generated_runner(workspace.path(), &app).unwrap();
         let main =
             fs::read_to_string(runner.manifest_path.parent().unwrap().join("src/main.rs")).unwrap();
 
@@ -1386,7 +1563,7 @@ mod tests {
     }
 
     #[test]
-    fn prepare_runner_writes_declared_fs_and_shell_capabilities() {
+    fn prepare_generated_runner_writes_declared_fs_and_shell_capabilities() {
         let workspace = tempdir().unwrap();
         fs::create_dir_all(workspace.path().join("crates/rustframe")).unwrap();
         let app_dir = workspace.path().join("apps/capability-app");
@@ -1415,7 +1592,7 @@ mod tests {
             },
         };
 
-        let runner = prepare_runner(workspace.path(), &app).unwrap();
+        let runner = prepare_generated_runner(workspace.path(), &app).unwrap();
         let main =
             fs::read_to_string(runner.manifest_path.parent().unwrap().join("src/main.rs")).unwrap();
 
@@ -1425,5 +1602,115 @@ mod tests {
         assert!(main.contains(".allow_shell_command(\"listFixtures\""));
         assert!(main.contains("resolve_declared_shell_value(\"ls\")"));
         assert!(main.contains("resolve_declared_shell_value(\"${SOURCE_APP_DIR}/fixtures\")"));
+    }
+
+    #[test]
+    fn relative_path_renders_portable_path_segments() {
+        let temp = tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("apps/demo/native")).unwrap();
+        fs::create_dir_all(root.join("crates/rustframe")).unwrap();
+
+        let relative = relative_path(
+            &root.join("apps/demo/native"),
+            &root.join("crates/rustframe"),
+        )
+        .unwrap();
+
+        assert_eq!(relative, "../../../crates/rustframe");
+    }
+
+    #[test]
+    fn prepare_ejected_runner_writes_portable_native_project() {
+        let workspace = tempdir().unwrap();
+        fs::create_dir_all(workspace.path().join("crates/rustframe")).unwrap();
+        let app_dir = workspace.path().join("apps/ejected-demo");
+        fs::create_dir_all(app_dir.join("data/seeds")).unwrap();
+        fs::write(app_dir.join("index.html"), "<title>Ejected Demo</title>").unwrap();
+        fs::write(app_dir.join("app.js"), "console.log('ok')").unwrap();
+        fs::write(app_dir.join("bridge.js"), "window.RustFrame = {}").unwrap();
+        fs::write(app_dir.join("styles.css"), "body {}").unwrap();
+        fs::write(app_dir.join("data/schema.json"), "{}").unwrap();
+        fs::write(app_dir.join("data/seeds/001.json"), "{}").unwrap();
+
+        let app = AppProject {
+            name: "ejected-demo".into(),
+            app_dir: app_dir.clone(),
+            asset_dir: app_dir.clone(),
+            config: AppConfig {
+                app_id: "ejected_demo".into(),
+                title: "Ejected Demo".into(),
+                width: 1280.0,
+                height: 820.0,
+                dev_url: None,
+                fs_roots: vec!["fixtures".into()],
+                shell_commands: vec![AppShellCommand {
+                    name: "sync".into(),
+                    program: "echo".into(),
+                    args: vec!["${SOURCE_APP_DIR}".into()],
+                }],
+            },
+        };
+
+        let runner = prepare_ejected_runner(workspace.path(), &app).unwrap();
+        let cargo = fs::read_to_string(&runner.manifest_path).unwrap();
+        let main =
+            fs::read_to_string(runner.manifest_path.parent().unwrap().join("src/main.rs")).unwrap();
+
+        assert!(
+            cargo.contains(
+                "rust-embed = { version = \"8.11.0\", features = [\"include-exclude\"] }"
+            )
+        );
+        assert!(cargo.contains("../../../crates/rustframe"));
+        assert!(main.contains("#[derive(RustEmbed)]"));
+        assert!(main.contains("#[folder = \"..\"]"));
+        assert!(main.contains("#[exclude = \"native/**\"]"));
+        assert!(
+            main.contains(".embedded_database(\"data/schema.json\", &[\"data/seeds/001.json\"])")
+        );
+        assert!(main.contains(".allow_fs_root(resolve_declared_fs_root(\"fixtures\"))"));
+        assert!(main.contains("PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"..\")"));
+    }
+
+    #[test]
+    fn resolve_runner_project_prefers_ejected_runner_when_present() {
+        let workspace = tempdir().unwrap();
+        fs::create_dir_all(workspace.path().join("crates/rustframe")).unwrap();
+        let app_dir = workspace.path().join("apps/orbit-desk");
+        fs::create_dir_all(app_dir.join("native/src")).unwrap();
+        fs::write(app_dir.join("index.html"), "<title>Orbit Desk</title>").unwrap();
+        fs::write(
+            app_dir.join("native/Cargo.toml"),
+            "[package]\nname = \"runner\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        fs::write(app_dir.join("native/src/main.rs"), "fn main() {}").unwrap();
+
+        let app = AppProject {
+            name: "orbit-desk".into(),
+            app_dir: app_dir.clone(),
+            asset_dir: app_dir,
+            config: AppConfig {
+                app_id: "orbit-desk".into(),
+                title: "Orbit Desk".into(),
+                width: 1280.0,
+                height: 820.0,
+                dev_url: None,
+                fs_roots: Vec::new(),
+                shell_commands: Vec::new(),
+            },
+        };
+
+        let runner = resolve_runner_project(workspace.path(), &app).unwrap();
+
+        assert_eq!(
+            runner.manifest_path,
+            workspace.path().join("apps/orbit-desk/native/Cargo.toml")
+        );
+        assert_eq!(
+            runner.target_dir,
+            workspace.path().join("target/rustframe/ejected/orbit-desk")
+        );
     }
 }
