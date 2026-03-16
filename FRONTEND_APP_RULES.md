@@ -4,14 +4,14 @@ This file defines the rules a frontend app must follow to export cleanly with Ru
 
 ## Goal
 
-RustFrame apps are frontend-first desktop apps. The app folder should feel like a plain HTML/CSS/JS project, while RustFrame generates the hidden Rust runner under `target/` during `dev` and `export`.
+RustFrame apps are frontend-first desktop apps. The app folder should feel like a plain HTML/CSS/JS project, while RustFrame generates the hidden Rust runner under `target/` during `dev`, `export`, and `package`.
 
 ## Required App Shape
 
 - Every app lives in `apps/<app-name>/`.
 - `apps/<app-name>/index.html` is required.
 - Keep runtime assets in the app root or in subfolders under that root.
-- `dist/` is reserved for exported binaries.
+- `dist/` is reserved for release artifacts such as exported binaries and Linux bundles.
 - Hidden files and folders are ignored by the embed step.
 
 ## Recommended Minimum Files
@@ -21,6 +21,7 @@ RustFrame apps are frontend-first desktop apps. The app folder should feel like 
 - `app.js`
 - `bridge.js`
 - `rustframe.json` when the app needs native capabilities or typed runtime config
+- `assets/icon.svg` when the app will be packaged for Linux
 - `data/schema.json` when the app needs persistent data
 - `data/seeds/*.json` for optional first-run rows
 - `data/migrations/*.sql` for versioned database upgrades and backfills
@@ -53,6 +54,15 @@ Use `apps/<app-name>/rustframe.json` for typed runtime config that should not li
 ```json
 {
   "appId": "my-app",
+  "packaging": {
+    "version": "0.1.0",
+    "description": "My App desktop package",
+    "linux": {
+      "icon": "assets/icon.svg",
+      "categories": ["Utility"],
+      "keywords": ["desktop", "rustframe"]
+    }
+  },
   "filesystem": {
     "roots": ["fixtures", "${EXE_DIR}/imports"]
   },
@@ -71,8 +81,13 @@ Use `apps/<app-name>/rustframe.json` for typed runtime config that should not li
 Rules:
 
 - `appId` is optional and defaults to the app folder name.
+- `packaging.version` defaults to `0.1.0` when omitted.
+- `packaging.description` defaults to the app title when omitted.
+- `packaging.linux.icon` may point to an `.svg` or `.png` file relative to the app root.
+- `packaging.linux.categories` defaults to `["Utility"]`.
 - `filesystem.roots` entries must be non-empty strings.
 - `shell.commands[].name` values must be unique.
+- `packaging.linux.keywords[]` entries must not contain semicolons.
 - `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` are supported inside declared values.
 - Relative filesystem roots resolve against the source app folder in debug builds and against the executable directory in release builds.
 
@@ -83,7 +98,7 @@ Rules:
 - Do not depend on `http://localhost/...` in production mode.
 - Everything in the app root, except `dist/` and hidden files, is treated as exportable app content.
 - Do not keep `node_modules`, screenshots, docs, archives, or random tooling files in the app root if you plan to export directly from it.
-- If you need a bundler, use a dev server during development and export only the built static assets into the app root before running `export`.
+- If you need a bundler, use a dev server during development and export only the built static assets into the app root before running `export` or `package`.
 - If you define `data/schema.json`, it is embedded into the app and used to initialize the SQLite database on first launch.
 - Seed files under `data/seeds/` are also embedded and applied once to the user database.
 - SQL migration files under `data/migrations/` are embedded and applied in version order during upgrades.
@@ -149,7 +164,15 @@ Important limitation:
 - Run export from the workspace root with an app name, or from inside the app folder with no app name.
 - The exported binary is copied into `apps/<app-name>/dist/`.
 - The hidden generated runner lives under `target/rustframe/apps/<app-name>/runner/`.
-- If `apps/<app-name>/native/Cargo.toml` exists because the app was ejected, `dev` and `export` use that runner instead.
+- Database schema and seeds are embedded into the binary, but user data is written to the OS app-data directory.
+
+## Package Rules
+
+- Run package from the workspace root with an app name, or from inside the app folder with no app name.
+- The Linux bundle is written into `apps/<app-name>/dist/linux/`.
+- The bundle contains a portable `*.AppDir`, a `.desktop` launcher, an app icon, install scripts, and a `.tar.gz` archive.
+- The hidden generated runner still lives under `target/rustframe/apps/<app-name>/runner/`.
+- If `apps/<app-name>/native/Cargo.toml` exists because the app was ejected, `dev`, `export`, and `package` use that runner instead.
 - Database schema and seeds are embedded into the binary, but user data is written to the OS app-data directory.
 
 Examples:
@@ -161,6 +184,15 @@ cargo run -p rustframe-cli -- export orbit-desk
 ```bash
 cd apps/orbit-desk
 cargo run -p rustframe-cli -- export
+```
+
+```bash
+cargo run -p rustframe-cli -- package orbit-desk
+```
+
+```bash
+cd apps/orbit-desk
+cargo run -p rustframe-cli -- package
 ```
 
 ## Dev Rules
@@ -187,6 +219,7 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 - Do not put unrelated non-app files in the app root.
 - Do not load `app.js` before `bridge.js`.
 - Do not assume filesystem or shell access exists by default.
+- Do not point `packaging.linux.icon` at a missing or unsupported file type.
 - Do not ship a UI that starts on a blank page.
 
 ## Practical Checklist
@@ -199,3 +232,4 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 - The app works without a localhost server.
 - If persistent data is needed, `data/schema.json` exists and is valid JSON.
 - Export places a binary in `dist/`.
+- Package places a Linux bundle in `dist/linux/`.

@@ -75,11 +75,12 @@
                         <p class="eyebrow">CLI Surface</p>
                         <span class="status-pill">workspace</span>
                     </div>
-                    <h2>Three commands define most of the workflow.</h2>
+                    <h2>Four commands define most of the workflow.</h2>
                     <div class="command-list">
                         <button class="command-chip is-active" type="button" data-command-tab="new">New</button>
                         <button class="command-chip" type="button" data-command-tab="dev">Dev</button>
                         <button class="command-chip" type="button" data-command-tab="export">Export</button>
+                        <button class="command-chip" type="button" data-command-tab="package">Package</button>
                     </div>
                     <div class="command-panel" data-command-panel="new">
                         <pre><code>cargo run -p rustframe-cli -- new hello-rustframe</code></pre>
@@ -92,6 +93,10 @@
                     <div class="command-panel is-hidden" data-command-panel="export">
                         <pre><code>cargo run -p rustframe-cli -- export hello-rustframe</code></pre>
                         <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- export hello-rustframe">Copy</button>
+                    </div>
+                    <div class="command-panel is-hidden" data-command-panel="package">
+                        <pre><code>cargo run -p rustframe-cli -- package hello-rustframe</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- package hello-rustframe">Copy</button>
                     </div>
                 </article>
 
@@ -164,7 +169,7 @@
                 <article class="workflow-step">
                     <span class="step-index">03</span>
                     <h3>Run through a generated runner</h3>
-                    <p>`dev` and `export` materialize the hidden Rust runner under `target/rustframe/apps/<name>/runner/` and carry forward the embedded assets.</p>
+                    <p>`dev`, `export`, and `package` materialize the hidden Rust runner under `target/rustframe/apps/<name>/runner/` and carry forward the embedded assets.</p>
                 </article>
                 <article class="workflow-step">
                     <span class="step-index">04</span>
@@ -278,7 +283,7 @@
                 <a class="doc-card" href="docs.html?doc=getting-started">
                     <span>Guide</span>
                     <strong>Getting started</strong>
-                    <p>Run the capability demo, scaffold an app, and export a release build.</p>
+                    <p>Run the capability demo, scaffold an app, export a raw binary, and package a Linux bundle.</p>
                 </a>
                 <a class="doc-card" href="docs.html?doc=runtime-and-capabilities">
                     <span>Runtime</span>
@@ -288,7 +293,7 @@
                 <a class="doc-card" href="docs.html?doc=frontend-app-rules">
                     <span>Contract</span>
                     <strong>Frontend app rules</strong>
-                    <p>Everything app folders must do to dev cleanly and export without surprises.</p>
+                    <p>Everything app folders must do to dev, export, and package without surprises.</p>
                 </a>
             </div>
         </section>

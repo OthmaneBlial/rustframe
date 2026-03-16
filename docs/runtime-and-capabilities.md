@@ -29,6 +29,15 @@ Frontend-only apps can also add `apps/<name>/rustframe.json` for typed configura
 {
   "appId": "hello-rustframe",
   "devUrl": "http://127.0.0.1:5173",
+  "packaging": {
+    "version": "0.1.0",
+    "description": "Hello RustFrame desktop package",
+    "linux": {
+      "icon": "assets/icon.svg",
+      "categories": ["Utility"],
+      "keywords": ["desktop", "rustframe"]
+    }
+  },
   "filesystem": {
     "roots": ["fixtures"]
   },
@@ -45,10 +54,11 @@ Frontend-only apps can also add `apps/<name>/rustframe.json` for typed configura
 ```
 
 When both HTML metadata and `rustframe.json` set the same window fields, the manifest wins.
+The same manifest also provides Linux packaging metadata for `rustframe-cli package`.
 
 ## Embedded Assets
 
-When you run `dev` or `export`, the CLI walks the app asset directory and embeds everything except:
+When you run `dev`, `export`, or `package`, the CLI walks the app asset directory and embeds everything except:
 
 - `dist/` at the app root
 - hidden files and hidden folders
@@ -129,6 +139,7 @@ That runner:
 - carries forward window metadata from `index.html` and optional overrides from `rustframe.json`
 - wires in the database capability when `data/schema.json` exists
 - wires in filesystem roots and shell commands declared in `rustframe.json`
+- feeds Linux package metadata from `rustframe.json` into `rustframe-cli package`
 
 ## Ejected Runner Path
 
@@ -138,7 +149,7 @@ That ejected runner:
 
 - depends on the `rustframe` library instead of copying runtime code into the app
 - embeds the app assets directly from the app folder through `rust-embed`
-- becomes the runner used by `dev` and `export` for that app
+- becomes the runner used by `dev`, `export`, and `package` for that app
 - is the place to add extra native crates, deeper `tao` or `wry` setup, menus, tray work, or shortcuts
 
 ## Practical Summary

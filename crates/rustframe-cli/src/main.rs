@@ -5,7 +5,10 @@ use std::{
     process::{Command, Stdio},
 };
 
+use flate2::{Compression, write::GzEncoder};
 use serde::Deserialize;
+use serde_json::json;
+use tar::Builder as TarBuilder;
 
 type CliResult<T> = Result<T, String>;
 
@@ -23,6 +26,7 @@ const TEMPLATE_STYLES_CSS: &str = include_str!("../templates/frontend/styles.css
 const TEMPLATE_APP_JS: &str = include_str!("../templates/frontend/app.js");
 const TEMPLATE_BRIDGE_JS: &str = include_str!("../templates/frontend/bridge.js");
 const TEMPLATE_MANIFEST_JSON: &str = include_str!("../templates/frontend/rustframe.json");
+const TEMPLATE_APP_ICON_SVG: &str = include_str!("../templates/frontend/assets/icon.svg");
 
 #[derive(Debug)]
 struct AppProject {
@@ -41,6 +45,7 @@ struct AppConfig {
     dev_url: Option<String>,
     fs_roots: Vec<String>,
     shell_commands: Vec<AppShellCommand>,
+    packaging: AppPackagingConfig,
 }
 
 #[derive(Debug)]
@@ -62,6 +67,29 @@ struct AppShellCommand {
     args: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+struct AppPackagingConfig {
+    version: String,
+    description: String,
+    publisher: Option<String>,
+    homepage: Option<String>,
+    linux: LinuxPackagingConfig,
+}
+
+#[derive(Debug, Clone)]
+struct LinuxPackagingConfig {
+    categories: Vec<String>,
+    keywords: Vec<String>,
+    icon_path: Option<PathBuf>,
+}
+
+#[derive(Debug)]
+struct LinuxPackageOutput {
+    bundle_dir: PathBuf,
+    app_dir: PathBuf,
+    archive_path: PathBuf,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct AppManifest {
@@ -75,6 +103,8 @@ struct AppManifest {
     filesystem: Option<ManifestFilesystem>,
     #[serde(default)]
     shell: Option<ManifestShell>,
+    #[serde(default)]
+    packaging: Option<ManifestPackaging>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -111,6 +141,32 @@ struct ManifestShellCommand {
     args: Vec<String>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManifestPackaging {
+    #[serde(default)]
+    version: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    publisher: Option<String>,
+    #[serde(default)]
+    homepage: Option<String>,
+    #[serde(default)]
+    linux: Option<ManifestLinuxPackaging>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManifestLinuxPackaging {
+    #[serde(default)]
+    icon: Option<String>,
+    #[serde(default)]
+    categories: Vec<String>,
+    #[serde(default)]
+    keywords: Vec<String>,
+}
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("rustframe-cli: {error}");
@@ -137,6 +193,11 @@ fn run() -> CliResult<()> {
             let workspace = find_workspace_root()?;
             let name = parse_export_args(&workspace, &args[1..])?;
             command_export(&workspace, &name)
+        }
+        Some("package") => {
+            let workspace = find_workspace_root()?;
+            let name = parse_package_args(&workspace, &args[1..])?;
+            command_package(&workspace, &name)
         }
         Some("eject") => {
             let workspace = find_workspace_root()?;
@@ -167,6 +228,8 @@ fn command_new(name: &str) -> CliResult<()> {
     let replacements = vec![
         ("{{app_name}}", name.to_string()),
         ("{{app_title}}", title.clone()),
+        ("{{app_description}}", title.clone()),
+        ("{{app_icon_path}}", "assets/icon.svg".to_string()),
         ("{{window_width}}", "1280".to_string()),
         ("{{window_height}}", "820".to_string()),
     ];
@@ -188,10 +251,25 @@ fn command_new(name: &str) -> CliResult<()> {
     )?;
     write_text_file(&app_dir.join("bridge.js"), TEMPLATE_BRIDGE_JS)?;
     write_text_file(
+        &app_dir.join("assets/icon.svg"),
+        &render_template(
+            TEMPLATE_APP_ICON_SVG,
+            &[
+                ("{{app_title}}", title.clone()),
+                ("{{app_monogram}}", icon_monogram(&title)),
+            ],
+        ),
+    )?;
+    write_text_file(
         &app_dir.join("rustframe.json"),
         &render_template(
             TEMPLATE_MANIFEST_JSON,
-            &[("{{app_name}}", name.to_string())],
+            &[
+                ("{{app_name}}", name.to_string()),
+                ("{{app_title}}", title.clone()),
+                ("{{app_description}}", title.clone()),
+                ("{{app_icon_path}}", "assets/icon.svg".to_string()),
+            ],
         ),
     )?;
     write_text_file(&app_dir.join("data/schema.json"), TEMPLATE_DATA_SCHEMA)?;
@@ -258,34 +336,8 @@ fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResu
 fn command_export(workspace: &Path, name: &str) -> CliResult<()> {
     let app = load_app_project(workspace, name)?;
     let runner = resolve_runner_project(workspace, &app)?;
-
-    let status = Command::new("cargo")
-        .arg("build")
-        .arg("--release")
-        .arg("--manifest-path")
-        .arg(&runner.manifest_path)
-        .arg("--bin")
-        .arg(name)
-        .current_dir(workspace)
-        .env("CARGO_TARGET_DIR", &runner.target_dir)
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .map_err(|error| format!("failed to launch cargo build: {error}"))?;
-
-    if !status.success() {
-        return Err(format!("cargo build --release failed with status {status}"));
-    }
-
+    let source = build_release_binary(workspace, name, &runner)?;
     let binary_name = executable_name(name);
-    let source = runner.target_dir.join("release").join(&binary_name);
-    if !source.exists() {
-        return Err(format!(
-            "expected release binary was not produced: {}",
-            source.display()
-        ));
-    }
 
     let dist_dir = app.app_dir.join("dist");
     fs::create_dir_all(&dist_dir).map_err(|error| {
@@ -296,23 +348,7 @@ fn command_export(workspace: &Path, name: &str) -> CliResult<()> {
     })?;
 
     let destination = dist_dir.join(&binary_name);
-    fs::copy(&source, &destination).map_err(|error| {
-        format!(
-            "failed to copy '{}' to '{}': {error}",
-            source.display(),
-            destination.display()
-        )
-    })?;
-
-    let permissions = fs::metadata(&source)
-        .map_err(|error| format!("failed to read '{}': {error}", source.display()))?
-        .permissions();
-    fs::set_permissions(&destination, permissions).map_err(|error| {
-        format!(
-            "failed to preserve permissions for '{}': {error}",
-            destination.display()
-        )
-    })?;
+    copy_with_permissions(&source, &destination)?;
 
     let size = fs::metadata(&destination)
         .map_err(|error| format!("failed to stat '{}': {error}", destination.display()))?
@@ -321,6 +357,30 @@ fn command_export(workspace: &Path, name: &str) -> CliResult<()> {
     println!("Exported {}", destination.display());
     println!("Size: {}", format_size(size));
     Ok(())
+}
+
+fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = workspace;
+        let _ = name;
+        return Err("`package` currently supports Linux hosts only".into());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let app = load_app_project(workspace, name)?;
+        let runner = resolve_runner_project(workspace, &app)?;
+        let source_binary = build_release_binary(workspace, name, &runner)?;
+        let output = build_linux_package(&app, &source_binary)?;
+
+        println!("Packaged {}", app.name);
+        println!("Bundle: {}", output.bundle_dir.display());
+        println!("AppDir: {}", output.app_dir.display());
+        println!("Archive: {}", output.archive_path.display());
+        println!("Install: {}/install.sh", output.bundle_dir.display());
+        Ok(())
+    }
 }
 
 fn command_eject(workspace: &Path, name: &str) -> CliResult<()> {
@@ -355,6 +415,13 @@ fn parse_dev_args(workspace: &Path, args: &[String]) -> CliResult<(String, Optio
 }
 
 fn parse_export_args(workspace: &Path, args: &[String]) -> CliResult<String> {
+    match args {
+        [] => resolve_current_app_name(workspace),
+        [name, ..] => Ok(name.clone()),
+    }
+}
+
+fn parse_package_args(workspace: &Path, args: &[String]) -> CliResult<String> {
     match args {
         [] => resolve_current_app_name(workspace),
         [name, ..] => Ok(name.clone()),
@@ -502,6 +569,7 @@ fn read_app_config(name: &str, app_dir: &Path, asset_dir: &Path) -> CliResult<Ap
         })
         .collect::<Vec<_>>();
     validate_shell_commands(&shell_commands)?;
+    let packaging = read_packaging_config(app_dir, &title, manifest.packaging)?;
 
     Ok(AppConfig {
         app_id,
@@ -511,6 +579,7 @@ fn read_app_config(name: &str, app_dir: &Path, asset_dir: &Path) -> CliResult<Ap
         dev_url,
         fs_roots,
         shell_commands,
+        packaging,
     })
 }
 
@@ -961,6 +1030,142 @@ fn validate_shell_commands(commands: &[AppShellCommand]) -> CliResult<()> {
     Ok(())
 }
 
+fn read_packaging_config(
+    app_dir: &Path,
+    title: &str,
+    manifest: Option<ManifestPackaging>,
+) -> CliResult<AppPackagingConfig> {
+    let manifest = manifest.unwrap_or_default();
+    let linux = manifest.linux.unwrap_or_default();
+    let version = manifest
+        .version
+        .unwrap_or_else(|| "0.1.0".to_string())
+        .trim()
+        .to_string();
+    let description = manifest
+        .description
+        .unwrap_or_else(|| title.to_string())
+        .trim()
+        .to_string();
+    let publisher = manifest
+        .publisher
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let homepage = manifest
+        .homepage
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let categories = if linux.categories.is_empty() {
+        vec!["Utility".to_string()]
+    } else {
+        linux
+            .categories
+            .into_iter()
+            .map(|value| value.trim().to_string())
+            .collect::<Vec<_>>()
+    };
+    let keywords = linux
+        .keywords
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .collect::<Vec<_>>();
+    let icon_path = linux
+        .icon
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(|value| resolve_manifest_path(app_dir, &value));
+
+    validate_packaging_metadata(&version, &description, &categories, &keywords)?;
+    if let Some(path) = &icon_path {
+        validate_packaging_icon(path)?;
+    }
+
+    Ok(AppPackagingConfig {
+        version,
+        description,
+        publisher,
+        homepage,
+        linux: LinuxPackagingConfig {
+            categories,
+            keywords,
+            icon_path,
+        },
+    })
+}
+
+fn resolve_manifest_path(app_dir: &Path, path: &str) -> PathBuf {
+    let candidate = PathBuf::from(path);
+    if candidate.is_absolute() {
+        candidate
+    } else {
+        app_dir.join(candidate)
+    }
+}
+
+fn validate_packaging_metadata(
+    version: &str,
+    description: &str,
+    categories: &[String],
+    keywords: &[String],
+) -> CliResult<()> {
+    if version.is_empty() {
+        return Err("packaging.version must not be empty".into());
+    }
+    if description.is_empty() {
+        return Err("packaging.description must not be empty".into());
+    }
+    if categories.is_empty() {
+        return Err("packaging.linux.categories must not be empty".into());
+    }
+    for category in categories {
+        if category.is_empty() || category.contains(';') {
+            return Err(format!(
+                "packaging.linux.categories contains an invalid entry: '{}'",
+                category
+            ));
+        }
+    }
+    for keyword in keywords {
+        if keyword.is_empty() || keyword.contains(';') {
+            return Err(format!(
+                "packaging.linux.keywords contains an invalid entry: '{}'",
+                keyword
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_packaging_icon(path: &Path) -> CliResult<()> {
+    if !path.exists() {
+        return Err(format!(
+            "packaging.linux.icon points to a missing file: {}",
+            path.display()
+        ));
+    }
+
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .ok_or_else(|| {
+            format!(
+                "packaging.linux.icon must end with .svg or .png: {}",
+                path.display()
+            )
+        })?;
+
+    if !matches!(extension.as_str(), "svg" | "png") {
+        return Err(format!(
+            "packaging.linux.icon must end with .svg or .png: {}",
+            path.display()
+        ));
+    }
+
+    Ok(())
+}
+
 fn validate_app_name(name: &str) -> CliResult<()> {
     if name.is_empty() {
         return Err("app name must not be empty".into());
@@ -991,6 +1196,25 @@ fn humanize_name(name: &str) -> String {
         .map(capitalize)
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn icon_monogram(title: &str) -> String {
+    let letters = title
+        .split_whitespace()
+        .filter_map(|segment| {
+            segment
+                .chars()
+                .find(|character| character.is_ascii_alphanumeric())
+        })
+        .take(2)
+        .map(|character| character.to_ascii_uppercase())
+        .collect::<String>();
+
+    if letters.is_empty() {
+        "RF".to_string()
+    } else {
+        letters
+    }
 }
 
 fn capitalize(value: &str) -> String {
@@ -1075,6 +1299,10 @@ fn quoted_literal(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
+fn shell_single_quoted(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
 fn executable_name(name: &str) -> String {
     #[cfg(target_os = "windows")]
     {
@@ -1108,6 +1336,402 @@ fn format_size(bytes: u64) -> String {
     }
 }
 
+fn build_release_binary(
+    workspace: &Path,
+    name: &str,
+    runner: &RunnerProject,
+) -> CliResult<PathBuf> {
+    let status = Command::new("cargo")
+        .arg("build")
+        .arg("--release")
+        .arg("--manifest-path")
+        .arg(&runner.manifest_path)
+        .arg("--bin")
+        .arg(name)
+        .current_dir(workspace)
+        .env("CARGO_TARGET_DIR", &runner.target_dir)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .map_err(|error| format!("failed to launch cargo build: {error}"))?;
+
+    if !status.success() {
+        return Err(format!("cargo build --release failed with status {status}"));
+    }
+
+    let source = runner
+        .target_dir
+        .join("release")
+        .join(executable_name(name));
+    if !source.exists() {
+        return Err(format!(
+            "expected release binary was not produced: {}",
+            source.display()
+        ));
+    }
+
+    Ok(source)
+}
+
+fn copy_with_permissions(source: &Path, destination: &Path) -> CliResult<()> {
+    fs::copy(source, destination).map_err(|error| {
+        format!(
+            "failed to copy '{}' to '{}': {error}",
+            source.display(),
+            destination.display()
+        )
+    })?;
+
+    let permissions = fs::metadata(source)
+        .map_err(|error| format!("failed to read '{}': {error}", source.display()))?
+        .permissions();
+    fs::set_permissions(destination, permissions).map_err(|error| {
+        format!(
+            "failed to preserve permissions for '{}': {error}",
+            destination.display()
+        )
+    })
+}
+
+fn write_binary_file(path: &Path, bytes: &[u8]) -> CliResult<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            format!("failed to create directory '{}': {error}", parent.display())
+        })?;
+    }
+
+    fs::write(path, bytes).map_err(|error| format!("failed to write '{}': {error}", path.display()))
+}
+
+fn build_linux_package(app: &AppProject, source_binary: &Path) -> CliResult<LinuxPackageOutput> {
+    let dist_dir = app.app_dir.join("dist").join("linux");
+    fs::create_dir_all(&dist_dir).map_err(|error| {
+        format!(
+            "failed to create Linux dist directory '{}': {error}",
+            dist_dir.display()
+        )
+    })?;
+
+    let bundle_name = format!(
+        "{}-{}-linux-{}",
+        app.config.app_id,
+        app.config.packaging.version,
+        env::consts::ARCH
+    );
+    let bundle_dir = dist_dir.join(&bundle_name);
+    if bundle_dir.exists() {
+        fs::remove_dir_all(&bundle_dir).map_err(|error| {
+            format!(
+                "failed to replace existing bundle '{}': {error}",
+                bundle_dir.display()
+            )
+        })?;
+    }
+    fs::create_dir_all(&bundle_dir).map_err(|error| {
+        format!(
+            "failed to create bundle directory '{}': {error}",
+            bundle_dir.display()
+        )
+    })?;
+
+    let app_dir = bundle_dir.join(format!("{}.AppDir", app.config.app_id));
+    let usr_bin = app_dir.join("usr/bin");
+    fs::create_dir_all(&usr_bin).map_err(|error| {
+        format!(
+            "failed to create bundle directory '{}': {error}",
+            usr_bin.display()
+        )
+    })?;
+
+    let binary_name = executable_name(&app.name);
+    let installed_binary = usr_bin.join(&binary_name);
+    copy_with_permissions(source_binary, &installed_binary)?;
+
+    let app_run_path = app_dir.join("AppRun");
+    write_text_file(&app_run_path, &render_app_run_script(&binary_name))?;
+    make_executable(&app_run_path)?;
+
+    let icon = load_linux_icon(app)?;
+    let desktop_entry_name = format!("{}.desktop", app.config.app_id);
+    let icon_file_name = format!("{}.{}", app.config.app_id, icon.extension);
+    let categories = format_desktop_categories(&app.config.packaging.linux.categories);
+    let keywords = format_desktop_keywords(&app.config.packaging.linux.keywords);
+    let desktop_entry = render_portable_desktop_entry(
+        &app.config.title,
+        &app.config.packaging.description,
+        &app.config.app_id,
+        &categories,
+        keywords.as_deref(),
+    );
+    write_text_file(&app_dir.join(&desktop_entry_name), &desktop_entry)?;
+    write_text_file(
+        &app_dir
+            .join("usr/share/applications")
+            .join(&desktop_entry_name),
+        &desktop_entry,
+    )?;
+
+    let icon_relative_path = match icon.extension.as_str() {
+        "svg" => PathBuf::from("usr/share/icons/hicolor/scalable/apps").join(&icon_file_name),
+        "png" => PathBuf::from("usr/share/icons/hicolor/256x256/apps").join(&icon_file_name),
+        _ => unreachable!(),
+    };
+    write_binary_file(&app_dir.join(&icon_file_name), &icon.bytes)?;
+    write_binary_file(&app_dir.join(&icon_relative_path), &icon.bytes)?;
+
+    let metadata_path = bundle_dir.join("rustframe-package.json");
+    let metadata = json!({
+        "appId": app.config.app_id,
+        "name": app.config.title,
+        "version": app.config.packaging.version,
+        "description": app.config.packaging.description,
+        "publisher": app.config.packaging.publisher,
+        "homepage": app.config.packaging.homepage,
+        "target": {
+            "os": "linux",
+            "arch": env::consts::ARCH,
+            "format": "appdir-tarball"
+        },
+        "artifacts": {
+            "bundleDir": bundle_dir.file_name().map(|value| value.to_string_lossy().to_string()),
+            "appDir": app_dir.file_name().map(|value| value.to_string_lossy().to_string()),
+            "archive": format!("{bundle_name}.tar.gz")
+        }
+    });
+    write_text_file(
+        &metadata_path,
+        &serde_json::to_string_pretty(&metadata)
+            .map_err(|error| format!("failed to serialize package metadata: {error}"))?,
+    )?;
+
+    let install_script = bundle_dir.join("install.sh");
+    write_text_file(
+        &install_script,
+        &render_linux_install_script(
+            &app.config.title,
+            &app.config.app_id,
+            &app.config.packaging.description,
+            &desktop_entry_name,
+            &icon_relative_path,
+            &icon_file_name,
+            &categories,
+            keywords.as_deref(),
+        ),
+    )?;
+    make_executable(&install_script)?;
+
+    let uninstall_script = bundle_dir.join("uninstall.sh");
+    write_text_file(
+        &uninstall_script,
+        &render_linux_uninstall_script(&app.config.app_id),
+    )?;
+    make_executable(&uninstall_script)?;
+
+    write_text_file(
+        &bundle_dir.join("README.txt"),
+        &render_linux_package_readme(app, &bundle_name, &app_dir),
+    )?;
+
+    let archive_path = dist_dir.join(format!("{bundle_name}.tar.gz"));
+    if archive_path.exists() {
+        fs::remove_file(&archive_path).map_err(|error| {
+            format!(
+                "failed to replace existing archive '{}': {error}",
+                archive_path.display()
+            )
+        })?;
+    }
+    write_tarball(&bundle_dir, &archive_path)?;
+
+    Ok(LinuxPackageOutput {
+        bundle_dir,
+        app_dir,
+        archive_path,
+    })
+}
+
+fn render_app_run_script(binary_name: &str) -> String {
+    format!(
+        "#!/usr/bin/env bash\nset -euo pipefail\nbundle_dir=\"$(cd \"$(dirname \"${{BASH_SOURCE[0]}}\")\" && pwd)\"\nexec \"$bundle_dir/usr/bin/{binary_name}\" \"$@\"\n"
+    )
+}
+
+fn render_portable_desktop_entry(
+    title: &str,
+    description: &str,
+    app_id: &str,
+    categories: &str,
+    keywords: Option<&str>,
+) -> String {
+    let mut entry = String::new();
+    entry.push_str("[Desktop Entry]\n");
+    entry.push_str("Type=Application\n");
+    entry.push_str(&format!("Name={}\n", sanitize_desktop_entry_value(title)));
+    entry.push_str(&format!(
+        "Comment={}\n",
+        sanitize_desktop_entry_value(description)
+    ));
+    entry.push_str("Exec=AppRun\n");
+    entry.push_str(&format!("Icon={app_id}\n"));
+    entry.push_str(&format!("Categories={categories}\n"));
+    if let Some(keywords) = keywords {
+        entry.push_str(&format!("Keywords={keywords}\n"));
+    }
+    entry.push_str("Terminal=false\n");
+    entry.push_str("StartupNotify=true\n");
+    entry
+}
+
+fn render_linux_install_script(
+    title: &str,
+    app_id: &str,
+    description: &str,
+    desktop_entry_name: &str,
+    icon_relative_path: &Path,
+    _icon_file_name: &str,
+    categories: &str,
+    keywords: Option<&str>,
+) -> String {
+    let keywords_line = keywords
+        .map(|value| format!("Keywords={}\n", sanitize_desktop_entry_value(value)))
+        .unwrap_or_default();
+    format!(
+        "#!/usr/bin/env bash\nset -euo pipefail\nbundle_root=\"$(cd \"$(dirname \"${{BASH_SOURCE[0]}}\")\" && pwd)\"\napp_id={app_id}\napp_title={title}\ndescription={description}\ndesktop_entry_name={desktop_entry_name}\nappdir_name={appdir_name}\ninstall_root=\"${{XDG_DATA_HOME:-$HOME/.local/share}}/rustframe/apps/${{app_id}}\"\ndesktop_dir=\"${{XDG_DATA_HOME:-$HOME/.local/share}}/applications\"\nbin_dir=\"$HOME/.local/bin\"\nmkdir -p \"$install_root\" \"$desktop_dir\" \"$bin_dir\"\nrm -rf \"$install_root\"\ncp -R \"$bundle_root/${{appdir_name}}\" \"$install_root/\"\ncat > \"$bin_dir/${{app_id}}\" <<WRAPPER\n#!/usr/bin/env bash\nset -euo pipefail\nexec \"$install_root/${{appdir_name}}/AppRun\" \"$@\"\nWRAPPER\nchmod +x \"$bin_dir/${{app_id}}\"\ncat > \"$desktop_dir/${{desktop_entry_name}}\" <<DESKTOP\n[Desktop Entry]\nType=Application\nName=$app_title\nComment=$description\nExec=$bin_dir/$app_id\nIcon=$install_root/${{appdir_name}}/{icon_relative}\nCategories={categories}\n{keywords_line}Terminal=false\nStartupNotify=true\nDESKTOP\nif command -v update-desktop-database >/dev/null 2>&1; then\n  update-desktop-database \"$desktop_dir\" >/dev/null 2>&1 || true\nfi\nprintf 'Installed %s to %s\\n' \"$app_id\" \"$install_root/${{appdir_name}}\"\n",
+        app_id = shell_single_quoted(app_id),
+        title = shell_single_quoted(title),
+        description = shell_single_quoted(description),
+        desktop_entry_name = shell_single_quoted(desktop_entry_name),
+        appdir_name = shell_single_quoted(&format!("{app_id}.AppDir")),
+        icon_relative = slash_path(icon_relative_path),
+        categories = sanitize_desktop_entry_value(categories),
+        keywords_line = keywords_line,
+    )
+}
+
+fn render_linux_uninstall_script(app_id: &str) -> String {
+    format!(
+        "#!/usr/bin/env bash\nset -euo pipefail\napp_id={app_id}\ninstall_root=\"${{XDG_DATA_HOME:-$HOME/.local/share}}/rustframe/apps/${{app_id}}\"\ndesktop_file=\"${{XDG_DATA_HOME:-$HOME/.local/share}}/applications/${{app_id}}.desktop\"\nwrapper=\"$HOME/.local/bin/${{app_id}}\"\nrm -rf \"$install_root\"\nrm -f \"$desktop_file\" \"$wrapper\"\nif command -v update-desktop-database >/dev/null 2>&1; then\n  update-desktop-database \"${{XDG_DATA_HOME:-$HOME/.local/share}}/applications\" >/dev/null 2>&1 || true\nfi\nprintf 'Removed %s\\n' \"$app_id\"\n",
+        app_id = shell_single_quoted(app_id),
+    )
+}
+
+fn render_linux_package_readme(app: &AppProject, bundle_name: &str, app_dir: &Path) -> String {
+    let homepage = app
+        .config
+        .packaging
+        .homepage
+        .as_deref()
+        .unwrap_or("not set");
+    let publisher = app
+        .config
+        .packaging
+        .publisher
+        .as_deref()
+        .unwrap_or("not set");
+    format!(
+        "{title}\nVersion: {version}\nBundle: {bundle_name}\nPublisher: {publisher}\nHomepage: {homepage}\n\nThis Linux package contains:\n- a portable AppDir at {app_dir_name}\n- install.sh for per-user installation under ~/.local\n- uninstall.sh to remove that installation\n- rustframe-package.json with release metadata\n\nPortable run:\n  ./{app_dir_name}/AppRun\n\nUser install:\n  ./install.sh\n",
+        title = app.config.title,
+        version = app.config.packaging.version,
+        bundle_name = bundle_name,
+        publisher = publisher,
+        homepage = homepage,
+        app_dir_name = app_dir
+            .file_name()
+            .map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_else(|| format!("{}.AppDir", app.config.app_id)),
+    )
+}
+
+fn format_desktop_categories(categories: &[String]) -> String {
+    format!("{};", categories.join(";"))
+}
+
+fn format_desktop_keywords(keywords: &[String]) -> Option<String> {
+    if keywords.is_empty() {
+        None
+    } else {
+        Some(format!("{};", keywords.join(";")))
+    }
+}
+
+fn sanitize_desktop_entry_value(value: &str) -> String {
+    value.replace('\n', " ").trim().to_string()
+}
+
+struct LinuxIconBytes {
+    bytes: Vec<u8>,
+    extension: String,
+}
+
+fn load_linux_icon(app: &AppProject) -> CliResult<LinuxIconBytes> {
+    if let Some(path) = &app.config.packaging.linux.icon_path {
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(|value| value.to_ascii_lowercase())
+            .ok_or_else(|| {
+                format!(
+                    "packaging.linux.icon must end with .svg or .png: {}",
+                    path.display()
+                )
+            })?;
+        let bytes = fs::read(path)
+            .map_err(|error| format!("failed to read icon '{}': {error}", path.display()))?;
+        return Ok(LinuxIconBytes { bytes, extension });
+    }
+
+    Ok(LinuxIconBytes {
+        bytes: render_template(
+            TEMPLATE_APP_ICON_SVG,
+            &[
+                ("{{app_title}}", app.config.title.clone()),
+                ("{{app_monogram}}", icon_monogram(&app.config.title)),
+            ],
+        )
+        .into_bytes(),
+        extension: "svg".to_string(),
+    })
+}
+
+fn write_tarball(source_dir: &Path, archive_path: &Path) -> CliResult<()> {
+    let archive_file = fs::File::create(archive_path)
+        .map_err(|error| format!("failed to create '{}': {error}", archive_path.display()))?;
+    let encoder = GzEncoder::new(archive_file, Compression::default());
+    let mut builder = TarBuilder::new(encoder);
+    let root_name = source_dir
+        .file_name()
+        .ok_or_else(|| format!("failed to archive '{}'", source_dir.display()))?;
+    builder
+        .append_dir_all(root_name, source_dir)
+        .map_err(|error| format!("failed to archive '{}': {error}", source_dir.display()))?;
+    let encoder = builder
+        .into_inner()
+        .map_err(|error| format!("failed to finalize '{}': {error}", archive_path.display()))?;
+    encoder
+        .finish()
+        .map_err(|error| format!("failed to finalize '{}': {error}", archive_path.display()))?;
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn make_executable(path: &Path) -> CliResult<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut permissions = fs::metadata(path)
+        .map_err(|error| format!("failed to read '{}': {error}", path.display()))?
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(path, permissions)
+        .map_err(|error| format!("failed to update '{}': {error}", path.display()))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn make_executable(path: &Path) -> CliResult<()> {
+    let _ = path;
+    Ok(())
+}
+
 fn print_help() {
     println!("RustFrame CLI");
     println!();
@@ -1120,10 +1744,13 @@ fn print_help() {
         "  rustframe-cli export [name]           Build a release binary into apps/<name>/dist/"
     );
     println!(
+        "  rustframe-cli package [name]          Build a Linux bundle and tarball into apps/<name>/dist/linux/"
+    );
+    println!(
         "  rustframe-cli eject [name]            Materialize an app-owned Rust runner in apps/<name>/native/"
     );
     println!();
-    println!("Run `dev` and `export` from inside apps/<name>/ to omit the app name.");
+    println!("Run `dev`, `export`, and `package` from inside apps/<name>/ to omit the app name.");
     println!("Window title and size are read from index.html:");
     println!("  <title>My App</title>");
     println!("  <meta name=\"rustframe:width\" content=\"1280\">");
@@ -1138,9 +1765,10 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        AppConfig, AppProject, AppShellCommand, collect_embedded_assets, find_workspace_root_from,
-        load_app_project, prepare_ejected_runner, prepare_generated_runner, read_app_config,
-        relative_path, render_asset_match_arms, render_database_chain, render_template,
+        AppConfig, AppPackagingConfig, AppProject, AppShellCommand, LinuxPackagingConfig,
+        build_linux_package, collect_embedded_assets, find_workspace_root_from, load_app_project,
+        prepare_ejected_runner, prepare_generated_runner, read_app_config, relative_path,
+        render_asset_match_arms, render_database_chain, render_template,
         resolve_current_app_name_from, resolve_runner_project,
     };
 
@@ -1150,6 +1778,20 @@ mod tests {
             "[workspace]\nmembers = []\n# crates/rustframe\n",
         )
         .unwrap();
+    }
+
+    fn default_packaging_config(title: &str) -> AppPackagingConfig {
+        AppPackagingConfig {
+            version: "0.1.0".into(),
+            description: title.into(),
+            publisher: None,
+            homepage: None,
+            linux: LinuxPackagingConfig {
+                categories: vec!["Utility".into()],
+                keywords: Vec::new(),
+                icon_path: None,
+            },
+        }
     }
 
     #[test]
@@ -1181,6 +1823,8 @@ mod tests {
         assert_eq!(config.dev_url.as_deref(), Some("http://127.0.0.1:5173"));
         assert!(config.fs_roots.is_empty());
         assert!(config.shell_commands.is_empty());
+        assert_eq!(config.packaging.version, "0.1.0");
+        assert_eq!(config.packaging.description, "Orbit Desk");
     }
 
     #[test]
@@ -1306,6 +1950,61 @@ mod tests {
         assert_eq!(config.width, 1440.0);
         assert_eq!(config.height, 920.0);
         assert_eq!(config.dev_url.as_deref(), Some("http://127.0.0.1:4321"));
+    }
+
+    #[test]
+    fn manifest_reads_linux_packaging_metadata() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            "<title>Packaged App</title>",
+        )
+        .unwrap();
+        fs::write(temp.path().join("assets-icon.svg"), "<svg/>").unwrap();
+        fs::write(
+            temp.path().join("rustframe.json"),
+            r#"
+            {
+              "packaging": {
+                "version": "1.2.3",
+                "description": "Ship it on Linux",
+                "publisher": "RustFrame Labs",
+                "homepage": "https://example.com/app",
+                "linux": {
+                  "icon": "assets-icon.svg",
+                  "categories": ["Office", "Utility"],
+                  "keywords": ["crm", "sales"]
+                }
+              }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let config = read_app_config("packaged-app", temp.path(), temp.path()).unwrap();
+
+        assert_eq!(config.packaging.version, "1.2.3");
+        assert_eq!(config.packaging.description, "Ship it on Linux");
+        assert_eq!(
+            config.packaging.publisher.as_deref(),
+            Some("RustFrame Labs")
+        );
+        assert_eq!(
+            config.packaging.homepage.as_deref(),
+            Some("https://example.com/app")
+        );
+        assert_eq!(
+            config.packaging.linux.categories,
+            vec!["Office".to_string(), "Utility".to_string()]
+        );
+        assert_eq!(
+            config.packaging.linux.keywords,
+            vec!["crm".to_string(), "sales".to_string()]
+        );
+        assert_eq!(
+            config.packaging.linux.icon_path,
+            Some(temp.path().join("assets-icon.svg"))
+        );
     }
 
     #[test]
@@ -1473,6 +2172,7 @@ mod tests {
                 dev_url: None,
                 fs_roots: Vec::new(),
                 shell_commands: Vec::new(),
+                packaging: default_packaging_config("Orbit Desk"),
             },
         };
 
@@ -1517,6 +2217,7 @@ mod tests {
                 dev_url: None,
                 fs_roots: Vec::new(),
                 shell_commands: Vec::new(),
+                packaging: default_packaging_config("Atlas CRM"),
             },
         };
 
@@ -1624,6 +2325,7 @@ mod tests {
                     program: "ls".into(),
                     args: vec!["-la".into(), "${SOURCE_APP_DIR}/fixtures".into()],
                 }],
+                packaging: default_packaging_config("Capability App"),
             },
         };
 
@@ -1684,6 +2386,7 @@ mod tests {
                     program: "echo".into(),
                     args: vec!["${SOURCE_APP_DIR}".into()],
                 }],
+                packaging: default_packaging_config("Ejected Demo"),
             },
         };
 
@@ -1734,6 +2437,7 @@ mod tests {
                 dev_url: None,
                 fs_roots: Vec::new(),
                 shell_commands: Vec::new(),
+                packaging: default_packaging_config("Orbit Desk"),
             },
         };
 
@@ -1747,5 +2451,70 @@ mod tests {
             runner.target_dir,
             workspace.path().join("target/rustframe/ejected/orbit-desk")
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn build_linux_package_writes_bundle_scripts_and_archive() {
+        let temp = tempdir().unwrap();
+        let app_dir = temp.path().join("apps/package-demo");
+        fs::create_dir_all(&app_dir).unwrap();
+        fs::write(app_dir.join("index.html"), "<title>Package Demo</title>").unwrap();
+        fs::write(app_dir.join("icon.svg"), "<svg/>").unwrap();
+        let binary_dir = temp.path().join("target/release");
+        fs::create_dir_all(&binary_dir).unwrap();
+        let binary_path = binary_dir.join("package-demo");
+        fs::write(&binary_path, "#!/usr/bin/env bash\necho ok\n").unwrap();
+
+        let app = AppProject {
+            name: "package-demo".into(),
+            app_dir: app_dir.clone(),
+            asset_dir: app_dir.clone(),
+            config: AppConfig {
+                app_id: "package-demo".into(),
+                title: "Package Demo".into(),
+                width: 1280.0,
+                height: 820.0,
+                dev_url: None,
+                fs_roots: Vec::new(),
+                shell_commands: Vec::new(),
+                packaging: AppPackagingConfig {
+                    version: "2.4.0".into(),
+                    description: "A Linux packaged app".into(),
+                    publisher: Some("RustFrame".into()),
+                    homepage: Some("https://example.com/package-demo".into()),
+                    linux: LinuxPackagingConfig {
+                        categories: vec!["Utility".into()],
+                        keywords: vec!["package".into(), "demo".into()],
+                        icon_path: Some(app_dir.join("icon.svg")),
+                    },
+                },
+            },
+        };
+
+        let output = build_linux_package(&app, &binary_path).unwrap();
+        let install_script = fs::read_to_string(output.bundle_dir.join("install.sh")).unwrap();
+
+        assert!(output.bundle_dir.join("install.sh").exists());
+        assert!(output.bundle_dir.join("uninstall.sh").exists());
+        assert!(output.bundle_dir.join("README.txt").exists());
+        assert!(output.bundle_dir.join("rustframe-package.json").exists());
+        assert!(output.app_dir.join("AppRun").exists());
+        assert!(output.app_dir.join("usr/bin/package-demo").exists());
+        assert!(
+            output
+                .app_dir
+                .join("usr/share/applications/package-demo.desktop")
+                .exists()
+        );
+        assert!(
+            output
+                .app_dir
+                .join("usr/share/icons/hicolor/scalable/apps/package-demo.svg")
+                .exists()
+        );
+        assert!(output.archive_path.exists());
+        assert!(install_script.contains("Icon=$install_root/${appdir_name}/usr/share/icons"));
+        assert!(install_script.contains("Keywords=package;demo;"));
     }
 }

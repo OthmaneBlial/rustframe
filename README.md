@@ -36,6 +36,7 @@ Sometimes you just want this:
 - a tiny native bridge
 - one command to run it
 - one command to export it
+- one command to package it for Linux
 
 RustFrame is that bet.
 
@@ -117,11 +118,11 @@ That matters because it shows the framework is not just elegant on paper. It alr
 - `crates/rustframe`
   Reusable runtime crate.
 - `crates/rustframe-cli`
-  Scaffolding, dev, and export tooling.
+  Scaffolding, dev, export, and Linux packaging tooling.
 - `examples/capability-demo`
   Sample app showing embedded assets, native IPC, filesystem access, and allowlisted shell execution.
 - `apps/*`
-  Frontend-only desktop apps with root-level HTML, CSS, JavaScript, optional data files, and exported binaries in `dist/`.
+  Frontend-only desktop apps with root-level HTML, CSS, JavaScript, optional data files, raw binaries in `dist/`, and Linux bundles in `dist/linux/`.
 - `docs/`
   Repo docs covering getting started, runtime capabilities, app rules, and the example app set.
 - `site/`
@@ -170,6 +171,7 @@ Edit these files directly:
 - `apps/hello-rustframe/styles.css`
 - `apps/hello-rustframe/app.js`
 - `apps/hello-rustframe/bridge.js`
+- `apps/hello-rustframe/assets/icon.svg`
 - `apps/hello-rustframe/data/schema.json`
 - `apps/hello-rustframe/data/seeds/*.json`
 
@@ -211,12 +213,40 @@ The exported binary lands in:
 apps/hello-rustframe/dist/
 ```
 
+Package a Linux bundle:
+
+```bash
+cargo run -p rustframe-cli -- package hello-rustframe
+```
+
+Or from inside the app directory:
+
+```bash
+cd apps/hello-rustframe
+cargo run -p rustframe-cli -- package
+```
+
+That produces:
+
+```text
+apps/hello-rustframe/dist/linux/<app-id>-<version>-linux-<arch>/
+apps/hello-rustframe/dist/linux/<app-id>-<version>-linux-<arch>.tar.gz
+```
+
+The Linux bundle includes:
+
+- a portable AppDir
+- a `.desktop` launcher and icon
+- `install.sh` and `uninstall.sh` for per-user installs under `~/.local`
+- `rustframe-package.json` with release metadata
+
 ## The App Contract
 
 At a practical level, RustFrame asks app authors to follow a very small contract:
 
 - `apps/<name>/index.html` is required
 - everything in the app root is treated as frontend assets except `dist/` and hidden files
+- `rustframe.json` can declare native capabilities and Linux packaging metadata
 - `bridge.js` should load before `app.js`
 - if `data/schema.json` exists, the app gets embedded SQLite support
 - seed files in `data/seeds/*.json` are embedded and applied once
@@ -252,12 +282,14 @@ RustFrame is promising, but it is still honest software:
 
 - the current implementation is Linux-first
 - the current app model is still mainly single-window
-- packaging and distribution are still early
+- Linux packaging exists, but macOS, Windows, signing, and update channels are still early
 
 That is a conscious tradeoff for simplicity today, not the end state.
 
 ## Linux Notes
 
 The current implementation is Linux-first and expects the native GTK/WebKitGTK stack required by `wry`.
+
+`rustframe-cli package <name>` is the current shipping path. It builds a Linux AppDir-style bundle plus a tarball without requiring extra packaging tools on the host.
 
 The release size target refers to the stripped executable only, not system libraries.

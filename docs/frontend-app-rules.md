@@ -7,7 +7,7 @@ This is the working app contract for frontend-first RustFrame apps.
 - Every app lives in `apps/<app-name>/`.
 - `apps/<app-name>/index.html` is required.
 - Keep runtime assets in the app root or subfolders under that root.
-- `dist/` is reserved for exported binaries.
+- `dist/` is reserved for release artifacts such as exported binaries and Linux bundles.
 - Hidden files and hidden folders are ignored by the embed step.
 
 ## Recommended Files
@@ -17,6 +17,7 @@ This is the working app contract for frontend-first RustFrame apps.
 - `app.js`
 - `bridge.js`
 - `rustframe.json` when the app needs native capabilities or typed runtime config
+- `assets/icon.svg` when the app will be packaged for Linux
 - `data/schema.json` when the app needs persistent data
 - `data/seeds/*.json` for first-run rows
 - `data/migrations/*.sql` for versioned database upgrades and backfills
@@ -52,6 +53,15 @@ Use `apps/<app-name>/rustframe.json` for typed runtime config that should not li
 ```json
 {
   "appId": "my-app",
+  "packaging": {
+    "version": "0.1.0",
+    "description": "My App desktop package",
+    "linux": {
+      "icon": "assets/icon.svg",
+      "categories": ["Utility"],
+      "keywords": ["desktop", "rustframe"]
+    }
+  },
   "filesystem": {
     "roots": ["fixtures", "${EXE_DIR}/imports"]
   },
@@ -70,8 +80,13 @@ Use `apps/<app-name>/rustframe.json` for typed runtime config that should not li
 Rules:
 
 - `appId` is optional and defaults to the app folder name.
+- `packaging.version` defaults to `0.1.0` when omitted.
+- `packaging.description` defaults to the app title when omitted.
+- `packaging.linux.icon` may point to an `.svg` or `.png` file relative to the app root.
+- `packaging.linux.categories` defaults to `["Utility"]`.
 - `filesystem.roots` entries must be non-empty strings.
 - `shell.commands[].name` values must be unique.
+- `packaging.linux.keywords[]` entries must not contain semicolons.
 - `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` are supported inside declared values.
 - Relative filesystem roots resolve against the source app folder in debug builds and against the executable directory in release builds.
 
@@ -131,7 +146,29 @@ cargo run -p rustframe-cli -- export
 
 Export copies the built binary into `apps/<name>/dist/`.
 
-If `apps/<name>/native/Cargo.toml` exists because the app was ejected, `dev` and `export` use that runner instead of the hidden generated runner.
+## Package Rules
+
+From the workspace root:
+
+```bash
+cargo run -p rustframe-cli -- package orbit-desk
+```
+
+From inside the app directory:
+
+```bash
+cd apps/orbit-desk
+cargo run -p rustframe-cli -- package
+```
+
+Package writes a Linux bundle into `apps/<name>/dist/linux/` with:
+
+- a portable `*.AppDir`
+- a `.desktop` launcher and app icon
+- `install.sh` and `uninstall.sh`
+- a `.tar.gz` archive for distribution
+
+If `apps/<name>/native/Cargo.toml` exists because the app was ejected, `dev`, `export`, and `package` use that runner instead of the hidden generated runner.
 
 ## Dev Rules
 
@@ -154,4 +191,5 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 - Do not treat `dist/` as source input.
 - Do not load `app.js` before `bridge.js`.
 - Do not assume filesystem or shell access exists.
+- Do not point `packaging.linux.icon` at a missing or unsupported file type.
 - Do not ship a UI that boots to a blank screen.

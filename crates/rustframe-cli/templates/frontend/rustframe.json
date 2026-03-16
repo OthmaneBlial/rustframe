@@ -1,5 +1,14 @@
 {
   "appId": "{{app_name}}",
+  "packaging": {
+    "version": "0.1.0",
+    "description": "{{app_description}}",
+    "linux": {
+      "icon": "{{app_icon_path}}",
+      "categories": ["Utility"],
+      "keywords": ["desktop", "rustframe"]
+    }
+  },
   "filesystem": {
     "roots": []
   },

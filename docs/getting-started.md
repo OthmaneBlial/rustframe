@@ -42,6 +42,7 @@ Edit these files directly:
 - `apps/hello-rustframe/styles.css`
 - `apps/hello-rustframe/app.js`
 - `apps/hello-rustframe/bridge.js`
+- `apps/hello-rustframe/assets/icon.svg`
 - `apps/hello-rustframe/rustframe.json`
 - `apps/hello-rustframe/data/schema.json`
 - `apps/hello-rustframe/data/seeds/*.json`
@@ -110,6 +111,22 @@ Supported path tokens:
 - `${SOURCE_ASSET_DIR}` resolves to the embedded asset folder.
 - `${EXE_DIR}` resolves to the runtime executable directory.
 
+Linux packaging also reads from `rustframe.json`:
+
+```json
+{
+  "packaging": {
+    "version": "0.1.0",
+    "description": "Hello RustFrame desktop app",
+    "linux": {
+      "icon": "assets/icon.svg",
+      "categories": ["Utility"],
+      "keywords": ["desktop", "rustframe"]
+    }
+  }
+}
+```
+
 ## Evolve The Database Safely
 
 Use the database files with these roles:
@@ -153,6 +170,37 @@ The release binary is copied into:
 apps/<name>/dist/
 ```
 
+Use `export` when you want the raw executable only.
+
+## Package A Linux Bundle
+
+From the workspace root:
+
+```bash
+cargo run -p rustframe-cli -- package hello-rustframe
+```
+
+From inside the app directory:
+
+```bash
+cd apps/hello-rustframe
+cargo run -p rustframe-cli -- package
+```
+
+RustFrame writes:
+
+```text
+apps/<name>/dist/linux/<app-id>-<version>-linux-<arch>/
+apps/<name>/dist/linux/<app-id>-<version>-linux-<arch>.tar.gz
+```
+
+The bundle contains:
+
+- a portable `*.AppDir`
+- a desktop entry and icon
+- `install.sh` and `uninstall.sh` for per-user installs
+- `rustframe-package.json` with release metadata
+
 ## Eject To A Native Runner
 
 When you need tray work, deeper `tao` or `wry` configuration, extra native crates, or other runtime customization, eject the app:
@@ -171,6 +219,7 @@ After that:
 
 - `cargo run -p rustframe-cli -- dev <name>` uses the ejected runner automatically.
 - `cargo run -p rustframe-cli -- export <name>` builds from the ejected runner automatically.
+- `cargo run -p rustframe-cli -- package <name>` builds the Linux bundle from the ejected runner automatically.
 - The ejected runner stays backed by the `rustframe` library instead of copying the runtime into your app.
 
 Stay on the hidden-runner path when the default runtime is enough. Eject when the app genuinely needs native customization.
