@@ -1,6 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    path::PathBuf,
+};
 
 use rustframe::{EmbeddedAssets, Result, RustFrame};
 
@@ -13,11 +16,54 @@ impl EmbeddedAssets for AppAssets {
     }
 }
 
+fn source_app_dir() -> PathBuf {
+    PathBuf::from({{source_app_dir}})
+}
+
+fn source_asset_dir() -> PathBuf {
+    PathBuf::from({{source_asset_dir}})
+}
+
+fn executable_dir() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(|parent| parent.to_path_buf()))
+        .unwrap_or_else(source_app_dir)
+}
+
+fn expand_declared_value(value: &str) -> String {
+    let source_app_dir = source_app_dir();
+    let source_asset_dir = source_asset_dir();
+    let executable_dir = executable_dir();
+
+    value
+        .replace("${SOURCE_APP_DIR}", source_app_dir.to_string_lossy().as_ref())
+        .replace("${SOURCE_ASSET_DIR}", source_asset_dir.to_string_lossy().as_ref())
+        .replace("${EXE_DIR}", executable_dir.to_string_lossy().as_ref())
+}
+
+fn resolve_declared_fs_root(value: &str) -> PathBuf {
+    let expanded = expand_declared_value(value);
+    let path = PathBuf::from(&expanded);
+
+    if path.is_absolute() {
+        path
+    } else if cfg!(debug_assertions) {
+        source_app_dir().join(path)
+    } else {
+        executable_dir().join(path)
+    }
+}
+
+fn resolve_declared_shell_value(value: &str) -> String {
+    expand_declared_value(value)
+}
+
 fn main() -> Result<()> {
     let builder = RustFrame::builder()
         .title({{window_title}})
         .size({{window_width}}, {{window_height}})
-        .embedded_assets::<AppAssets>(){{app_id_chain}}{{dev_url_chain}}{{database_chain}};
+        .embedded_assets::<AppAssets>(){{app_id_chain}}{{dev_url_chain}}{{database_chain}}{{fs_root_chain}}{{shell_command_chain}};
 
     builder.run()
 }

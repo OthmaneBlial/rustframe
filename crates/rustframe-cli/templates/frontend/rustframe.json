@@ -1,0 +1,9 @@
+{
+  "appId": "{{app_name}}",
+  "filesystem": {
+    "roots": []
+  },
+  "shell": {
+    "commands": []
+  }
+}

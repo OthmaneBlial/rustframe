@@ -16,6 +16,7 @@ This is the working app contract for frontend-first RustFrame apps.
 - `styles.css`
 - `app.js`
 - `bridge.js`
+- `rustframe.json` when the app needs native capabilities or typed runtime config
 - `data/schema.json` when the app needs persistent data
 - `data/seeds/*.json` for first-run rows
 - `dist/`
@@ -42,6 +43,36 @@ Optional:
 ```html
 <meta name="rustframe:dev-url" content="http://127.0.0.1:5173">
 ```
+
+## Manifest Contract
+
+Use `apps/<app-name>/rustframe.json` for typed runtime config that should not live in HTML:
+
+```json
+{
+  "appId": "my-app",
+  "filesystem": {
+    "roots": ["fixtures", "${EXE_DIR}/imports"]
+  },
+  "shell": {
+    "commands": [
+      {
+        "name": "listFixtures",
+        "program": "ls",
+        "args": ["-la", "${SOURCE_APP_DIR}/fixtures"]
+      }
+    ]
+  }
+}
+```
+
+Rules:
+
+- `appId` is optional and defaults to the app folder name.
+- `filesystem.roots` entries must be non-empty strings.
+- `shell.commands[].name` values must be unique.
+- `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` are supported inside declared values.
+- Relative filesystem roots resolve against the source app folder in debug builds and against the executable directory in release builds.
 
 ## Asset Rules
 
@@ -72,6 +103,7 @@ Frontend-only apps do not get filesystem or shell access by default.
 
 - `window.RustFrame.fs.readText(...)` exists in the bridge, but requires the runtime to allow one or more filesystem roots.
 - `window.RustFrame.shell.exec(...)` exists in the bridge, but requires the runtime to allow a named command.
+- `rustframe.json` is the frontend-only way to declare those capabilities.
 
 Without those capabilities, expect permission errors.
 

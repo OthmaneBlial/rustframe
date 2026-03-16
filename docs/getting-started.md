@@ -42,6 +42,7 @@ Edit these files directly:
 - `apps/hello-rustframe/styles.css`
 - `apps/hello-rustframe/app.js`
 - `apps/hello-rustframe/bridge.js`
+- `apps/hello-rustframe/rustframe.json`
 - `apps/hello-rustframe/data/schema.json`
 - `apps/hello-rustframe/data/seeds/*.json`
 
@@ -71,6 +72,42 @@ You can also declare the dev server in `index.html` with:
 ```html
 <meta name="rustframe:dev-url" content="http://127.0.0.1:5173">
 ```
+
+Or in `rustframe.json`:
+
+```json
+{
+  "devUrl": "http://127.0.0.1:5173"
+}
+```
+
+## Declare Native Capabilities
+
+Frontend-only apps can declare filesystem roots and allowlisted shell commands in `rustframe.json`:
+
+```json
+{
+  "appId": "hello-rustframe",
+  "filesystem": {
+    "roots": ["fixtures", "${EXE_DIR}/imports"]
+  },
+  "shell": {
+    "commands": [
+      {
+        "name": "listFixtures",
+        "program": "ls",
+        "args": ["-la", "${SOURCE_APP_DIR}/fixtures"]
+      }
+    ]
+  }
+}
+```
+
+Supported path tokens:
+
+- `${SOURCE_APP_DIR}` resolves to the source app folder.
+- `${SOURCE_ASSET_DIR}` resolves to the embedded asset folder.
+- `${EXE_DIR}` resolves to the runtime executable directory.
 
 ## Export A Release Build
 

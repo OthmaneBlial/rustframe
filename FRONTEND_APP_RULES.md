@@ -20,6 +20,7 @@ RustFrame apps are frontend-first desktop apps. The app folder should feel like 
 - `styles.css`
 - `app.js`
 - `bridge.js`
+- `rustframe.json` when the app needs native capabilities or typed runtime config
 - `data/schema.json` when the app needs persistent data
 - `data/seeds/*.json` for optional first-run rows
 - `dist/`
@@ -43,6 +44,36 @@ Rules:
 - `rustframe:height` must be a positive number.
 - If width or height is missing, RustFrame falls back to defaults.
 - You may also set `<meta name="rustframe:dev-url" content="http://127.0.0.1:5173">` for development.
+
+## Manifest Rules
+
+Use `apps/<app-name>/rustframe.json` for typed runtime config that should not live in HTML:
+
+```json
+{
+  "appId": "my-app",
+  "filesystem": {
+    "roots": ["fixtures", "${EXE_DIR}/imports"]
+  },
+  "shell": {
+    "commands": [
+      {
+        "name": "listFixtures",
+        "program": "ls",
+        "args": ["-la", "${SOURCE_APP_DIR}/fixtures"]
+      }
+    ]
+  }
+}
+```
+
+Rules:
+
+- `appId` is optional and defaults to the app folder name.
+- `filesystem.roots` entries must be non-empty strings.
+- `shell.commands[].name` values must be unique.
+- `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` are supported inside declared values.
+- Relative filesystem roots resolve against the source app folder in debug builds and against the executable directory in release builds.
 
 ## Asset Rules
 
@@ -100,7 +131,8 @@ Important limitation:
 
 - `window.RustFrame.fs.readText(...)` exists in the bridge, but frontend-only apps do not grant filesystem roots by default.
 - `window.RustFrame.shell.exec(...)` exists in the bridge, but frontend-only apps do not allow shell commands by default.
-- If you call those APIs in the current frontend-only workflow, expect permission errors unless RustFrame is extended to grant them.
+- `rustframe.json` is the frontend-only way to declare those capabilities.
+- If you call those APIs without declaring capabilities, expect permission errors.
 - The SQLite file is not stored inside `dist/` or the executable. RustFrame creates it in the user app-data directory.
 
 ## CSS and UI Rules

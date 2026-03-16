@@ -1,8 +1,11 @@
 use std::{
+    collections::BTreeSet,
     env, fs,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
+
+use serde::Deserialize;
 
 type CliResult<T> = Result<T, String>;
 
@@ -15,6 +18,7 @@ const TEMPLATE_INDEX_HTML: &str = include_str!("../templates/frontend/index.html
 const TEMPLATE_STYLES_CSS: &str = include_str!("../templates/frontend/styles.css");
 const TEMPLATE_APP_JS: &str = include_str!("../templates/frontend/app.js");
 const TEMPLATE_BRIDGE_JS: &str = include_str!("../templates/frontend/bridge.js");
+const TEMPLATE_MANIFEST_JSON: &str = include_str!("../templates/frontend/rustframe.json");
 
 #[derive(Debug)]
 struct AppProject {
@@ -26,10 +30,13 @@ struct AppProject {
 
 #[derive(Debug)]
 struct AppConfig {
+    app_id: String,
     title: String,
     width: f64,
     height: f64,
     dev_url: Option<String>,
+    fs_roots: Vec<String>,
+    shell_commands: Vec<AppShellCommand>,
 }
 
 #[derive(Debug)]
@@ -42,6 +49,62 @@ struct RunnerProject {
 struct EmbeddedAsset {
     request_path: String,
     source_path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+struct AppShellCommand {
+    name: String,
+    program: String,
+    args: Vec<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AppManifest {
+    #[serde(default)]
+    app_id: Option<String>,
+    #[serde(default)]
+    dev_url: Option<String>,
+    #[serde(default)]
+    window: Option<ManifestWindow>,
+    #[serde(default)]
+    filesystem: Option<ManifestFilesystem>,
+    #[serde(default)]
+    shell: Option<ManifestShell>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManifestWindow {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    width: Option<f64>,
+    #[serde(default)]
+    height: Option<f64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManifestFilesystem {
+    #[serde(default)]
+    roots: Vec<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManifestShell {
+    #[serde(default)]
+    commands: Vec<ManifestShellCommand>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManifestShellCommand {
+    name: String,
+    program: String,
+    #[serde(default)]
+    args: Vec<String>,
 }
 
 fn main() {
@@ -115,6 +178,13 @@ fn command_new(name: &str) -> CliResult<()> {
         ),
     )?;
     write_text_file(&app_dir.join("bridge.js"), TEMPLATE_BRIDGE_JS)?;
+    write_text_file(
+        &app_dir.join("rustframe.json"),
+        &render_template(
+            TEMPLATE_MANIFEST_JSON,
+            &[("{{app_name}}", name.to_string())],
+        ),
+    )?;
     write_text_file(&app_dir.join("data/schema.json"), TEMPLATE_DATA_SCHEMA)?;
     write_text_file(
         &app_dir.join("data/seeds/001-welcome.json"),
@@ -139,6 +209,7 @@ fn command_new(name: &str) -> CliResult<()> {
     println!("  {}/styles.css", app_dir.display());
     println!("  {}/app.js", app_dir.display());
     println!("  {}/bridge.js", app_dir.display());
+    println!("  {}/rustframe.json", app_dir.display());
     println!("Run it with: cargo run -p rustframe-cli -- dev {name}");
     Ok(())
 }
@@ -338,7 +409,7 @@ fn load_app_project(workspace: &Path, name: &str) -> CliResult<AppProject> {
         ));
     };
 
-    let config = read_app_config(name, &asset_dir)?;
+    let config = read_app_config(name, &app_dir, &asset_dir)?;
 
     Ok(AppProject {
         name: name.to_string(),
@@ -348,28 +419,75 @@ fn load_app_project(workspace: &Path, name: &str) -> CliResult<AppProject> {
     })
 }
 
-fn read_app_config(name: &str, asset_dir: &Path) -> CliResult<AppConfig> {
+fn read_app_config(name: &str, app_dir: &Path, asset_dir: &Path) -> CliResult<AppConfig> {
     let index_path = asset_dir.join("index.html");
     let html = fs::read_to_string(&index_path)
         .map_err(|error| format!("failed to read '{}': {error}", index_path.display()))?;
+    let manifest = read_app_manifest(app_dir)?;
+    let window = manifest.window.as_ref();
 
-    let title = extract_title(&html).unwrap_or_else(|| humanize_name(name));
-    let width = extract_meta_content(&html, "rustframe:width")
-        .map(|value| parse_dimension("rustframe:width", &value))
-        .transpose()?
-        .unwrap_or(1280.0);
-    let height = extract_meta_content(&html, "rustframe:height")
-        .map(|value| parse_dimension("rustframe:height", &value))
-        .transpose()?
-        .unwrap_or(820.0);
-    let dev_url = extract_meta_content(&html, "rustframe:dev-url");
+    let title = window
+        .and_then(|window| window.title.clone())
+        .or_else(|| extract_title(&html))
+        .unwrap_or_else(|| humanize_name(name));
+    let width = if let Some(value) = window.and_then(|window| window.width) {
+        validate_dimension("window.width", value)?
+    } else {
+        extract_meta_content(&html, "rustframe:width")
+            .map(|value| parse_dimension("rustframe:width", &value))
+            .transpose()?
+            .unwrap_or(1280.0)
+    };
+    let height = if let Some(value) = window.and_then(|window| window.height) {
+        validate_dimension("window.height", value)?
+    } else {
+        extract_meta_content(&html, "rustframe:height")
+            .map(|value| parse_dimension("rustframe:height", &value))
+            .transpose()?
+            .unwrap_or(820.0)
+    };
+    let dev_url = manifest
+        .dev_url
+        .or_else(|| extract_meta_content(&html, "rustframe:dev-url"));
+    let app_id = manifest.app_id.unwrap_or_else(|| name.to_string());
+    validate_app_id(&app_id)?;
+
+    let fs_roots = manifest.filesystem.unwrap_or_default().roots;
+    validate_fs_roots(&fs_roots)?;
+    let shell_commands = manifest
+        .shell
+        .unwrap_or_default()
+        .commands
+        .into_iter()
+        .map(|command| AppShellCommand {
+            name: command.name,
+            program: command.program,
+            args: command.args,
+        })
+        .collect::<Vec<_>>();
+    validate_shell_commands(&shell_commands)?;
 
     Ok(AppConfig {
+        app_id,
         title,
         width,
         height,
         dev_url,
+        fs_roots,
+        shell_commands,
     })
+}
+
+fn read_app_manifest(app_dir: &Path) -> CliResult<AppManifest> {
+    let manifest_path = app_dir.join("rustframe.json");
+    if !manifest_path.exists() {
+        return Ok(AppManifest::default());
+    }
+
+    let source = fs::read_to_string(&manifest_path)
+        .map_err(|error| format!("failed to read '{}': {error}", manifest_path.display()))?;
+    serde_json::from_str(&source)
+        .map_err(|error| format!("failed to parse '{}': {error}", manifest_path.display()))
 }
 
 fn prepare_runner(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject> {
@@ -389,8 +507,10 @@ fn prepare_runner(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject
         .as_ref()
         .map(|url| format!("\n        .dev_url({})", quoted_literal(url)))
         .unwrap_or_default();
-    let app_id_chain = format!("\n        .app_id({})", quoted_literal(&app.name));
+    let app_id_chain = format!("\n        .app_id({})", quoted_literal(&app.config.app_id));
     let database_chain = render_database_chain(&assets);
+    let fs_root_chain = render_fs_root_chain(&app.config.fs_roots);
+    let shell_command_chain = render_shell_command_chain(&app.config.shell_commands);
 
     let manifest_contents = render_template(
         TEMPLATE_RUNNER_CARGO_TOML,
@@ -410,12 +530,22 @@ fn prepare_runner(workspace: &Path, app: &AppProject) -> CliResult<RunnerProject
     let main_contents = render_template(
         TEMPLATE_RUNNER_MAIN_RS,
         &[
+            (
+                "{{source_app_dir}}",
+                quoted_literal(&slash_path(&app.app_dir)),
+            ),
+            (
+                "{{source_asset_dir}}",
+                quoted_literal(&slash_path(&app.asset_dir)),
+            ),
             ("{{window_title}}", quoted_literal(&app.config.title)),
             ("{{window_width}}", format_float(app.config.width)),
             ("{{window_height}}", format_float(app.config.height)),
             ("{{app_id_chain}}", app_id_chain),
             ("{{dev_url_chain}}", dev_url_chain),
             ("{{database_chain}}", database_chain),
+            ("{{fs_root_chain}}", fs_root_chain),
+            ("{{shell_command_chain}}", shell_command_chain),
             ("{{asset_match_arms}}", render_asset_match_arms(&assets)),
         ],
     );
@@ -527,6 +657,49 @@ fn render_database_chain(assets: &[EmbeddedAsset]) -> String {
     )
 }
 
+fn render_fs_root_chain(roots: &[String]) -> String {
+    roots
+        .iter()
+        .map(|root| {
+            format!(
+                "\n        .allow_fs_root(resolve_declared_fs_root({}))",
+                quoted_literal(root)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+fn render_shell_command_chain(commands: &[AppShellCommand]) -> String {
+    commands
+        .iter()
+        .map(|command| {
+            let args = if command.args.is_empty() {
+                "Vec::<String>::new()".to_string()
+            } else {
+                format!(
+                    "vec![{}]",
+                    command
+                        .args
+                        .iter()
+                        .map(|arg| {
+                            format!("resolve_declared_shell_value({})", quoted_literal(arg))
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
+
+            format!(
+                "\n        .allow_shell_command({}, resolve_declared_shell_value({}), {args})",
+                quoted_literal(&command.name),
+                quoted_literal(&command.program),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
 fn extract_title(html: &str) -> Option<String> {
     let lower = html.to_ascii_lowercase();
     let start = lower.find("<title>")? + "<title>".len();
@@ -572,11 +745,74 @@ fn parse_dimension(field: &str, value: &str) -> CliResult<f64> {
         .parse::<f64>()
         .map_err(|_| format!("{field} must be a number, received '{value}'"))?;
 
-    if parsed > 0.0 {
-        Ok(parsed)
+    validate_dimension(field, parsed)
+}
+
+fn validate_dimension(field: &str, value: f64) -> CliResult<f64> {
+    if value > 0.0 {
+        Ok(value)
     } else {
         Err(format!("{field} must be greater than zero"))
     }
+}
+
+fn validate_app_id(value: &str) -> CliResult<()> {
+    let mut characters = value.chars();
+    let Some(first) = characters.next() else {
+        return Err("appId must not be empty".into());
+    };
+
+    if !matches!(first, 'a'..='z' | 'A'..='Z' | '_') {
+        return Err(format!(
+            "appId '{}' must start with a letter or underscore",
+            value
+        ));
+    }
+
+    if !characters
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+    {
+        return Err(format!(
+            "appId '{}' may only contain letters, digits, underscores, and hyphens",
+            value
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_fs_roots(roots: &[String]) -> CliResult<()> {
+    for root in roots {
+        if root.trim().is_empty() {
+            return Err("filesystem.roots entries must not be empty".into());
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_shell_commands(commands: &[AppShellCommand]) -> CliResult<()> {
+    let mut seen = BTreeSet::new();
+
+    for command in commands {
+        if command.name.trim().is_empty() {
+            return Err("shell.commands[].name must not be empty".into());
+        }
+        if !seen.insert(command.name.as_str()) {
+            return Err(format!(
+                "shell.commands defines '{}' more than once",
+                command.name
+            ));
+        }
+        if command.program.trim().is_empty() {
+            return Err(format!(
+                "shell.commands['{}'].program must not be empty",
+                command.name
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 fn validate_app_name(name: &str) -> CliResult<()> {
@@ -702,6 +938,7 @@ fn print_help() {
     println!("  <title>My App</title>");
     println!("  <meta name=\"rustframe:width\" content=\"1280\">");
     println!("  <meta name=\"rustframe:height\" content=\"820\">");
+    println!("Optional native capabilities live in apps/<name>/rustframe.json.");
 }
 
 #[cfg(test)]
@@ -711,7 +948,7 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        AppConfig, AppProject, collect_embedded_assets, find_workspace_root_from,
+        AppConfig, AppProject, AppShellCommand, collect_embedded_assets, find_workspace_root_from,
         load_app_project, prepare_runner, read_app_config, render_asset_match_arms,
         render_database_chain, render_template, resolve_current_app_name_from,
     };
@@ -744,12 +981,15 @@ mod tests {
         )
         .unwrap();
 
-        let config = read_app_config("orbit-desk", temp.path()).unwrap();
+        let config = read_app_config("orbit-desk", temp.path(), temp.path()).unwrap();
 
+        assert_eq!(config.app_id, "orbit-desk");
         assert_eq!(config.title, "Orbit Desk");
         assert_eq!(config.width, 1440.0);
         assert_eq!(config.height, 920.0);
         assert_eq!(config.dev_url.as_deref(), Some("http://127.0.0.1:5173"));
+        assert!(config.fs_roots.is_empty());
+        assert!(config.shell_commands.is_empty());
     }
 
     #[test]
@@ -757,8 +997,9 @@ mod tests {
         let temp = tempdir().unwrap();
         fs::write(temp.path().join("index.html"), "<html><head></head></html>").unwrap();
 
-        let config = read_app_config("ember-habits", temp.path()).unwrap();
+        let config = read_app_config("ember-habits", temp.path(), temp.path()).unwrap();
 
+        assert_eq!(config.app_id, "ember-habits");
         assert_eq!(config.title, "Ember Habits");
         assert_eq!(config.width, 1280.0);
         assert_eq!(config.height, 820.0);
@@ -778,7 +1019,7 @@ mod tests {
         )
         .unwrap();
 
-        let config = read_app_config("atlas-crm", temp.path()).unwrap();
+        let config = read_app_config("atlas-crm", temp.path(), temp.path()).unwrap();
 
         assert_eq!(config.title, "Atlas CRM");
         assert_eq!(config.width, 1380.0);
@@ -794,8 +1035,113 @@ mod tests {
         )
         .unwrap();
 
-        let error = read_app_config("ember-habits", temp.path()).unwrap_err();
+        let error = read_app_config("ember-habits", temp.path(), temp.path()).unwrap_err();
         assert!(error.contains("rustframe:width must be a number"));
+    }
+
+    #[test]
+    fn app_config_reads_manifest_declared_capabilities() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            "<title>Manifest Demo</title>",
+        )
+        .unwrap();
+        fs::write(
+            temp.path().join("rustframe.json"),
+            r#"
+            {
+              "appId": "manifest_demo",
+              "filesystem": {
+                "roots": ["fixtures", "${EXE_DIR}/imports"]
+              },
+              "shell": {
+                "commands": [
+                  {
+                    "name": "listFixtures",
+                    "program": "ls",
+                    "args": ["-la", "${SOURCE_APP_DIR}/fixtures"]
+                  }
+                ]
+              }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let config = read_app_config("manifest-demo", temp.path(), temp.path()).unwrap();
+
+        assert_eq!(config.app_id, "manifest_demo");
+        assert_eq!(config.fs_roots, vec!["fixtures", "${EXE_DIR}/imports"]);
+        assert_eq!(config.shell_commands.len(), 1);
+        assert_eq!(config.shell_commands[0].name, "listFixtures");
+        assert_eq!(config.shell_commands[0].program, "ls");
+        assert_eq!(
+            config.shell_commands[0].args,
+            vec!["-la", "${SOURCE_APP_DIR}/fixtures"]
+        );
+    }
+
+    #[test]
+    fn manifest_window_values_override_html_metadata() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            r#"
+            <title>HTML Title</title>
+            <meta name="rustframe:width" content="1280">
+            <meta name="rustframe:height" content="820">
+            "#,
+        )
+        .unwrap();
+        fs::write(
+            temp.path().join("rustframe.json"),
+            r#"
+            {
+              "window": {
+                "title": "Manifest Title",
+                "width": 1440,
+                "height": 920
+              },
+              "devUrl": "http://127.0.0.1:4321"
+            }
+            "#,
+        )
+        .unwrap();
+
+        let config = read_app_config("manifest-demo", temp.path(), temp.path()).unwrap();
+
+        assert_eq!(config.title, "Manifest Title");
+        assert_eq!(config.width, 1440.0);
+        assert_eq!(config.height, 920.0);
+        assert_eq!(config.dev_url.as_deref(), Some("http://127.0.0.1:4321"));
+    }
+
+    #[test]
+    fn manifest_rejects_duplicate_shell_command_names() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            "<title>Manifest Demo</title>",
+        )
+        .unwrap();
+        fs::write(
+            temp.path().join("rustframe.json"),
+            r#"
+            {
+              "shell": {
+                "commands": [
+                  { "name": "sync", "program": "echo" },
+                  { "name": "sync", "program": "printf" }
+                ]
+              }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let error = read_app_config("manifest-demo", temp.path(), temp.path()).unwrap_err();
+        assert!(error.contains("shell.commands defines 'sync' more than once"));
     }
 
     #[test]
@@ -838,7 +1184,10 @@ mod tests {
             .map(|asset| asset.request_path.as_str())
             .collect::<Vec<_>>();
 
-        assert_eq!(paths, vec!["index.html", "nested/a/app.js", "nested/logo.svg"]);
+        assert_eq!(
+            paths,
+            vec!["index.html", "nested/a/app.js", "nested/logo.svg"]
+        );
     }
 
     #[test]
@@ -905,10 +1254,13 @@ mod tests {
             app_dir: app_dir.clone(),
             asset_dir: app_dir,
             config: AppConfig {
+                app_id: "orbit-desk".into(),
                 title: "Orbit Desk".into(),
                 width: 1440.0,
                 height: 920.0,
                 dev_url: None,
+                fs_roots: Vec::new(),
+                shell_commands: Vec::new(),
             },
         };
 
@@ -946,10 +1298,13 @@ mod tests {
             app_dir: app_dir.clone(),
             asset_dir: app_dir,
             config: AppConfig {
+                app_id: "atlas-crm".into(),
                 title: "Atlas CRM".into(),
                 width: 1280.0,
                 height: 820.0,
                 dev_url: None,
+                fs_roots: Vec::new(),
+                shell_commands: Vec::new(),
             },
         };
 
@@ -992,8 +1347,7 @@ mod tests {
         fs::create_dir_all(workspace.join("apps")).unwrap();
         fs::create_dir_all(workspace.join("docs")).unwrap();
 
-        let error =
-            resolve_current_app_name_from(workspace, &workspace.join("docs")).unwrap_err();
+        let error = resolve_current_app_name_from(workspace, &workspace.join("docs")).unwrap_err();
 
         assert!(error.contains("missing app name"));
     }
@@ -1004,7 +1358,8 @@ mod tests {
         write_workspace_manifest(temp.path());
         fs::create_dir_all(temp.path().join("apps/prism-gallery/assets")).unwrap();
 
-        let root = find_workspace_root_from(&temp.path().join("apps/prism-gallery/assets")).unwrap();
+        let root =
+            find_workspace_root_from(&temp.path().join("apps/prism-gallery/assets")).unwrap();
 
         assert_eq!(root, temp.path());
     }
@@ -1025,7 +1380,50 @@ mod tests {
 
         assert_eq!(project.name, "legacy-demo");
         assert_eq!(project.asset_dir, app_dir);
+        assert_eq!(project.config.app_id, "legacy-demo");
         assert_eq!(project.config.title, "Legacy Demo");
         assert_eq!(project.config.width, 1024.0);
+    }
+
+    #[test]
+    fn prepare_runner_writes_declared_fs_and_shell_capabilities() {
+        let workspace = tempdir().unwrap();
+        fs::create_dir_all(workspace.path().join("crates/rustframe")).unwrap();
+        let app_dir = workspace.path().join("apps/capability-app");
+        fs::create_dir_all(&app_dir).unwrap();
+        fs::write(app_dir.join("index.html"), "<title>Capability App</title>").unwrap();
+        fs::write(app_dir.join("app.js"), "console.log('ok')").unwrap();
+        fs::write(app_dir.join("bridge.js"), "window.RustFrame = {}").unwrap();
+        fs::write(app_dir.join("styles.css"), "body {}").unwrap();
+
+        let app = AppProject {
+            name: "capability-app".into(),
+            app_dir: app_dir.clone(),
+            asset_dir: app_dir.clone(),
+            config: AppConfig {
+                app_id: "capability_app".into(),
+                title: "Capability App".into(),
+                width: 1280.0,
+                height: 820.0,
+                dev_url: None,
+                fs_roots: vec!["fixtures".into(), "${EXE_DIR}/imports".into()],
+                shell_commands: vec![AppShellCommand {
+                    name: "listFixtures".into(),
+                    program: "ls".into(),
+                    args: vec!["-la".into(), "${SOURCE_APP_DIR}/fixtures".into()],
+                }],
+            },
+        };
+
+        let runner = prepare_runner(workspace.path(), &app).unwrap();
+        let main =
+            fs::read_to_string(runner.manifest_path.parent().unwrap().join("src/main.rs")).unwrap();
+
+        assert!(main.contains("fn resolve_declared_fs_root"));
+        assert!(main.contains(".allow_fs_root(resolve_declared_fs_root(\"fixtures\"))"));
+        assert!(main.contains("${SOURCE_APP_DIR}"));
+        assert!(main.contains(".allow_shell_command(\"listFixtures\""));
+        assert!(main.contains("resolve_declared_shell_value(\"ls\")"));
+        assert!(main.contains("resolve_declared_shell_value(\"${SOURCE_APP_DIR}/fixtures\")"));
     }
 }

@@ -9,9 +9,9 @@ RustFrame is not trying to be a full Tauri replacement. The current workspace in
 - Development can switch to an HTTP dev server through `RUSTFRAME_DEV_URL` or a `rustframe:dev-url` meta tag.
 - The runtime talks to the frontend through a small promise bridge in `bridge.js`, not through a localhost IPC server.
 
-## Window Metadata Comes From HTML
+## App Metadata Comes From HTML Plus An Optional Manifest
 
-The CLI reads desktop metadata directly from `index.html`:
+The CLI still reads desktop metadata from `index.html` by default:
 
 ```html
 <title>Hello Rustframe</title>
@@ -22,6 +22,29 @@ The CLI reads desktop metadata directly from `index.html`:
 - `<title>` becomes the native window title.
 - `rustframe:width` and `rustframe:height` set the initial window size.
 - `rustframe:dev-url` can override the embedded asset mode during development.
+
+Frontend-only apps can also add `apps/<name>/rustframe.json` for typed configuration:
+
+```json
+{
+  "appId": "hello-rustframe",
+  "devUrl": "http://127.0.0.1:5173",
+  "filesystem": {
+    "roots": ["fixtures"]
+  },
+  "shell": {
+    "commands": [
+      {
+        "name": "listFixtures",
+        "program": "ls",
+        "args": ["-la", "${SOURCE_APP_DIR}/fixtures"]
+      }
+    ]
+  }
+}
+```
+
+When both HTML metadata and `rustframe.json` set the same window fields, the manifest wins.
 
 ## Embedded Assets
 
@@ -66,21 +89,24 @@ Schema files and seed files are embedded into the app binary. The actual SQLite 
 ## Filesystem Capability
 
 The runtime can expose read access to explicit directories through `allow_fs_root(...)`.
+Frontend-only apps now declare those roots through `rustframe.json`.
 
 - `window.RustFrame.fs.readText(path)` only succeeds inside the configured roots.
 - Parent escapes and absolute paths outside those roots are rejected.
+- Relative roots resolve against the source app folder in debug builds and against the executable directory in release builds.
+- `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` can be expanded inside declared values.
 
-The capability demo uses this to expose only its own `frontend/` directory.
+The capability demo previously wired this in Rust by hand; frontend-only apps can now do the same through the manifest.
 
 ## Shell Capability
 
 The runtime can expose allowlisted commands through `allow_shell_command(...)`.
+Frontend-only apps now declare allowlisted commands through `rustframe.json`.
 
 - `window.RustFrame.shell.exec(name, args)` resolves to structured `stdout`, `stderr`, and `exitCode`.
 - Unknown commands are rejected.
 - Commands run directly through `std::process::Command`, not through a shell pipeline.
-
-The capability demo ships one allowed command named `listFrontend`.
+- `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` can be used inside the declared program or argument strings.
 
 ## Hidden Runner Generation
 
@@ -93,8 +119,9 @@ target/rustframe/apps/<name>/runner/
 That runner:
 
 - embeds the app assets
-- carries forward the window title and dimensions from `index.html`
+- carries forward window metadata from `index.html` and optional overrides from `rustframe.json`
 - wires in the database capability when `data/schema.json` exists
+- wires in filesystem roots and shell commands declared in `rustframe.json`
 
 ## Practical Summary
 
