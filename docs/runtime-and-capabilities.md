@@ -89,10 +89,23 @@ The shipped bridge exposes these methods according to the active trust model:
 
 ### Window
 
+- `window.RustFrame.window.id`
+- `window.RustFrame.window.route`
+- `window.RustFrame.window.isPrimary`
+- `window.RustFrame.window.current()`
+- `window.RustFrame.window.list()`
+- `window.RustFrame.window.open(routeOrOptions, options?)`
 - `window.RustFrame.window.close()`
 - `window.RustFrame.window.minimize()`
 - `window.RustFrame.window.maximize()`
 - `window.RustFrame.window.setTitle(title)`
+
+Secondary windows are still in-app windows:
+
+- `window.open(...)` only accepts in-app routes, not absolute URLs.
+- New windows share the same embedded assets or dev server, the same trust model, and the same filesystem, shell, and database capabilities.
+- Each window keeps its own frontend state and its own JS heap.
+- Database access is shared because all windows talk to the same runtime-owned database capability.
 
 ### Database
 

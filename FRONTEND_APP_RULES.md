@@ -142,6 +142,8 @@ Recommended footer pattern:
 - Handle Promise rejections from native calls.
 - Assume desktop startup should feel instant; avoid heavy blocking work on first render.
 - Keep app startup resilient if the WebView is running in embedded mode or dev-server mode.
+- Use `window.RustFrame.window.open(...)` for secondary windows instead of `window.open(...)`.
+- Treat secondary windows as separate frontend states that happen to share the same native runtime capabilities.
 
 ## Trust Rules
 
@@ -156,6 +158,12 @@ Recommended footer pattern:
 
 Available by default in frontend-only apps:
 
+- `window.RustFrame.window.id`
+- `window.RustFrame.window.route`
+- `window.RustFrame.window.isPrimary`
+- `window.RustFrame.window.current()`
+- `window.RustFrame.window.list()`
+- `window.RustFrame.window.open(routeOrOptions, options?)`
 - `window.RustFrame.window.close()`
 - `window.RustFrame.window.minimize()`
 - `window.RustFrame.window.maximize()`
@@ -176,6 +184,7 @@ Important limitation:
 - `window.RustFrame.fs.readText(...)` exists in the bridge, but frontend-only apps do not grant filesystem roots by default.
 - `window.RustFrame.shell.exec(...)` exists in the bridge, but frontend-only apps do not allow shell commands by default.
 - `window.RustFrame.db.*` only stays exposed by default for `local-first` apps.
+- `window.RustFrame.window.open(...)` only accepts in-app routes. It does not open arbitrary remote URLs.
 - `shell.exec` frontend args are denied unless that named command explicitly allowlists them.
 - Declared shell commands run with bounded time and bounded captured output.
 - `rustframe.json` is the frontend-only way to declare those capabilities.

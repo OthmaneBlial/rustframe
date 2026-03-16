@@ -5,12 +5,20 @@
         const raw = window.__RUSTFRAME_BRIDGE_CONFIG__;
         const config = raw && typeof raw === "object" ? raw : {};
         const asBoolean = (value, fallback) => typeof value === "boolean" ? value : fallback;
+        const currentWindow = config.currentWindow && typeof config.currentWindow === "object"
+            ? config.currentWindow
+            : { id: "main", route: "/", isPrimary: true };
 
         return Object.freeze({
             model: config.model === "networked" ? "networked" : "local-first",
             database: asBoolean(config.database, true),
             filesystem: asBoolean(config.filesystem, true),
-            shell: asBoolean(config.shell, true)
+            shell: asBoolean(config.shell, true),
+            currentWindow: Object.freeze({
+                id: typeof currentWindow.id === "string" ? currentWindow.id : "main",
+                route: typeof currentWindow.route === "string" ? currentWindow.route : "/",
+                isPrimary: asBoolean(currentWindow.isPrimary, true)
+            })
         });
     })();
 
@@ -68,10 +76,22 @@
         invoke,
         security: bridgeConfig,
         window: Object.freeze({
+            id: bridgeConfig.currentWindow.id,
+            route: bridgeConfig.currentWindow.route,
+            isPrimary: bridgeConfig.currentWindow.isPrimary,
             close: () => invoke("window.close"),
             minimize: () => invoke("window.minimize"),
             maximize: () => invoke("window.maximize"),
-            setTitle: (title) => invoke("window.setTitle", { title })
+            setTitle: (title) => invoke("window.setTitle", { title }),
+            current: () => invoke("window.current"),
+            list: () => invoke("window.list"),
+            open: (route = "/", options = {}) => {
+                if (route && typeof route === "object") {
+                    return invoke("window.open", route);
+                }
+
+                return invoke("window.open", { route, ...options });
+            }
         }),
         fs: Object.freeze({
             readText: (path) => bridgeConfig.filesystem

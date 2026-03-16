@@ -132,6 +132,8 @@ Rules:
 - Do not call `window.ipc.postMessage` directly unless you are intentionally extending the bridge.
 - Handle Promise rejections from native calls.
 - Keep startup fast and resilient.
+- Use `window.RustFrame.window.open(...)` for secondary windows instead of `window.open(...)`.
+- Treat secondary windows as separate frontend states that happen to share the same native runtime capabilities.
 
 ## Trust Rules
 
@@ -160,6 +162,7 @@ Use these roles:
 
 Frontend-only apps do not get filesystem or shell access by default, and `networked` apps do not get database bridge access by default.
 
+- `window.RustFrame.window.open(...)` only accepts in-app routes. It does not open arbitrary remote URLs.
 - `window.RustFrame.fs.readText(...)` exists in the bridge, but requires the runtime to allow one or more filesystem roots.
 - `window.RustFrame.shell.exec(...)` exists in the bridge, but requires the runtime to allow a named command.
 - `window.RustFrame.db.*` only stays exposed by default for `local-first` apps.
