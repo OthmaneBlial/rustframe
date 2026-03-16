@@ -36,7 +36,7 @@ Sometimes you just want this:
 - a tiny native bridge
 - one command to run it
 - one command to export it
-- one command to package it for Linux
+- one command to package it for the current desktop OS
 
 RustFrame is that bet.
 
@@ -122,11 +122,11 @@ That matters because it shows the framework is not just elegant on paper. It alr
 - `crates/rustframe`
   Reusable runtime crate.
 - `crates/rustframe-cli`
-  Scaffolding, dev, export, and Linux packaging tooling.
+  Scaffolding, dev, export, platform validation, and host-native packaging tooling.
 - `examples/capability-demo`
   Sample app showing embedded assets, native IPC, filesystem access, and allowlisted shell execution.
 - `apps/*`
-  Frontend-only desktop apps with root-level HTML, CSS, JavaScript, optional data files, raw binaries in `dist/`, and Linux bundles in `dist/linux/`.
+  Frontend-only desktop apps with root-level HTML, CSS, JavaScript, optional data files, raw binaries in `dist/`, and platform bundles in `dist/<platform>/`.
 - `docs/`
   Repo docs covering getting started, runtime capabilities, app rules, and the example app set.
 - `site/`
@@ -217,7 +217,15 @@ The exported binary lands in:
 apps/hello-rustframe/dist/
 ```
 
-Package a Linux bundle:
+Validate the platform support matrix:
+
+```bash
+cargo run -p rustframe-cli -- platform-check hello-rustframe
+```
+
+By default, that checks the current host row directly and tells you which rows still need a native Windows or macOS machine.
+
+Package for the current host OS:
 
 ```bash
 cargo run -p rustframe-cli -- package hello-rustframe
@@ -230,18 +238,22 @@ cd apps/hello-rustframe
 cargo run -p rustframe-cli -- package
 ```
 
-That produces:
+That produces one of these host-native outputs:
 
 ```text
 apps/hello-rustframe/dist/linux/<app-id>-<version>-linux-<arch>/
 apps/hello-rustframe/dist/linux/<app-id>-<version>-linux-<arch>.tar.gz
+apps/hello-rustframe/dist/windows/<app-id>-<version>-windows-<arch>/
+apps/hello-rustframe/dist/windows/<app-id>-<version>-windows-<arch>.zip
+apps/hello-rustframe/dist/macos/<app-id>-<version>-macos-<arch>/
+apps/hello-rustframe/dist/macos/<app-id>-<version>-macos-<arch>.tar.gz
 ```
 
-The Linux bundle includes:
+The host-native bundles include:
 
-- a portable AppDir
-- a `.desktop` launcher and icon
-- `install.sh` and `uninstall.sh` for per-user installs under `~/.local`
+- Linux: a portable AppDir, `.desktop` launcher, icon, and `install.sh` / `uninstall.sh`
+- Windows: a portable directory, `install.ps1` / `uninstall.ps1`, shortcuts, and a `.zip`
+- macOS: an `.app` bundle, `install.sh` / `uninstall.sh`, and a `.tar.gz`
 - `rustframe-package.json` with release metadata
 
 ## The App Contract
@@ -284,16 +296,18 @@ Some are SQLite-backed. One is local-storage-first. All of them keep the same co
 
 RustFrame is promising, but it is still honest software:
 
-- the current implementation is Linux-first
-- the current app model is still mainly single-window
-- Linux packaging exists, but macOS, Windows, signing, and update channels are still early
+- native packaging and validation now exist on Linux, Windows, and macOS hosts, but cross-host validation still needs the matching native toolchain
+- signing, notarization, installers, and update channels are still early
+- Linux still has extra runtime constraints around GTK/WebKitGTK and X11 vs Wayland
 
 That is a conscious tradeoff for simplicity today, not the end state.
 
-## Linux Notes
+## Platform Support
 
-The current implementation is Linux-first and expects the native GTK/WebKitGTK stack required by `wry`.
+- Linux: `dev`, `export`, `platform-check`, and `package` run on Linux hosts. The Linux runtime still expects the native GTK/WebKitGTK stack required by `wry`.
+- Windows: `dev`, `export`, `platform-check`, and `package` run on Windows hosts. Validate this row on Windows with MSVC build tools.
+- macOS: `dev`, `export`, `platform-check`, and `package` run on macOS hosts. Validate these rows on macOS with Xcode command line tools.
 
-`rustframe-cli package <name>` is the current shipping path. It builds a Linux AppDir-style bundle plus a tarball without requiring extra packaging tools on the host.
+Run `rustframe-cli platform-check <name>` on each host platform you plan to ship. On Linux, the command will validate the Linux row directly and mark the Windows/macOS rows as native-host checks instead of pretending cross-validation already happened.
 
 The release size target refers to the stripped executable only, not system libraries.

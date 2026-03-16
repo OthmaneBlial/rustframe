@@ -10,9 +10,10 @@ RustFrame is a Rust workspace with two main moving parts:
 ## Prerequisites
 
 - Rust and Cargo
-- A Linux desktop setup that already satisfies the GTK and WebKitGTK requirements used by `wry`
-
-RustFrame is currently Linux-first.
+- A native host toolchain for the platform you are targeting:
+  Linux uses the GTK and WebKitGTK stack required by `wry`
+  Windows uses the MSVC Rust toolchain
+  macOS uses Xcode command line tools
 
 ## Run The Capability Demo
 
@@ -122,7 +123,7 @@ Supported path tokens:
 - `${SOURCE_ASSET_DIR}` resolves to the embedded asset folder.
 - `${EXE_DIR}` resolves to the runtime executable directory.
 
-Linux packaging also reads from `rustframe.json`:
+Host-native packaging also reads from `rustframe.json`:
 
 ```json
 {
@@ -133,6 +134,13 @@ Linux packaging also reads from `rustframe.json`:
       "icon": "assets/icon.svg",
       "categories": ["Utility"],
       "keywords": ["desktop", "rustframe"]
+    },
+    "windows": {
+      "icon": "assets/icon.ico"
+    },
+    "macos": {
+      "bundleIdentifier": "dev.rustframe.hello-rustframe",
+      "icon": "assets/icon.icns"
     }
   }
 }
@@ -183,7 +191,28 @@ apps/<name>/dist/
 
 Use `export` when you want the raw executable only.
 
-## Package A Linux Bundle
+## Validate Platform Support
+
+Run the support matrix check before you treat another host OS as shipped:
+
+```bash
+cargo run -p rustframe-cli -- platform-check hello-rustframe
+```
+
+By default:
+
+- Linux hosts validate the Linux row directly.
+- Windows hosts validate the Windows row directly.
+- macOS hosts validate the macOS rows directly.
+- Other rows are reported as native-host validations so the CLI does not pretend a Linux machine fully validated Windows or macOS support.
+
+You can narrow the check to a custom Rust target when needed:
+
+```bash
+cargo run -p rustframe-cli -- platform-check hello-rustframe --target x86_64-pc-windows-msvc
+```
+
+## Package A Host-Native Bundle
 
 From the workspace root:
 
@@ -203,13 +232,17 @@ RustFrame writes:
 ```text
 apps/<name>/dist/linux/<app-id>-<version>-linux-<arch>/
 apps/<name>/dist/linux/<app-id>-<version>-linux-<arch>.tar.gz
+apps/<name>/dist/windows/<app-id>-<version>-windows-<arch>/
+apps/<name>/dist/windows/<app-id>-<version>-windows-<arch>.zip
+apps/<name>/dist/macos/<app-id>-<version>-macos-<arch>/
+apps/<name>/dist/macos/<app-id>-<version>-macos-<arch>.tar.gz
 ```
 
-The bundle contains:
+The host-native package contains:
 
-- a portable `*.AppDir`
-- a desktop entry and icon
-- `install.sh` and `uninstall.sh` for per-user installs
+- Linux: a portable `*.AppDir`, desktop entry, icon, and shell install scripts
+- Windows: a portable app directory, PowerShell install scripts, shortcuts, and a `.zip`
+- macOS: an `.app` bundle, shell install scripts, and a `.tar.gz`
 - `rustframe-package.json` with release metadata
 
 ## Eject To A Native Runner
@@ -230,7 +263,7 @@ After that:
 
 - `cargo run -p rustframe-cli -- dev <name>` uses the ejected runner automatically.
 - `cargo run -p rustframe-cli -- export <name>` builds from the ejected runner automatically.
-- `cargo run -p rustframe-cli -- package <name>` builds the Linux bundle from the ejected runner automatically.
+- `cargo run -p rustframe-cli -- package <name>` builds the host-native bundle from the ejected runner automatically.
 - The ejected runner stays backed by the `rustframe` library instead of copying the runtime into your app.
 
 Stay on the hidden-runner path when the default runtime is enough. Eject when the app genuinely needs native customization.

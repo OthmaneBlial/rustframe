@@ -16,14 +16,17 @@ impl EmbeddedAssets for AppAssets {
     }
 }
 
+#[allow(dead_code)]
 fn source_app_dir() -> PathBuf {
     PathBuf::from({{source_app_dir}})
 }
 
+#[allow(dead_code)]
 fn source_asset_dir() -> PathBuf {
     PathBuf::from({{source_asset_dir}})
 }
 
+#[allow(dead_code)]
 fn executable_dir() -> PathBuf {
     std::env::current_exe()
         .ok()
@@ -31,6 +34,7 @@ fn executable_dir() -> PathBuf {
         .unwrap_or_else(source_app_dir)
 }
 
+#[allow(dead_code)]
 fn expand_declared_value(value: &str) -> String {
     let source_app_dir = source_app_dir();
     let source_asset_dir = source_asset_dir();
@@ -42,6 +46,7 @@ fn expand_declared_value(value: &str) -> String {
         .replace("${EXE_DIR}", executable_dir.to_string_lossy().as_ref())
 }
 
+#[allow(dead_code)]
 fn resolve_declared_fs_root(value: &str) -> PathBuf {
     let expanded = expand_declared_value(value);
     let path = PathBuf::from(&expanded);
@@ -55,10 +60,12 @@ fn resolve_declared_fs_root(value: &str) -> PathBuf {
     }
 }
 
+#[allow(dead_code)]
 fn resolve_declared_shell_value(value: &str) -> String {
     expand_declared_value(value)
 }
 
+#[allow(dead_code)]
 fn resolve_declared_shell_dir(value: &str) -> PathBuf {
     let expanded = expand_declared_value(value);
     let path = PathBuf::from(&expanded);

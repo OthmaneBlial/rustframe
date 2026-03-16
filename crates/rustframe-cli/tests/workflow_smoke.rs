@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Output},
     sync::atomic::{AtomicUsize, Ordering},
+    sync::{Mutex, MutexGuard, OnceLock},
 };
 
 use serde_json::Value;
@@ -12,6 +13,11 @@ use tempfile::tempdir;
 use std::os::unix::fs::symlink;
 
 static NEXT_APP_ID: AtomicUsize = AtomicUsize::new(0);
+
+fn workflow_lock() -> MutexGuard<'static, ()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+}
 
 fn cli_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_rustframe-cli"))
@@ -131,8 +137,23 @@ fn read_report(path: &Path) -> Value {
     serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap()
 }
 
+fn host_target() -> String {
+    let output = Command::new("rustc").arg("-vV").output().unwrap();
+    assert!(
+        output.status.success(),
+        "rustc -vV failed:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find_map(|line| line.strip_prefix("host: ").map(str::to_string))
+        .unwrap()
+}
+
 #[test]
 fn new_creates_manifest_first_app_scaffold() {
+    let _guard = workflow_lock();
     let workspace = create_test_workspace();
     let app_name = next_app_name("scaffold-smoke");
 
@@ -154,10 +175,17 @@ fn new_creates_manifest_first_app_scaffold() {
     assert_eq!(manifest["window"]["width"], 1280);
     assert_eq!(manifest["window"]["height"], 820);
     assert_eq!(manifest["security"]["model"], "local-first");
+    assert_eq!(manifest["packaging"]["linux"]["icon"], "assets/icon.svg");
+    assert_eq!(manifest["packaging"]["windows"]["icon"], "assets/icon.svg");
+    assert_eq!(
+        manifest["packaging"]["macos"]["bundleIdentifier"],
+        format!("dev.rustframe.{app_name}")
+    );
 }
 
 #[test]
 fn dev_and_export_support_runtime_smoke_checks() {
+    let _guard = workflow_lock();
     let workspace = create_test_workspace();
     let app_name = next_app_name("runtime-smoke");
     let expected_title = app_title(&app_name);
@@ -228,4 +256,30 @@ fn dev_and_export_support_runtime_smoke_checks() {
             .iter()
             .any(|value| value == "notes")
     );
+}
+
+#[test]
+fn platform_check_validates_the_runner_for_the_host_target() {
+    let _guard = workflow_lock();
+    let workspace = create_test_workspace();
+    let app_name = next_app_name("platform-check");
+    let host_target = host_target();
+
+    run_cli(&workspace, &["new", &app_name]);
+
+    let output = run_cli(
+        &workspace,
+        &[
+            "platform-check",
+            &app_name,
+            "--target",
+            host_target.as_str(),
+        ],
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("Platform support matrix"));
+    assert!(stdout.contains(host_target.as_str()));
+    assert!(stdout.contains("[ok]"));
+    assert!(stdout.contains("Packaging:"));
 }

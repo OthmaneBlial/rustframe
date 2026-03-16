@@ -32,6 +32,13 @@ Frontend-only apps can add `apps/<name>/rustframe.json` for typed configuration:
       "icon": "assets/icon.svg",
       "categories": ["Utility"],
       "keywords": ["desktop", "rustframe"]
+    },
+    "windows": {
+      "icon": "assets/icon.ico"
+    },
+    "macos": {
+      "bundleIdentifier": "dev.rustframe.hello-rustframe",
+      "icon": "assets/icon.icns"
     }
   },
   "filesystem": {
@@ -60,7 +67,15 @@ HTML fallback still works:
 ```
 
 When both HTML metadata and `rustframe.json` set the same window fields, the manifest wins.
-The same manifest also provides Linux packaging metadata for `rustframe-cli package`.
+The same manifest also provides Linux, Windows, and macOS packaging metadata for `rustframe-cli package`.
+
+## Platform Validation
+
+RustFrame now treats platform coverage as an explicit contract instead of a distant note.
+
+- `rustframe-cli platform-check <name>` validates the generated or ejected runner against the current host row in the Linux/Windows/macOS support matrix.
+- Default matrix rows that require another native host are reported as such instead of being silently ignored or falsely marked as validated.
+- `rustframe-cli package <name>` builds a host-native bundle on Linux, Windows, or macOS.
 
 ## Frontend Trust Model
 
@@ -173,7 +188,8 @@ That runner:
 - carries forward window metadata from `index.html` and optional overrides from `rustframe.json`
 - wires in the database capability when `data/schema.json` exists
 - wires in filesystem roots and shell commands declared in `rustframe.json`
-- feeds Linux package metadata from `rustframe.json` into `rustframe-cli package`
+- feeds Linux, Windows, and macOS package metadata from `rustframe.json` into `rustframe-cli package`
+- is the runner that `rustframe-cli platform-check` validates
 
 ## Ejected Runner Path
 
@@ -183,7 +199,7 @@ That ejected runner:
 
 - depends on the `rustframe` library instead of copying runtime code into the app
 - embeds the app assets directly from the app folder through `rust-embed`
-- becomes the runner used by `dev`, `export`, and `package` for that app
+- becomes the runner used by `dev`, `export`, `platform-check`, and `package` for that app
 - is the place to add extra native crates, deeper `tao` or `wry` setup, menus, tray work, or shortcuts
 
 ## Practical Summary

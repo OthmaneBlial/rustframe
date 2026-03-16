@@ -1,0 +1,8 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="60" fill="#111827"/>
+  <path d="M52 188L96 68H158L204 188H167L157 159H98L88 188H52Z" fill="#F59E0B"/>
+  <path d="M111 126H145L128 84L111 126Z" fill="#111827"/>
+  <circle cx="192" cy="72" r="22" fill="#F4F4F5"/>
+  <text x="128" y="214" text-anchor="middle" font-family="Verdana, sans-serif" font-size="38" font-weight="700" fill="#F4F4F5">HR</text>
+  <title>Hello Rustframe</title>
+</svg>

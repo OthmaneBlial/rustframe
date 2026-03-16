@@ -11,7 +11,7 @@ RustFrame apps are frontend-first desktop apps. The app folder should feel like 
 - Every app lives in `apps/<app-name>/`.
 - `apps/<app-name>/index.html` is required.
 - Keep runtime assets in the app root or in subfolders under that root.
-- `dist/` is reserved for release artifacts such as exported binaries and Linux bundles.
+- `dist/` is reserved for release artifacts such as exported binaries and host-native bundles.
 - Hidden files and folders are ignored by the embed step.
 
 ## Recommended Minimum Files
@@ -20,7 +20,7 @@ RustFrame apps are frontend-first desktop apps. The app folder should feel like 
 - `styles.css`
 - `app.js`
 - `rustframe.json` when the app needs native capabilities or typed runtime config
-- `assets/icon.svg` when the app will be packaged for Linux
+- `assets/icon.svg` or another packaging icon asset when the app will be packaged
 - `data/schema.json` when the app needs persistent data
 - `data/seeds/*.json` for optional first-run rows
 - `data/migrations/*.sql` for versioned database upgrades and backfills
@@ -74,6 +74,13 @@ Use `apps/<app-name>/rustframe.json` for typed runtime config that should not li
       "icon": "assets/icon.svg",
       "categories": ["Utility"],
       "keywords": ["desktop", "rustframe"]
+    },
+    "windows": {
+      "icon": "assets/icon.ico"
+    },
+    "macos": {
+      "bundleIdentifier": "dev.rustframe.my-app",
+      "icon": "assets/icon.icns"
     }
   },
   "filesystem": {
@@ -97,6 +104,9 @@ Rules:
 - `packaging.version` defaults to `0.1.0` when omitted.
 - `packaging.description` defaults to the app title when omitted.
 - `packaging.linux.icon` may point to an `.svg` or `.png` file relative to the app root.
+- `packaging.windows.icon` may point to an `.ico`, `.png`, or `.svg` file relative to the app root.
+- `packaging.macos.bundleIdentifier` defaults to `dev.rustframe.<appId>` when omitted.
+- `packaging.macos.icon` may point to an `.icns`, `.png`, or `.svg` file relative to the app root.
 - `packaging.linux.categories` defaults to `["Utility"]`.
 - `security.model` defaults to `"local-first"` and may also be `"networked"`.
 - `security.bridge.database`, `security.bridge.filesystem`, and `security.bridge.shell` only matter when you need to selectively re-enable bridge namespaces for a `networked` frontend.
@@ -208,11 +218,21 @@ Important limitation:
 ## Package Rules
 
 - Run package from the workspace root with an app name, or from inside the app folder with no app name.
-- The Linux bundle is written into `apps/<app-name>/dist/linux/`.
-- The bundle contains a portable `*.AppDir`, a `.desktop` launcher, an app icon, install scripts, and a `.tar.gz` archive.
+- Linux packages are written into `apps/<app-name>/dist/linux/`.
+- Windows packages are written into `apps/<app-name>/dist/windows/`.
+- macOS packages are written into `apps/<app-name>/dist/macos/`.
+- Linux bundles contain a portable `*.AppDir`, a `.desktop` launcher, an app icon, install scripts, and a `.tar.gz` archive.
+- Windows bundles contain a portable app directory, PowerShell install scripts, shortcuts, and a `.zip`.
+- macOS bundles contain an `.app` bundle, shell install scripts, and a `.tar.gz`.
 - The hidden generated runner still lives under `target/rustframe/apps/<app-name>/runner/`.
 - If `apps/<app-name>/native/Cargo.toml` exists because the app was ejected, `dev`, `export`, and `package` use that runner instead.
 - Database schema and seeds are embedded into the binary, but user data is written to the OS app-data directory.
+
+## Platform Check Rules
+
+- Run `cargo run -p rustframe-cli -- platform-check <app-name>` on each native host platform you plan to ship.
+- The command validates the current host row directly and reports other rows as native-host validations instead of silently skipping them.
+- Use `--target <triple>` when you need a specific Rust target check.
 
 Examples:
 
@@ -257,7 +277,7 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 - Do not treat `dist/` as source input.
 - Do not put unrelated non-app files in the app root.
 - Do not assume filesystem or shell access exists by default.
-- Do not point `packaging.linux.icon` at a missing or unsupported file type.
+- Do not point `packaging.linux.icon`, `packaging.windows.icon`, or `packaging.macos.icon` at a missing or unsupported file type.
 - Do not ship a UI that starts on a blank page.
 
 ## Practical Checklist
@@ -269,4 +289,4 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 - The app works without a localhost server.
 - If persistent data is needed, `data/schema.json` exists and is valid JSON.
 - Export places a binary in `dist/`.
-- Package places a Linux bundle in `dist/linux/`.
+- Package places a host-native bundle in `dist/<platform>/`.

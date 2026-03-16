@@ -63,8 +63,8 @@
                         <strong>Embedded schema + SQLite</strong>
                     </article>
                     <article>
-                        <span>Current focus</span>
-                        <strong>Linux-first desktop</strong>
+                        <span>Support Matrix</span>
+                        <strong>Linux shipping, Windows/macOS native paths</strong>
                     </article>
                 </div>
             </div>
@@ -75,11 +75,12 @@
                         <p class="eyebrow">CLI Surface</p>
                         <span class="status-pill">workspace</span>
                     </div>
-                    <h2>Four commands define most of the workflow.</h2>
+                    <h2>Five commands define most of the workflow.</h2>
                     <div class="command-list">
                         <button class="command-chip is-active" type="button" data-command-tab="new">New</button>
                         <button class="command-chip" type="button" data-command-tab="dev">Dev</button>
                         <button class="command-chip" type="button" data-command-tab="export">Export</button>
+                        <button class="command-chip" type="button" data-command-tab="platform-check">Check</button>
                         <button class="command-chip" type="button" data-command-tab="package">Package</button>
                     </div>
                     <div class="command-panel" data-command-panel="new">
@@ -93,6 +94,10 @@
                     <div class="command-panel is-hidden" data-command-panel="export">
                         <pre><code>cargo run -p rustframe-cli -- export hello-rustframe</code></pre>
                         <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- export hello-rustframe">Copy</button>
+                    </div>
+                    <div class="command-panel is-hidden" data-command-panel="platform-check">
+                        <pre><code>cargo run -p rustframe-cli -- platform-check hello-rustframe</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- platform-check hello-rustframe">Copy</button>
                     </div>
                     <div class="command-panel is-hidden" data-command-panel="package">
                         <pre><code>cargo run -p rustframe-cli -- package hello-rustframe</code></pre>
@@ -164,12 +169,12 @@
                 <article class="workflow-step">
                     <span class="step-index">02</span>
                     <h3>Build the UI with plain web files</h3>
-                    <p>Window title and size come from the HTML itself. The app folder stays frontend-first and free of visible Rust runner code.</p>
+                    <p>Window metadata lives in `rustframe.json` first, with HTML as fallback. The app folder stays frontend-first and free of visible Rust runner code.</p>
                 </article>
                 <article class="workflow-step">
                     <span class="step-index">03</span>
                     <h3>Run through a generated runner</h3>
-                    <p>`dev`, `export`, and `package` materialize the hidden Rust runner under `target/rustframe/apps/<name>/runner/` and carry forward the embedded assets.</p>
+                    <p>`dev`, `export`, `platform-check`, and `package` materialize the hidden Rust runner under `target/rustframe/apps/<name>/runner/` and carry forward the embedded assets.</p>
                 </article>
                 <article class="workflow-step">
                     <span class="step-index">04</span>
@@ -283,7 +288,7 @@
                 <a class="doc-card" href="docs.html?doc=getting-started">
                     <span>Guide</span>
                     <strong>Getting started</strong>
-                    <p>Run the capability demo, scaffold an app, export a raw binary, and package a Linux bundle.</p>
+                    <p>Run the capability demo, scaffold an app, validate the support matrix, export a raw binary, and package a host-native bundle.</p>
                 </a>
                 <a class="doc-card" href="docs.html?doc=runtime-and-capabilities">
                     <span>Runtime</span>
@@ -300,7 +305,7 @@
     </main>
 
     <footer class="site-footer">
-        <p>RustFrame is currently Linux-first and built around the native GTK and WebKitGTK stack required by `wry`.</p>
+        <p>RustFrame ships Linux, Windows, and macOS host-native workflows, with Linux still carrying the heaviest runtime constraints from GTK and WebKitGTK.</p>
     </footer>
 
     <script src="app.js"></script>

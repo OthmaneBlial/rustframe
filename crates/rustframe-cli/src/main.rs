@@ -2,13 +2,14 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Command, Output, Stdio},
 };
 
 use flate2::{Compression, write::GzEncoder};
 use serde::Deserialize;
 use serde_json::json;
 use tar::Builder as TarBuilder;
+use zip::{CompressionMethod, ZipWriter, write::FileOptions};
 
 type CliResult<T> = Result<T, String>;
 
@@ -96,6 +97,59 @@ struct RunnerProject {
     target_dir: PathBuf,
 }
 
+#[derive(Debug, Clone)]
+struct PlatformCheckRequest {
+    name: String,
+    targets: Vec<String>,
+    uses_default_matrix: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PlatformTargetSpec {
+    label: &'static str,
+    triple: &'static str,
+    status: &'static str,
+}
+
+const DEFAULT_PLATFORM_TARGETS: [PlatformTargetSpec; 4] = [
+    PlatformTargetSpec {
+        label: "Linux",
+        triple: "x86_64-unknown-linux-gnu",
+        status: "dev/export/package on Linux hosts",
+    },
+    PlatformTargetSpec {
+        label: "Windows",
+        triple: "x86_64-pc-windows-msvc",
+        status: "dev/export/package on Windows hosts",
+    },
+    PlatformTargetSpec {
+        label: "macOS (Intel)",
+        triple: "x86_64-apple-darwin",
+        status: "dev/export/package on macOS hosts",
+    },
+    PlatformTargetSpec {
+        label: "macOS (Apple Silicon)",
+        triple: "aarch64-apple-darwin",
+        status: "dev/export/package on macOS hosts",
+    },
+];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PlatformCheckOutcome {
+    target: String,
+    label: String,
+    support_status: String,
+    result: PlatformCheckResult,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PlatformCheckResult {
+    Supported,
+    NeedsNativeHost(String),
+    MissingTarget,
+    Failed(String),
+}
+
 #[derive(Debug)]
 struct EmbeddedAsset {
     request_path: String,
@@ -122,6 +176,10 @@ struct AppPackagingConfig {
     publisher: Option<String>,
     homepage: Option<String>,
     linux: LinuxPackagingConfig,
+    #[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+    windows: WindowsPackagingConfig,
+    #[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+    macos: MacOsPackagingConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -131,10 +189,39 @@ struct LinuxPackagingConfig {
     icon_path: Option<PathBuf>,
 }
 
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+#[derive(Debug, Clone)]
+struct WindowsPackagingConfig {
+    icon_path: Option<PathBuf>,
+}
+
+#[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+#[derive(Debug, Clone)]
+struct MacOsPackagingConfig {
+    bundle_identifier: String,
+    icon_path: Option<PathBuf>,
+}
+
 #[derive(Debug)]
 struct LinuxPackageOutput {
     bundle_dir: PathBuf,
     app_dir: PathBuf,
+    archive_path: PathBuf,
+}
+
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+#[derive(Debug)]
+struct WindowsPackageOutput {
+    bundle_dir: PathBuf,
+    portable_dir: PathBuf,
+    archive_path: PathBuf,
+}
+
+#[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+#[derive(Debug)]
+struct MacOsPackageOutput {
+    bundle_dir: PathBuf,
+    app_bundle: PathBuf,
     archive_path: PathBuf,
 }
 
@@ -243,6 +330,10 @@ struct ManifestPackaging {
     homepage: Option<String>,
     #[serde(default)]
     linux: Option<ManifestLinuxPackaging>,
+    #[serde(default)]
+    windows: Option<ManifestWindowsPackaging>,
+    #[serde(default)]
+    macos: Option<ManifestMacOsPackaging>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -254,6 +345,22 @@ struct ManifestLinuxPackaging {
     categories: Vec<String>,
     #[serde(default)]
     keywords: Vec<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManifestWindowsPackaging {
+    #[serde(default)]
+    icon: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManifestMacOsPackaging {
+    #[serde(default)]
+    bundle_identifier: Option<String>,
+    #[serde(default)]
+    icon: Option<String>,
 }
 
 fn main() {
@@ -287,6 +394,11 @@ fn run() -> CliResult<()> {
             let workspace = find_workspace_root()?;
             let name = parse_package_args(&workspace, &args[1..])?;
             command_package(&workspace, &name)
+        }
+        Some("platform-check") => {
+            let workspace = find_workspace_root()?;
+            let request = parse_platform_check_args(&workspace, &args[1..])?;
+            command_platform_check(&workspace, &request)
         }
         Some("eject") => {
             let workspace = find_workspace_root()?;
@@ -449,11 +561,11 @@ fn command_export(workspace: &Path, name: &str) -> CliResult<()> {
 }
 
 fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     {
         let _ = workspace;
         let _ = name;
-        return Err("`package` currently supports Linux hosts only".into());
+        return Err("`package` currently supports Linux, Windows, and macOS hosts only".into());
     }
 
     #[cfg(target_os = "linux")]
@@ -469,6 +581,112 @@ fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
         println!("Archive: {}", output.archive_path.display());
         println!("Install: {}/install.sh", output.bundle_dir.display());
         Ok(())
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let app = load_app_project(workspace, name)?;
+        let runner = resolve_runner_project(workspace, &app)?;
+        let source_binary = build_release_binary(workspace, name, &runner)?;
+        let output = build_windows_package(&app, &source_binary)?;
+
+        println!("Packaged {}", app.name);
+        println!("Bundle: {}", output.bundle_dir.display());
+        println!("Portable app: {}", output.portable_dir.display());
+        println!("Archive: {}", output.archive_path.display());
+        println!("Install: {}\\install.ps1", output.bundle_dir.display());
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let app = load_app_project(workspace, name)?;
+        let runner = resolve_runner_project(workspace, &app)?;
+        let source_binary = build_release_binary(workspace, name, &runner)?;
+        let output = build_macos_package(&app, &source_binary)?;
+
+        println!("Packaged {}", app.name);
+        println!("Bundle: {}", output.bundle_dir.display());
+        println!("App: {}", output.app_bundle.display());
+        println!("Archive: {}", output.archive_path.display());
+        println!("Install: {}/install.sh", output.bundle_dir.display());
+        Ok(())
+    }
+}
+
+fn command_platform_check(workspace: &Path, request: &PlatformCheckRequest) -> CliResult<()> {
+    let app = load_app_project(workspace, &request.name)?;
+    let runner = resolve_runner_project(workspace, &app)?;
+    let sysroot = rust_sysroot()?;
+    let outcomes = request
+        .targets
+        .iter()
+        .map(|target| {
+            check_platform_target(
+                workspace,
+                &app,
+                &runner,
+                &sysroot,
+                target,
+                request.uses_default_matrix,
+            )
+        })
+        .collect::<CliResult<Vec<_>>>()?;
+
+    println!("Platform support matrix for {}", app.name);
+    println!();
+
+    for outcome in &outcomes {
+        match &outcome.result {
+            PlatformCheckResult::Supported => println!(
+                "[ok]      {} ({})  {}",
+                outcome.label, outcome.target, outcome.support_status
+            ),
+            PlatformCheckResult::NeedsNativeHost(message) => println!(
+                "[host]    {} ({})  {}",
+                outcome.label, outcome.target, message
+            ),
+            PlatformCheckResult::MissingTarget => println!(
+                "[missing] {} ({})  install with `rustup target add {}`",
+                outcome.label, outcome.target, outcome.target
+            ),
+            PlatformCheckResult::Failed(summary) => {
+                println!(
+                    "[fail]    {} ({})  {}",
+                    outcome.label, outcome.target, outcome.support_status
+                );
+                println!("{summary}");
+            }
+        }
+    }
+
+    println!();
+    println!("Packaging:");
+    println!(
+        "  Linux: `rustframe-cli package` builds an AppDir bundle and tarball on Linux hosts."
+    );
+    println!(
+        "  Windows: `rustframe-cli package` builds a portable bundle, scripts, and a .zip on Windows hosts."
+    );
+    println!(
+        "  macOS: `rustframe-cli package` builds an .app bundle, scripts, and a tarball on macOS hosts."
+    );
+
+    let failures = outcomes
+        .iter()
+        .filter(|outcome| {
+            !matches!(
+                outcome.result,
+                PlatformCheckResult::Supported | PlatformCheckResult::NeedsNativeHost(_)
+            )
+        })
+        .count();
+    if failures == 0 {
+        Ok(())
+    } else {
+        Err(format!(
+            "platform validation failed for {failures} target(s)"
+        ))
     }
 }
 
@@ -522,6 +740,87 @@ fn parse_eject_args(workspace: &Path, args: &[String]) -> CliResult<String> {
         [] => resolve_current_app_name(workspace),
         [name, ..] => Ok(name.clone()),
     }
+}
+
+fn parse_platform_check_args(workspace: &Path, args: &[String]) -> CliResult<PlatformCheckRequest> {
+    let mut name = None;
+    let mut targets = Vec::new();
+    let mut index = 0usize;
+
+    while let Some(argument) = args.get(index) {
+        if argument == "--target" {
+            let value = args.get(index + 1).ok_or_else(|| {
+                "missing target triple after --target: rustframe-cli platform-check [name] --target <triple>"
+                    .to_string()
+            })?;
+            extend_targets(&mut targets, value)?;
+            index += 2;
+            continue;
+        }
+
+        if let Some(value) = argument.strip_prefix("--target=") {
+            extend_targets(&mut targets, value)?;
+            index += 1;
+            continue;
+        }
+
+        if argument.starts_with("--") {
+            return Err(format!("unknown platform-check flag '{argument}'"));
+        }
+
+        if name.is_some() {
+            return Err(
+                "platform-check accepts one app name and optional --target flags".to_string(),
+            );
+        }
+        name = Some(argument.clone());
+        index += 1;
+    }
+
+    let name = match name {
+        Some(name) => name,
+        None => resolve_current_app_name(workspace)?,
+    };
+
+    let uses_default_matrix = targets.is_empty();
+    if targets.is_empty() {
+        targets = DEFAULT_PLATFORM_TARGETS
+            .iter()
+            .map(|target| target.triple.to_string())
+            .collect();
+    } else {
+        dedupe_preserving_order(&mut targets);
+    }
+
+    Ok(PlatformCheckRequest {
+        name,
+        targets,
+        uses_default_matrix,
+    })
+}
+
+fn extend_targets(targets: &mut Vec<String>, raw: &str) -> CliResult<()> {
+    let mut parsed_any = false;
+
+    for target in raw.split(',') {
+        let trimmed = target.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        parsed_any = true;
+        targets.push(trimmed.to_string());
+    }
+
+    if parsed_any {
+        Ok(())
+    } else {
+        Err("platform-check target triples must not be empty".into())
+    }
+}
+
+fn dedupe_preserving_order(values: &mut Vec<String>) {
+    let mut seen = BTreeSet::new();
+    values.retain(|value| seen.insert(value.clone()));
 }
 
 fn looks_like_url(value: &str) -> bool {
@@ -676,7 +975,7 @@ fn read_app_config(name: &str, app_dir: &Path, asset_dir: &Path) -> CliResult<Ap
         })
         .collect::<Vec<_>>();
     validate_shell_commands(&shell_commands)?;
-    let packaging = read_packaging_config(app_dir, &title, manifest.packaging)?;
+    let packaging = read_packaging_config(app_dir, &app_id, &title, manifest.packaging)?;
 
     Ok(AppConfig {
         app_id,
@@ -1335,11 +1634,14 @@ fn validate_shell_commands(commands: &[AppShellCommand]) -> CliResult<()> {
 
 fn read_packaging_config(
     app_dir: &Path,
+    app_id: &str,
     title: &str,
     manifest: Option<ManifestPackaging>,
 ) -> CliResult<AppPackagingConfig> {
     let manifest = manifest.unwrap_or_default();
     let linux = manifest.linux.unwrap_or_default();
+    let windows = manifest.windows.unwrap_or_default();
+    let macos = manifest.macos.unwrap_or_default();
     let version = manifest
         .version
         .unwrap_or_else(|| "0.1.0".to_string())
@@ -1377,11 +1679,33 @@ fn read_packaging_config(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .map(|value| resolve_manifest_path(app_dir, &value));
+    let windows_icon_path = windows
+        .icon
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(|value| resolve_manifest_path(app_dir, &value));
+    let macos_icon_path = macos
+        .icon
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(|value| resolve_manifest_path(app_dir, &value));
+    let macos_bundle_identifier = macos
+        .bundle_identifier
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| default_macos_bundle_identifier(app_id));
 
     validate_packaging_metadata(&version, &description, &categories, &keywords)?;
     if let Some(path) = &icon_path {
-        validate_packaging_icon(path)?;
+        validate_packaging_icon(path, &["svg", "png"], "packaging.linux.icon")?;
     }
+    if let Some(path) = &windows_icon_path {
+        validate_packaging_icon(path, &["ico", "png", "svg"], "packaging.windows.icon")?;
+    }
+    if let Some(path) = &macos_icon_path {
+        validate_packaging_icon(path, &["icns", "png", "svg"], "packaging.macos.icon")?;
+    }
+    validate_macos_bundle_identifier(&macos_bundle_identifier)?;
 
     Ok(AppPackagingConfig {
         version,
@@ -1392,6 +1716,13 @@ fn read_packaging_config(
             categories,
             keywords,
             icon_path,
+        },
+        windows: WindowsPackagingConfig {
+            icon_path: windows_icon_path,
+        },
+        macos: MacOsPackagingConfig {
+            bundle_identifier: macos_bundle_identifier,
+            icon_path: macos_icon_path,
         },
     })
 }
@@ -1440,10 +1771,10 @@ fn validate_packaging_metadata(
     Ok(())
 }
 
-fn validate_packaging_icon(path: &Path) -> CliResult<()> {
+fn validate_packaging_icon(path: &Path, allowed_extensions: &[&str], field: &str) -> CliResult<()> {
     if !path.exists() {
         return Err(format!(
-            "packaging.linux.icon points to a missing file: {}",
+            "{field} points to a missing file: {}",
             path.display()
         ));
     }
@@ -1452,17 +1783,46 @@ fn validate_packaging_icon(path: &Path) -> CliResult<()> {
         .extension()
         .and_then(|value| value.to_str())
         .map(|value| value.to_ascii_lowercase())
-        .ok_or_else(|| {
-            format!(
-                "packaging.linux.icon must end with .svg or .png: {}",
-                path.display()
-            )
-        })?;
+        .ok_or_else(|| format!("{field} uses an unsupported file type: {}", path.display()))?;
 
-    if !matches!(extension.as_str(), "svg" | "png") {
+    if !allowed_extensions.contains(&extension.as_str()) {
         return Err(format!(
-            "packaging.linux.icon must end with .svg or .png: {}",
+            "{field} must end with one of [{}]: {}",
+            allowed_extensions
+                .iter()
+                .map(|extension| format!(".{extension}"))
+                .collect::<Vec<_>>()
+                .join(", "),
             path.display()
+        ));
+    }
+
+    Ok(())
+}
+
+fn default_macos_bundle_identifier(app_id: &str) -> String {
+    format!("dev.rustframe.{}", app_id.replace('_', "-"))
+}
+
+fn validate_macos_bundle_identifier(value: &str) -> CliResult<()> {
+    let segments = value.split('.').collect::<Vec<_>>();
+    if segments.len() < 2 || segments.iter().any(|segment| segment.is_empty()) {
+        return Err(format!(
+            "packaging.macos.bundleIdentifier '{}' must contain at least two dot-separated segments",
+            value
+        ));
+    }
+
+    let valid = segments.iter().all(|segment| {
+        segment
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-')
+    });
+
+    if !valid {
+        return Err(format!(
+            "packaging.macos.bundleIdentifier '{}' may only contain letters, digits, hyphens, and dots",
+            value
         ));
     }
 
@@ -1606,6 +1966,11 @@ fn shell_single_quoted(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
 
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn powershell_single_quoted(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
 fn executable_name(name: &str) -> String {
     #[cfg(target_os = "windows")]
     {
@@ -1614,6 +1979,14 @@ fn executable_name(name: &str) -> String {
 
     #[cfg(not(target_os = "windows"))]
     {
+        name.to_string()
+    }
+}
+
+fn package_executable_name(name: &str, target_os: &str) -> String {
+    if target_os == "windows" {
+        format!("{name}.exe")
+    } else {
         name.to_string()
     }
 }
@@ -1637,6 +2010,165 @@ fn format_size(bytes: u64) -> String {
     } else {
         format!("{bytes} B")
     }
+}
+
+fn rust_sysroot() -> CliResult<PathBuf> {
+    let output = Command::new("rustc")
+        .arg("--print")
+        .arg("sysroot")
+        .output()
+        .map_err(|error| format!("failed to launch rustc --print sysroot: {error}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "failed to resolve Rust sysroot:\n{}",
+            summarize_command_output(&output)
+        ));
+    }
+
+    let sysroot = String::from_utf8(output.stdout)
+        .map_err(|error| format!("rustc --print sysroot returned invalid UTF-8: {error}"))?;
+    let sysroot = sysroot.trim();
+    if sysroot.is_empty() {
+        return Err("rustc --print sysroot returned an empty path".into());
+    }
+
+    Ok(PathBuf::from(sysroot))
+}
+
+fn check_platform_target(
+    workspace: &Path,
+    app: &AppProject,
+    runner: &RunnerProject,
+    sysroot: &Path,
+    target: &str,
+    use_default_matrix: bool,
+) -> CliResult<PlatformCheckOutcome> {
+    let spec = platform_target_spec(target);
+    if use_default_matrix && !default_target_runs_on_current_host(target) {
+        return Ok(PlatformCheckOutcome {
+            target: target.to_string(),
+            label: spec
+                .map(|spec| spec.label.to_string())
+                .unwrap_or_else(|| target.to_string()),
+            support_status: spec
+                .map(|spec| spec.status.to_string())
+                .unwrap_or_else(|| "custom target".to_string()),
+            result: PlatformCheckResult::NeedsNativeHost(native_host_message(target)),
+        });
+    }
+
+    let rustlib_dir = sysroot.join("lib").join("rustlib").join(target);
+
+    if !rustlib_dir.exists() {
+        return Ok(PlatformCheckOutcome {
+            target: target.to_string(),
+            label: spec
+                .map(|spec| spec.label.to_string())
+                .unwrap_or_else(|| target.to_string()),
+            support_status: spec
+                .map(|spec| spec.status.to_string())
+                .unwrap_or_else(|| "custom target".to_string()),
+            result: PlatformCheckResult::MissingTarget,
+        });
+    }
+
+    let output = Command::new("cargo")
+        .arg("check")
+        .arg("--release")
+        .arg("--manifest-path")
+        .arg(&runner.manifest_path)
+        .arg("--bin")
+        .arg(&app.name)
+        .arg("--target")
+        .arg(target)
+        .current_dir(workspace)
+        .env("CARGO_TARGET_DIR", &runner.target_dir)
+        .output()
+        .map_err(|error| format!("failed to launch cargo check for target '{target}': {error}"))?;
+
+    let result = if output.status.success() {
+        PlatformCheckResult::Supported
+    } else {
+        PlatformCheckResult::Failed(indent_block(&summarize_command_output(&output), "  "))
+    };
+
+    Ok(PlatformCheckOutcome {
+        target: target.to_string(),
+        label: spec
+            .map(|spec| spec.label.to_string())
+            .unwrap_or_else(|| target.to_string()),
+        support_status: spec
+            .map(|spec| spec.status.to_string())
+            .unwrap_or_else(|| "custom target".to_string()),
+        result,
+    })
+}
+
+fn default_target_runs_on_current_host(target: &str) -> bool {
+    match env::consts::OS {
+        "linux" => target.contains("unknown-linux"),
+        "windows" => target.contains("pc-windows"),
+        "macos" => target.contains("apple-darwin"),
+        _ => false,
+    }
+}
+
+fn native_host_message(target: &str) -> String {
+    if target.contains("pc-windows") {
+        "validate this row on Windows with MSVC build tools or a configured cross toolchain"
+            .to_string()
+    } else if target.contains("apple-darwin") {
+        "validate this row on macOS with Xcode command line tools or a configured cross toolchain"
+            .to_string()
+    } else if target.contains("unknown-linux") {
+        "validate this row on Linux with the native GTK/WebKitGTK stack".to_string()
+    } else {
+        "validate this row on a matching native host or with a configured cross toolchain"
+            .to_string()
+    }
+}
+
+fn platform_target_spec(target: &str) -> Option<&'static PlatformTargetSpec> {
+    DEFAULT_PLATFORM_TARGETS
+        .iter()
+        .find(|spec| spec.triple == target)
+}
+
+fn summarize_command_output(output: &Output) -> String {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if let Some(summary) = tail_nonempty_lines(&stderr, 20) {
+        return summary;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    tail_nonempty_lines(&stdout, 20).unwrap_or_else(|| {
+        format!(
+            "command exited with status {} and produced no output",
+            output.status
+        )
+    })
+}
+
+fn tail_nonempty_lines(text: &str, max_lines: usize) -> Option<String> {
+    let lines = text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect::<Vec<_>>();
+    if lines.is_empty() {
+        return None;
+    }
+
+    let start = lines.len().saturating_sub(max_lines);
+    Some(lines[start..].join("\n"))
+}
+
+fn indent_block(value: &str, prefix: &str) -> String {
+    value
+        .lines()
+        .map(|line| format!("{prefix}{line}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn build_release_binary(
@@ -1747,7 +2279,7 @@ fn build_linux_package(app: &AppProject, source_binary: &Path) -> CliResult<Linu
         )
     })?;
 
-    let binary_name = executable_name(&app.name);
+    let binary_name = package_executable_name(&app.name, "linux");
     let installed_binary = usr_bin.join(&binary_name);
     copy_with_permissions(source_binary, &installed_binary)?;
 
@@ -1854,6 +2386,294 @@ fn build_linux_package(app: &AppProject, source_binary: &Path) -> CliResult<Linu
     })
 }
 
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn build_windows_package(
+    app: &AppProject,
+    source_binary: &Path,
+) -> CliResult<WindowsPackageOutput> {
+    let dist_dir = app.app_dir.join("dist").join("windows");
+    fs::create_dir_all(&dist_dir).map_err(|error| {
+        format!(
+            "failed to create Windows dist directory '{}': {error}",
+            dist_dir.display()
+        )
+    })?;
+
+    let bundle_name = format!(
+        "{}-{}-windows-{}",
+        app.config.app_id,
+        app.config.packaging.version,
+        env::consts::ARCH
+    );
+    let bundle_dir = dist_dir.join(&bundle_name);
+    if bundle_dir.exists() {
+        fs::remove_dir_all(&bundle_dir).map_err(|error| {
+            format!(
+                "failed to replace existing bundle '{}': {error}",
+                bundle_dir.display()
+            )
+        })?;
+    }
+    fs::create_dir_all(&bundle_dir).map_err(|error| {
+        format!(
+            "failed to create bundle directory '{}': {error}",
+            bundle_dir.display()
+        )
+    })?;
+
+    let portable_dir = bundle_dir.join(&app.config.app_id);
+    fs::create_dir_all(&portable_dir).map_err(|error| {
+        format!(
+            "failed to create bundle directory '{}': {error}",
+            portable_dir.display()
+        )
+    })?;
+
+    let binary_name = package_executable_name(&app.name, "windows");
+    let installed_binary = portable_dir.join(&binary_name);
+    copy_with_permissions(source_binary, &installed_binary)?;
+
+    let icon = load_packaging_icon(
+        app,
+        app.config.packaging.windows.icon_path.as_deref(),
+        app.config.packaging.linux.icon_path.as_deref(),
+    )?;
+    let icon_file_name = icon
+        .as_ref()
+        .map(|icon| format!("{}.{}", app.config.app_id, icon.extension));
+    if let (Some(icon), Some(icon_file_name)) = (&icon, &icon_file_name) {
+        write_binary_file(&portable_dir.join(icon_file_name), &icon.bytes)?;
+    }
+
+    let metadata_path = bundle_dir.join("rustframe-package.json");
+    let metadata = json!({
+        "appId": app.config.app_id,
+        "name": app.config.title,
+        "version": app.config.packaging.version,
+        "description": app.config.packaging.description,
+        "publisher": app.config.packaging.publisher,
+        "homepage": app.config.packaging.homepage,
+        "target": {
+            "os": "windows",
+            "arch": env::consts::ARCH,
+            "format": "portable-zip"
+        },
+        "artifacts": {
+            "bundleDir": bundle_dir.file_name().map(|value| value.to_string_lossy().to_string()),
+            "portableDir": portable_dir.file_name().map(|value| value.to_string_lossy().to_string()),
+            "archive": format!("{bundle_name}.zip")
+        }
+    });
+    write_text_file(
+        &metadata_path,
+        &serde_json::to_string_pretty(&metadata)
+            .map_err(|error| format!("failed to serialize package metadata: {error}"))?,
+    )?;
+
+    let install_script = bundle_dir.join("install.ps1");
+    write_text_file(
+        &install_script,
+        &render_windows_install_script(
+            &app.config.title,
+            &app.config.app_id,
+            &app.config.packaging.description,
+            portable_dir
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or(&app.config.app_id),
+            &binary_name,
+            icon_file_name.as_deref(),
+        ),
+    )?;
+
+    let uninstall_script = bundle_dir.join("uninstall.ps1");
+    write_text_file(
+        &uninstall_script,
+        &render_windows_uninstall_script(&app.config.title, &app.config.app_id),
+    )?;
+
+    write_text_file(
+        &bundle_dir.join("README.txt"),
+        &render_windows_package_readme(app, &bundle_name, &portable_dir),
+    )?;
+
+    let archive_path = dist_dir.join(format!("{bundle_name}.zip"));
+    if archive_path.exists() {
+        fs::remove_file(&archive_path).map_err(|error| {
+            format!(
+                "failed to replace existing archive '{}': {error}",
+                archive_path.display()
+            )
+        })?;
+    }
+    write_zip(&bundle_dir, &archive_path)?;
+
+    Ok(WindowsPackageOutput {
+        bundle_dir,
+        portable_dir,
+        archive_path,
+    })
+}
+
+#[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+fn build_macos_package(app: &AppProject, source_binary: &Path) -> CliResult<MacOsPackageOutput> {
+    let dist_dir = app.app_dir.join("dist").join("macos");
+    fs::create_dir_all(&dist_dir).map_err(|error| {
+        format!(
+            "failed to create macOS dist directory '{}': {error}",
+            dist_dir.display()
+        )
+    })?;
+
+    let bundle_name = format!(
+        "{}-{}-macos-{}",
+        app.config.app_id,
+        app.config.packaging.version,
+        env::consts::ARCH
+    );
+    let bundle_dir = dist_dir.join(&bundle_name);
+    if bundle_dir.exists() {
+        fs::remove_dir_all(&bundle_dir).map_err(|error| {
+            format!(
+                "failed to replace existing bundle '{}': {error}",
+                bundle_dir.display()
+            )
+        })?;
+    }
+    fs::create_dir_all(&bundle_dir).map_err(|error| {
+        format!(
+            "failed to create bundle directory '{}': {error}",
+            bundle_dir.display()
+        )
+    })?;
+
+    let app_bundle_name = format!("{}.app", sanitize_bundle_file_name(&app.config.title));
+    let app_bundle = bundle_dir.join(&app_bundle_name);
+    let contents_dir = app_bundle.join("Contents");
+    let macos_dir = contents_dir.join("MacOS");
+    let resources_dir = contents_dir.join("Resources");
+    fs::create_dir_all(&macos_dir).map_err(|error| {
+        format!(
+            "failed to create bundle directory '{}': {error}",
+            macos_dir.display()
+        )
+    })?;
+    fs::create_dir_all(&resources_dir).map_err(|error| {
+        format!(
+            "failed to create bundle directory '{}': {error}",
+            resources_dir.display()
+        )
+    })?;
+
+    let binary_name = package_executable_name(&app.name, "macos");
+    let installed_binary = macos_dir.join(&binary_name);
+    copy_with_permissions(source_binary, &installed_binary)?;
+
+    let icon = load_packaging_icon(
+        app,
+        app.config.packaging.macos.icon_path.as_deref(),
+        app.config.packaging.linux.icon_path.as_deref(),
+    )?;
+    let mut icon_file_name = None;
+    let mut plist_icon_name = None;
+    if let Some(icon) = &icon {
+        let file_name = format!("{}.{}", app.config.app_id, icon.extension);
+        write_binary_file(&resources_dir.join(&file_name), &icon.bytes)?;
+        if icon.extension == "icns" {
+            plist_icon_name = Some(
+                Path::new(&file_name)
+                    .file_stem()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or(&app.config.app_id)
+                    .to_string(),
+            );
+        }
+        icon_file_name = Some(file_name);
+    }
+
+    write_text_file(
+        &contents_dir.join("Info.plist"),
+        &render_macos_info_plist(
+            &app.config.title,
+            &binary_name,
+            &app.config.packaging.macos.bundle_identifier,
+            &app.config.packaging.version,
+            plist_icon_name.as_deref(),
+        ),
+    )?;
+
+    let metadata_path = bundle_dir.join("rustframe-package.json");
+    let metadata = json!({
+        "appId": app.config.app_id,
+        "name": app.config.title,
+        "version": app.config.packaging.version,
+        "description": app.config.packaging.description,
+        "publisher": app.config.packaging.publisher,
+        "homepage": app.config.packaging.homepage,
+        "target": {
+            "os": "macos",
+            "arch": env::consts::ARCH,
+            "format": "app-bundle-tarball"
+        },
+        "artifacts": {
+            "bundleDir": bundle_dir.file_name().map(|value| value.to_string_lossy().to_string()),
+            "appBundle": app_bundle.file_name().map(|value| value.to_string_lossy().to_string()),
+            "archive": format!("{bundle_name}.tar.gz")
+        }
+    });
+    write_text_file(
+        &metadata_path,
+        &serde_json::to_string_pretty(&metadata)
+            .map_err(|error| format!("failed to serialize package metadata: {error}"))?,
+    )?;
+
+    let install_script = bundle_dir.join("install.sh");
+    write_text_file(
+        &install_script,
+        &render_macos_install_script(
+            app_bundle
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or(&app_bundle_name),
+        ),
+    )?;
+    make_executable(&install_script)?;
+
+    let uninstall_script = bundle_dir.join("uninstall.sh");
+    write_text_file(
+        &uninstall_script,
+        &render_macos_uninstall_script(
+            app_bundle
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or(&app_bundle_name),
+        ),
+    )?;
+    make_executable(&uninstall_script)?;
+
+    write_text_file(
+        &bundle_dir.join("README.txt"),
+        &render_macos_package_readme(app, &bundle_name, &app_bundle, icon_file_name.as_deref()),
+    )?;
+
+    let archive_path = dist_dir.join(format!("{bundle_name}.tar.gz"));
+    if archive_path.exists() {
+        fs::remove_file(&archive_path).map_err(|error| {
+            format!(
+                "failed to replace existing archive '{}': {error}",
+                archive_path.display()
+            )
+        })?;
+    }
+    write_tarball(&bundle_dir, &archive_path)?;
+
+    Ok(MacOsPackageOutput {
+        bundle_dir,
+        app_bundle,
+        archive_path,
+    })
+}
+
 fn render_app_run_script(binary_name: &str) -> String {
     format!(
         "#!/usr/bin/env bash\nset -euo pipefail\nbundle_dir=\"$(cd \"$(dirname \"${{BASH_SOURCE[0]}}\")\" && pwd)\"\nexec \"$bundle_dir/usr/bin/{binary_name}\" \"$@\"\n"
@@ -1946,6 +2766,157 @@ fn render_linux_package_readme(app: &AppProject, bundle_name: &str, app_dir: &Pa
     )
 }
 
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn render_windows_install_script(
+    title: &str,
+    app_id: &str,
+    description: &str,
+    portable_dir_name: &str,
+    binary_name: &str,
+    icon_file_name: Option<&str>,
+) -> String {
+    let icon_line = if let Some(icon_file_name) = icon_file_name {
+        if icon_file_name.ends_with(".ico") {
+            format!(
+                "$shortcut.IconLocation = Join-Path $installRoot {icon}\n",
+                icon = powershell_single_quoted(icon_file_name)
+            )
+        } else {
+            "$shortcut.IconLocation = $exePath\n".to_string()
+        }
+    } else {
+        "$shortcut.IconLocation = $exePath\n".to_string()
+    };
+
+    format!(
+        "$ErrorActionPreference = 'Stop'\n$bundleRoot = Split-Path -Parent $MyInvocation.MyCommand.Path\n$appId = {app_id}\n$appTitle = {title}\n$description = {description}\n$portableDirName = {portable_dir_name}\n$binaryName = {binary_name}\n$installRoot = Join-Path $env:LOCALAPPDATA (Join-Path 'RustFrame\\Apps' $appId)\n$sourceRoot = Join-Path $bundleRoot $portableDirName\n$exePath = Join-Path $installRoot $binaryName\n$startMenuDir = Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs'\n$desktopDir = [Environment]::GetFolderPath('Desktop')\n$startShortcutPath = Join-Path $startMenuDir ($appTitle + '.lnk')\n$desktopShortcutPath = Join-Path $desktopDir ($appTitle + '.lnk')\nif (Test-Path $installRoot) {{ Remove-Item $installRoot -Recurse -Force }}\nNew-Item -ItemType Directory -Force -Path (Split-Path -Parent $installRoot), $startMenuDir, $desktopDir | Out-Null\nCopy-Item $sourceRoot $installRoot -Recurse -Force\n$wsh = New-Object -ComObject WScript.Shell\nforeach ($shortcutPath in @($startShortcutPath, $desktopShortcutPath)) {{\n  $shortcut = $wsh.CreateShortcut($shortcutPath)\n  $shortcut.TargetPath = $exePath\n  $shortcut.WorkingDirectory = $installRoot\n  $shortcut.Description = $description\n  {icon_line}  $shortcut.Save()\n}}\nWrite-Host \"Installed $appId to $installRoot\"\n",
+        app_id = powershell_single_quoted(app_id),
+        title = powershell_single_quoted(title),
+        description = powershell_single_quoted(description),
+        portable_dir_name = powershell_single_quoted(portable_dir_name),
+        binary_name = powershell_single_quoted(binary_name),
+        icon_line = icon_line,
+    )
+}
+
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn render_windows_uninstall_script(title: &str, app_id: &str) -> String {
+    format!(
+        "$ErrorActionPreference = 'Stop'\n$appId = {app_id}\n$appTitle = {title}\n$installRoot = Join-Path $env:LOCALAPPDATA (Join-Path 'RustFrame\\Apps' $appId)\n$startShortcutPath = Join-Path (Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs') ($appTitle + '.lnk')\n$desktopShortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) ($appTitle + '.lnk')\nif (Test-Path $installRoot) {{ Remove-Item $installRoot -Recurse -Force }}\nforeach ($path in @($startShortcutPath, $desktopShortcutPath)) {{\n  if (Test-Path $path) {{ Remove-Item $path -Force }}\n}}\nWrite-Host \"Removed $appId\"\n",
+        app_id = powershell_single_quoted(app_id),
+        title = powershell_single_quoted(title),
+    )
+}
+
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn render_windows_package_readme(
+    app: &AppProject,
+    bundle_name: &str,
+    portable_dir: &Path,
+) -> String {
+    let homepage = app
+        .config
+        .packaging
+        .homepage
+        .as_deref()
+        .unwrap_or("not set");
+    let publisher = app
+        .config
+        .packaging
+        .publisher
+        .as_deref()
+        .unwrap_or("not set");
+    format!(
+        "{title}\nVersion: {version}\nBundle: {bundle_name}\nPublisher: {publisher}\nHomepage: {homepage}\n\nThis Windows package contains:\n- a portable app directory at {portable_dir_name}\n- install.ps1 for per-user installation under %LOCALAPPDATA%\n- uninstall.ps1 to remove that installation\n- rustframe-package.json with release metadata\n- a .zip archive for distribution\n\nPortable run:\n  .\\{portable_dir_name}\\{binary_name}\n\nUser install:\n  powershell -ExecutionPolicy Bypass -File .\\install.ps1\n",
+        title = app.config.title,
+        version = app.config.packaging.version,
+        bundle_name = bundle_name,
+        publisher = publisher,
+        homepage = homepage,
+        portable_dir_name = portable_dir
+            .file_name()
+            .map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_else(|| app.config.app_id.clone()),
+        binary_name = package_executable_name(&app.name, "windows"),
+    )
+}
+
+#[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+fn render_macos_info_plist(
+    title: &str,
+    binary_name: &str,
+    bundle_identifier: &str,
+    version: &str,
+    icon_name: Option<&str>,
+) -> String {
+    let icon_entry = icon_name
+        .map(|icon_name| {
+            format!(
+                "    <key>CFBundleIconFile</key>\n    <string>{}</string>\n",
+                xml_escape(icon_name)
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleDisplayName</key>\n    <string>{title}</string>\n    <key>CFBundleExecutable</key>\n    <string>{binary_name}</string>\n    <key>CFBundleIdentifier</key>\n    <string>{bundle_identifier}</string>\n    <key>CFBundleInfoDictionaryVersion</key>\n    <string>6.0</string>\n    <key>CFBundleName</key>\n    <string>{title}</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleShortVersionString</key>\n    <string>{version}</string>\n    <key>CFBundleVersion</key>\n    <string>{version}</string>\n{icon_entry}    <key>LSMinimumSystemVersion</key>\n    <string>11.0</string>\n    <key>NSHighResolutionCapable</key>\n    <true/>\n</dict>\n</plist>\n",
+        title = xml_escape(title),
+        binary_name = xml_escape(binary_name),
+        bundle_identifier = xml_escape(bundle_identifier),
+        version = xml_escape(version),
+        icon_entry = icon_entry,
+    )
+}
+
+#[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+fn render_macos_install_script(app_bundle_name: &str) -> String {
+    format!(
+        "#!/usr/bin/env bash\nset -euo pipefail\nbundle_root=\"$(cd \"$(dirname \"${{BASH_SOURCE[0]}}\")\" && pwd)\"\napp_name={app_name}\ninstall_root=\"$HOME/Applications\"\nmkdir -p \"$install_root\"\nrm -rf \"$install_root/$app_name\"\ncp -R \"$bundle_root/$app_name\" \"$install_root/\"\nprintf 'Installed %s to %s\\n' \"$app_name\" \"$install_root/$app_name\"\n",
+        app_name = shell_single_quoted(app_bundle_name),
+    )
+}
+
+#[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+fn render_macos_uninstall_script(app_bundle_name: &str) -> String {
+    format!(
+        "#!/usr/bin/env bash\nset -euo pipefail\napp_name={app_name}\ninstall_root=\"$HOME/Applications\"\nrm -rf \"$install_root/$app_name\"\nprintf 'Removed %s\\n' \"$app_name\"\n",
+        app_name = shell_single_quoted(app_bundle_name),
+    )
+}
+
+#[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+fn render_macos_package_readme(
+    app: &AppProject,
+    bundle_name: &str,
+    app_bundle: &Path,
+    _icon_file_name: Option<&str>,
+) -> String {
+    let homepage = app
+        .config
+        .packaging
+        .homepage
+        .as_deref()
+        .unwrap_or("not set");
+    let publisher = app
+        .config
+        .packaging
+        .publisher
+        .as_deref()
+        .unwrap_or("not set");
+    format!(
+        "{title}\nVersion: {version}\nBundle: {bundle_name}\nPublisher: {publisher}\nHomepage: {homepage}\nBundle Identifier: {bundle_identifier}\n\nThis macOS package contains:\n- an app bundle at {app_bundle_name}\n- install.sh for per-user installation under ~/Applications\n- uninstall.sh to remove that installation\n- rustframe-package.json with release metadata\n\nPortable run:\n  open ./{app_bundle_name}\n\nUser install:\n  ./install.sh\n",
+        title = app.config.title,
+        version = app.config.packaging.version,
+        bundle_name = bundle_name,
+        publisher = publisher,
+        homepage = homepage,
+        bundle_identifier = app.config.packaging.macos.bundle_identifier,
+        app_bundle_name = app_bundle
+            .file_name()
+            .map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_else(|| format!("{}.app", sanitize_bundle_file_name(&app.config.title))),
+    )
+}
+
 fn format_desktop_categories(categories: &[String]) -> String {
     format!("{};", categories.join(";"))
 }
@@ -1960,6 +2931,39 @@ fn format_desktop_keywords(keywords: &[String]) -> Option<String> {
 
 fn sanitize_desktop_entry_value(value: &str) -> String {
     value.replace('\n', " ").trim().to_string()
+}
+
+#[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+fn sanitize_bundle_file_name(value: &str) -> String {
+    let mut sanitized = value
+        .chars()
+        .map(|character| {
+            if matches!(
+                character,
+                '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'
+            ) {
+                '-'
+            } else {
+                character
+            }
+        })
+        .collect::<String>()
+        .trim()
+        .to_string();
+    if sanitized.is_empty() {
+        sanitized = "RustFrame".to_string();
+    }
+    sanitized
+}
+
+#[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+fn xml_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 struct LinuxIconBytes {
@@ -1997,6 +3001,48 @@ fn load_linux_icon(app: &AppProject) -> CliResult<LinuxIconBytes> {
     })
 }
 
+#[cfg_attr(
+    not(any(test, target_os = "windows", target_os = "macos")),
+    allow(dead_code)
+)]
+struct PackagingIconBytes {
+    bytes: Vec<u8>,
+    extension: String,
+}
+
+#[cfg_attr(
+    not(any(test, target_os = "windows", target_os = "macos")),
+    allow(dead_code)
+)]
+fn load_packaging_icon(
+    app: &AppProject,
+    primary_path: Option<&Path>,
+    fallback_path: Option<&Path>,
+) -> CliResult<Option<PackagingIconBytes>> {
+    if let Some(path) = primary_path.or(fallback_path) {
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(|value| value.to_ascii_lowercase())
+            .ok_or_else(|| format!("icon path must have an extension: {}", path.display()))?;
+        let bytes = fs::read(path)
+            .map_err(|error| format!("failed to read icon '{}': {error}", path.display()))?;
+        return Ok(Some(PackagingIconBytes { bytes, extension }));
+    }
+
+    Ok(Some(PackagingIconBytes {
+        bytes: render_template(
+            TEMPLATE_APP_ICON_SVG,
+            &[
+                ("{{app_title}}", app.config.title.clone()),
+                ("{{app_monogram}}", icon_monogram(&app.config.title)),
+            ],
+        )
+        .into_bytes(),
+        extension: "svg".to_string(),
+    }))
+}
+
 fn write_tarball(source_dir: &Path, archive_path: &Path) -> CliResult<()> {
     let archive_file = fs::File::create(archive_path)
         .map_err(|error| format!("failed to create '{}': {error}", archive_path.display()))?;
@@ -2017,7 +3063,90 @@ fn write_tarball(source_dir: &Path, archive_path: &Path) -> CliResult<()> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn write_zip(source_dir: &Path, archive_path: &Path) -> CliResult<()> {
+    let archive_file = fs::File::create(archive_path)
+        .map_err(|error| format!("failed to create '{}': {error}", archive_path.display()))?;
+    let mut writer = ZipWriter::new(archive_file);
+    let root_name = source_dir
+        .file_name()
+        .ok_or_else(|| format!("failed to archive '{}'", source_dir.display()))?
+        .to_string_lossy()
+        .to_string();
+    add_directory_to_zip(&mut writer, source_dir, source_dir, &root_name)?;
+    writer
+        .finish()
+        .map_err(|error| format!("failed to finalize '{}': {error}", archive_path.display()))?;
+    Ok(())
+}
+
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn add_directory_to_zip(
+    writer: &mut ZipWriter<fs::File>,
+    root: &Path,
+    directory: &Path,
+    root_name: &str,
+) -> CliResult<()> {
+    let mut entries = fs::read_dir(directory)
+        .map_err(|error| format!("failed to read '{}': {error}", directory.display()))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("failed to read '{}': {error}", directory.display()))?;
+    entries.sort_by_key(|entry| entry.path());
+
+    for entry in entries {
+        let path = entry.path();
+        let metadata = entry
+            .metadata()
+            .map_err(|error| format!("failed to read '{}': {error}", path.display()))?;
+        let relative = path
+            .strip_prefix(root)
+            .map_err(|error| format!("failed to resolve '{}': {error}", path.display()))?;
+        let archive_path = if relative.as_os_str().is_empty() {
+            root_name.to_string()
+        } else {
+            format!("{root_name}/{}", slash_path(relative))
+        };
+
+        if metadata.is_dir() {
+            writer
+                .add_directory(
+                    format!("{archive_path}/"),
+                    zip_file_options(metadata.permissions().readonly()),
+                )
+                .map_err(|error| format!("failed to archive '{}': {error}", path.display()))?;
+            add_directory_to_zip(writer, root, &path, root_name)?;
+            continue;
+        }
+
+        let bytes = fs::read(&path)
+            .map_err(|error| format!("failed to read '{}': {error}", path.display()))?;
+        writer
+            .start_file(
+                archive_path,
+                zip_file_options(metadata.permissions().readonly()),
+            )
+            .map_err(|error| format!("failed to archive '{}': {error}", path.display()))?;
+        use std::io::Write;
+        writer
+            .write_all(&bytes)
+            .map_err(|error| format!("failed to archive '{}': {error}", path.display()))?;
+    }
+
+    Ok(())
+}
+
+#[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
+fn zip_file_options(readonly: bool) -> FileOptions {
+    let mut options = FileOptions::default().compression_method(CompressionMethod::Deflated);
+    #[cfg(unix)]
+    {
+        let permissions = if readonly { 0o644 } else { 0o755 };
+        options = options.unix_permissions(permissions);
+    }
+    options
+}
+
+#[cfg(unix)]
 fn make_executable(path: &Path) -> CliResult<()> {
     use std::os::unix::fs::PermissionsExt;
 
@@ -2029,7 +3158,7 @@ fn make_executable(path: &Path) -> CliResult<()> {
         .map_err(|error| format!("failed to update '{}': {error}", path.display()))
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(unix))]
 fn make_executable(path: &Path) -> CliResult<()> {
     let _ = path;
     Ok(())
@@ -2047,16 +3176,24 @@ fn print_help() {
         "  rustframe-cli export [name]           Build a release binary into apps/<name>/dist/"
     );
     println!(
-        "  rustframe-cli package [name]          Build a Linux bundle and tarball into apps/<name>/dist/linux/"
+        "  rustframe-cli platform-check [name]   Validate the app against the Linux/Windows/macOS support matrix"
+    );
+    println!(
+        "  rustframe-cli package [name]          Build a host-native bundle into apps/<name>/dist/<platform>/"
     );
     println!(
         "  rustframe-cli eject [name]            Materialize an app-owned Rust runner in apps/<name>/native/"
     );
     println!();
-    println!("Run `dev`, `export`, and `package` from inside apps/<name>/ to omit the app name.");
+    println!(
+        "Run `dev`, `export`, `platform-check`, and `package` from inside apps/<name>/ to omit the app name."
+    );
     println!("Primary app config lives in apps/<name>/rustframe.json:");
     println!("  \"window\": {{ \"title\": \"My App\", \"width\": 1280, \"height\": 820 }}");
     println!("  \"devUrl\": \"http://127.0.0.1:5173\"");
+    println!(
+        "Use `platform-check --target <triple>` to validate a custom Rust target or a narrowed matrix."
+    );
     println!("HTML <title> and rustframe:* meta tags still work as fallback.");
 }
 
@@ -2068,8 +3205,10 @@ mod tests {
 
     use super::{
         AppConfig, AppPackagingConfig, AppProject, AppSecurityConfig, AppSecurityModel,
-        AppShellCommand, LinuxPackagingConfig, build_linux_package, collect_embedded_assets,
-        find_workspace_root_from, load_app_project, prepare_ejected_runner,
+        AppShellCommand, DEFAULT_PLATFORM_TARGETS, LinuxPackagingConfig, MacOsPackagingConfig,
+        WindowsPackagingConfig, build_linux_package, build_macos_package, build_windows_package,
+        collect_embedded_assets, find_workspace_root_from, load_app_project,
+        parse_platform_check_args, platform_target_spec, prepare_ejected_runner,
         prepare_generated_runner, read_app_config, relative_path, render_asset_match_arms,
         render_database_chain, render_template, resolve_current_app_name_from,
         resolve_runner_project,
@@ -2092,6 +3231,11 @@ mod tests {
             linux: LinuxPackagingConfig {
                 categories: vec!["Utility".into()],
                 keywords: Vec::new(),
+                icon_path: None,
+            },
+            windows: WindowsPackagingConfig { icon_path: None },
+            macos: MacOsPackagingConfig {
+                bundle_identifier: "dev.rustframe.test-app".into(),
                 icon_path: None,
             },
         }
@@ -2324,6 +3468,13 @@ mod tests {
                   "icon": "assets-icon.svg",
                   "categories": ["Office", "Utility"],
                   "keywords": ["crm", "sales"]
+                },
+                "windows": {
+                  "icon": "assets-icon.svg"
+                },
+                "macos": {
+                  "bundleIdentifier": "dev.rustframe.packaged-app",
+                  "icon": "assets-icon.svg"
                 }
               }
             }
@@ -2353,6 +3504,18 @@ mod tests {
         );
         assert_eq!(
             config.packaging.linux.icon_path,
+            Some(temp.path().join("assets-icon.svg"))
+        );
+        assert_eq!(
+            config.packaging.windows.icon_path,
+            Some(temp.path().join("assets-icon.svg"))
+        );
+        assert_eq!(
+            config.packaging.macos.bundle_identifier,
+            "dev.rustframe.packaged-app"
+        );
+        assert_eq!(
+            config.packaging.macos.icon_path,
             Some(temp.path().join("assets-icon.svg"))
         );
     }
@@ -2742,6 +3905,64 @@ mod tests {
     }
 
     #[test]
+    fn platform_check_defaults_to_full_support_matrix() {
+        let temp = tempdir().unwrap();
+        write_workspace_manifest(temp.path());
+        let request = parse_platform_check_args(temp.path(), &["orbit-desk".into()]).unwrap();
+
+        assert_eq!(request.name, "orbit-desk");
+        assert_eq!(
+            request.targets,
+            DEFAULT_PLATFORM_TARGETS
+                .iter()
+                .map(|target| target.triple.to_string())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn platform_check_parses_target_flags_and_dedupes_requested_triples() {
+        let temp = tempdir().unwrap();
+        write_workspace_manifest(temp.path());
+
+        let request = parse_platform_check_args(
+            temp.path(),
+            &[
+                "orbit-desk".into(),
+                "--target".into(),
+                "x86_64-pc-windows-msvc".into(),
+                "--target=x86_64-pc-windows-msvc,aarch64-apple-darwin".into(),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(request.name, "orbit-desk");
+        assert_eq!(
+            request.targets,
+            vec![
+                "x86_64-pc-windows-msvc".to_string(),
+                "aarch64-apple-darwin".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn platform_target_specs_include_windows_and_both_macos_targets() {
+        assert_eq!(
+            platform_target_spec("x86_64-pc-windows-msvc").map(|spec| spec.label),
+            Some("Windows")
+        );
+        assert_eq!(
+            platform_target_spec("x86_64-apple-darwin").map(|spec| spec.label),
+            Some("macOS (Intel)")
+        );
+        assert_eq!(
+            platform_target_spec("aarch64-apple-darwin").map(|spec| spec.label),
+            Some("macOS (Apple Silicon)")
+        );
+    }
+
+    #[test]
     fn finds_workspace_root_from_nested_path() {
         let temp = tempdir().unwrap();
         write_workspace_manifest(temp.path());
@@ -2991,6 +4212,11 @@ mod tests {
                         keywords: vec!["package".into(), "demo".into()],
                         icon_path: Some(app_dir.join("icon.svg")),
                     },
+                    windows: WindowsPackagingConfig { icon_path: None },
+                    macos: MacOsPackagingConfig {
+                        bundle_identifier: "dev.rustframe.package-demo".into(),
+                        icon_path: None,
+                    },
                 },
             },
         };
@@ -3019,5 +4245,133 @@ mod tests {
         assert!(output.archive_path.exists());
         assert!(install_script.contains("Icon=$install_root/${appdir_name}/usr/share/icons"));
         assert!(install_script.contains("Keywords=package;demo;"));
+    }
+
+    #[test]
+    fn build_windows_package_writes_portable_bundle_and_zip() {
+        let temp = tempdir().unwrap();
+        let app_dir = temp.path().join("apps/package-demo");
+        fs::create_dir_all(&app_dir).unwrap();
+        fs::write(app_dir.join("index.html"), "<title>Package Demo</title>").unwrap();
+        fs::write(app_dir.join("icon.ico"), "icon").unwrap();
+        let binary_dir = temp.path().join("target/release");
+        fs::create_dir_all(&binary_dir).unwrap();
+        let binary_path = binary_dir.join("package-demo.exe");
+        fs::write(&binary_path, "binary").unwrap();
+
+        let app = AppProject {
+            name: "package-demo".into(),
+            app_dir: app_dir.clone(),
+            asset_dir: app_dir.clone(),
+            config: AppConfig {
+                app_id: "package-demo".into(),
+                title: "Package Demo".into(),
+                width: 1280.0,
+                height: 820.0,
+                dev_url: None,
+                security: AppSecurityConfig::local_first(),
+                fs_roots: Vec::new(),
+                shell_commands: Vec::new(),
+                packaging: AppPackagingConfig {
+                    version: "2.4.0".into(),
+                    description: "A Windows packaged app".into(),
+                    publisher: Some("RustFrame".into()),
+                    homepage: Some("https://example.com/package-demo".into()),
+                    linux: LinuxPackagingConfig {
+                        categories: vec!["Utility".into()],
+                        keywords: vec!["package".into(), "demo".into()],
+                        icon_path: None,
+                    },
+                    windows: WindowsPackagingConfig {
+                        icon_path: Some(app_dir.join("icon.ico")),
+                    },
+                    macos: MacOsPackagingConfig {
+                        bundle_identifier: "dev.rustframe.package-demo".into(),
+                        icon_path: None,
+                    },
+                },
+            },
+        };
+
+        let output = build_windows_package(&app, &binary_path).unwrap();
+        let install_script = fs::read_to_string(output.bundle_dir.join("install.ps1")).unwrap();
+
+        assert!(output.bundle_dir.join("install.ps1").exists());
+        assert!(output.bundle_dir.join("uninstall.ps1").exists());
+        assert!(output.bundle_dir.join("README.txt").exists());
+        assert!(output.bundle_dir.join("rustframe-package.json").exists());
+        assert!(output.portable_dir.join("package-demo.exe").exists());
+        assert!(output.portable_dir.join("package-demo.ico").exists());
+        assert!(output.archive_path.exists());
+        assert!(install_script.contains("WScript.Shell"));
+        assert!(install_script.contains("package-demo.exe"));
+    }
+
+    #[test]
+    fn build_macos_package_writes_app_bundle_and_archive() {
+        let temp = tempdir().unwrap();
+        let app_dir = temp.path().join("apps/package-demo");
+        fs::create_dir_all(&app_dir).unwrap();
+        fs::write(app_dir.join("index.html"), "<title>Package Demo</title>").unwrap();
+        fs::write(app_dir.join("icon.icns"), "icon").unwrap();
+        let binary_dir = temp.path().join("target/release");
+        fs::create_dir_all(&binary_dir).unwrap();
+        let binary_path = binary_dir.join("package-demo");
+        fs::write(&binary_path, "#!/usr/bin/env bash\necho ok\n").unwrap();
+
+        let app = AppProject {
+            name: "package-demo".into(),
+            app_dir: app_dir.clone(),
+            asset_dir: app_dir.clone(),
+            config: AppConfig {
+                app_id: "package-demo".into(),
+                title: "Package Demo".into(),
+                width: 1280.0,
+                height: 820.0,
+                dev_url: None,
+                security: AppSecurityConfig::local_first(),
+                fs_roots: Vec::new(),
+                shell_commands: Vec::new(),
+                packaging: AppPackagingConfig {
+                    version: "2.4.0".into(),
+                    description: "A macOS packaged app".into(),
+                    publisher: Some("RustFrame".into()),
+                    homepage: Some("https://example.com/package-demo".into()),
+                    linux: LinuxPackagingConfig {
+                        categories: vec!["Utility".into()],
+                        keywords: vec!["package".into(), "demo".into()],
+                        icon_path: None,
+                    },
+                    windows: WindowsPackagingConfig { icon_path: None },
+                    macos: MacOsPackagingConfig {
+                        bundle_identifier: "dev.rustframe.package-demo".into(),
+                        icon_path: Some(app_dir.join("icon.icns")),
+                    },
+                },
+            },
+        };
+
+        let output = build_macos_package(&app, &binary_path).unwrap();
+        let info_plist = fs::read_to_string(output.app_bundle.join("Contents/Info.plist")).unwrap();
+
+        assert!(output.bundle_dir.join("install.sh").exists());
+        assert!(output.bundle_dir.join("uninstall.sh").exists());
+        assert!(output.bundle_dir.join("README.txt").exists());
+        assert!(output.bundle_dir.join("rustframe-package.json").exists());
+        assert!(
+            output
+                .app_bundle
+                .join("Contents/MacOS/package-demo")
+                .exists()
+        );
+        assert!(
+            output
+                .app_bundle
+                .join("Contents/Resources/package-demo.icns")
+                .exists()
+        );
+        assert!(output.archive_path.exists());
+        assert!(info_plist.contains("dev.rustframe.package-demo"));
+        assert!(info_plist.contains("CFBundleIconFile"));
     }
 }

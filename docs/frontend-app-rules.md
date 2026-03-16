@@ -7,7 +7,7 @@ This is the working app contract for frontend-first RustFrame apps.
 - Every app lives in `apps/<app-name>/`.
 - `apps/<app-name>/index.html` is required.
 - Keep runtime assets in the app root or subfolders under that root.
-- `dist/` is reserved for release artifacts such as exported binaries and Linux bundles.
+- `dist/` is reserved for release artifacts such as exported binaries and host-native bundles.
 - Hidden files and hidden folders are ignored by the embed step.
 
 ## Recommended Files
@@ -16,7 +16,7 @@ This is the working app contract for frontend-first RustFrame apps.
 - `styles.css`
 - `app.js`
 - `rustframe.json` when the app needs native capabilities or typed runtime config
-- `assets/icon.svg` when the app will be packaged for Linux
+- `assets/icon.svg` or another packaging icon asset when the app will be packaged
 - `data/schema.json` when the app needs persistent data
 - `data/seeds/*.json` for first-run rows
 - `data/migrations/*.sql` for versioned database upgrades and backfills
@@ -80,6 +80,13 @@ Use `apps/<app-name>/rustframe.json` for typed runtime config that should not li
       "icon": "assets/icon.svg",
       "categories": ["Utility"],
       "keywords": ["desktop", "rustframe"]
+    },
+    "windows": {
+      "icon": "assets/icon.ico"
+    },
+    "macos": {
+      "bundleIdentifier": "dev.rustframe.my-app",
+      "icon": "assets/icon.icns"
     }
   },
   "filesystem": {
@@ -104,6 +111,9 @@ Rules:
 - `packaging.version` defaults to `0.1.0` when omitted.
 - `packaging.description` defaults to the app title when omitted.
 - `packaging.linux.icon` may point to an `.svg` or `.png` file relative to the app root.
+- `packaging.windows.icon` may point to an `.ico`, `.png`, or `.svg` file relative to the app root.
+- `packaging.macos.bundleIdentifier` defaults to `dev.rustframe.<appId>` when omitted.
+- `packaging.macos.icon` may point to an `.icns`, `.png`, or `.svg` file relative to the app root.
 - `packaging.linux.categories` defaults to `["Utility"]`.
 - `security.model` defaults to `"local-first"` and may also be `"networked"`.
 - `security.bridge.database`, `security.bridge.filesystem`, and `security.bridge.shell` only matter when you need to selectively re-enable bridge namespaces for a `networked` frontend.
@@ -204,14 +214,25 @@ cd apps/orbit-desk
 cargo run -p rustframe-cli -- package
 ```
 
-Package writes a Linux bundle into `apps/<name>/dist/linux/` with:
+Package writes a host-native bundle into one of these directories:
 
-- a portable `*.AppDir`
-- a `.desktop` launcher and app icon
-- `install.sh` and `uninstall.sh`
-- a `.tar.gz` archive for distribution
+- `apps/<name>/dist/linux/`
+- `apps/<name>/dist/windows/`
+- `apps/<name>/dist/macos/`
+
+Bundle shapes:
+
+- Linux: a portable `*.AppDir`, a `.desktop` launcher, an app icon, install scripts, and a `.tar.gz`
+- Windows: a portable app directory, PowerShell install scripts, shortcuts, and a `.zip`
+- macOS: an `.app` bundle, shell install scripts, and a `.tar.gz`
 
 If `apps/<name>/native/Cargo.toml` exists because the app was ejected, `dev`, `export`, and `package` use that runner instead of the hidden generated runner.
+
+## Platform Check Rules
+
+- Run `cargo run -p rustframe-cli -- platform-check <app-name>` on each native host platform you plan to ship.
+- The command validates the current host row directly and reports other rows as native-host validations instead of silently skipping them.
+- Use `--target <triple>` when you need a specific Rust target check.
 
 ## Dev Rules
 
@@ -233,5 +254,5 @@ cargo run -p rustframe-cli -- dev orbit-desk http://127.0.0.1:5173
 - The supported ejected location is `apps/<app-name>/native/`.
 - Do not treat `dist/` as source input.
 - Do not assume filesystem or shell access exists.
-- Do not point `packaging.linux.icon` at a missing or unsupported file type.
+- Do not point `packaging.linux.icon`, `packaging.windows.icon`, or `packaging.macos.icon` at a missing or unsupported file type.
 - Do not ship a UI that boots to a blank screen.

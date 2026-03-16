@@ -15,6 +15,13 @@
       "icon": "{{app_icon_path}}",
       "categories": ["Utility"],
       "keywords": ["desktop", "rustframe"]
+    },
+    "windows": {
+      "icon": "{{app_icon_path}}"
+    },
+    "macos": {
+      "bundleIdentifier": "dev.rustframe.{{app_name}}",
+      "icon": "{{app_icon_path}}"
     }
   },
   "filesystem": {

@@ -260,10 +260,7 @@ impl WindowManager {
         }
     }
 
-    fn open_primary(
-        &mut self,
-        target: &EventLoopWindowTarget<UserEvent>,
-    ) -> Result<WindowRecord> {
+    fn open_primary(&mut self, target: &EventLoopWindowTarget<UserEvent>) -> Result<WindowRecord> {
         self.open_window(
             target,
             WindowOpenParams {
@@ -398,10 +395,9 @@ impl WindowManager {
 
     fn set_title(&mut self, window_id: WindowId, title: String) -> Result<()> {
         let title = validate_window_title(&title)?;
-        let managed = self
-            .windows
-            .get_mut(&window_id)
-            .ok_or_else(|| RuntimeError::InvalidParameter("window is no longer available".into()))?;
+        let managed = self.windows.get_mut(&window_id).ok_or_else(|| {
+            RuntimeError::InvalidParameter("window is no longer available".into())
+        })?;
         managed.window.set_title(&title);
         managed.record.title = title;
         Ok(())
@@ -731,8 +727,14 @@ fn bridge_config_script(
 }
 
 enum UserEvent {
-    Ipc { window_id: WindowId, body: String },
-    IpcResponse { window_id: WindowId, response: IpcResponse },
+    Ipc {
+        window_id: WindowId,
+        body: String,
+    },
+    IpcResponse {
+        window_id: WindowId,
+        response: IpcResponse,
+    },
 }
 
 struct IpcOutcome {
@@ -787,8 +789,8 @@ impl IpcWorker {
         self.sender
             .send(BackgroundIpcRequest { window_id, request })
             .map_err(|_| {
-            RuntimeError::InvalidConfiguration("background IPC worker is unavailable".into())
-        })
+                RuntimeError::InvalidConfiguration("background IPC worker is unavailable".into())
+            })
     }
 }
 
@@ -820,7 +822,9 @@ fn dispatch_ipc_message(
     target: &EventLoopWindowTarget<UserEvent>,
 ) -> Option<IpcOutcome> {
     match serde_json::from_str::<IpcRequest>(body) {
-        Ok(request) => dispatch_request(request, window_id, worker, security, window_manager, target),
+        Ok(request) => {
+            dispatch_request(request, window_id, worker, security, window_manager, target)
+        }
         Err(error) => Some(IpcOutcome {
             response: IpcResponse::failure(0, &RuntimeError::Json(error)),
             close_window: None,
@@ -844,9 +848,12 @@ fn dispatch_request(
     }
 
     match method_execution(&request.method) {
-        MethodExecution::MainThread => {
-            Some(handle_main_thread_request(request, window_id, window_manager, target))
-        }
+        MethodExecution::MainThread => Some(handle_main_thread_request(
+            request,
+            window_id,
+            window_manager,
+            target,
+        )),
         MethodExecution::Background => {
             let request_id = request.id;
             match worker.dispatch(window_id, request) {
@@ -898,9 +905,7 @@ fn resolve_ipc_response(webview: &WebView, response: &IpcResponse) {
 fn method_execution(method: &str) -> MethodExecution {
     match method {
         "window.close" | "window.minimize" | "window.maximize" | "window.setTitle"
-        | "window.current" | "window.list" | "window.open" => {
-            MethodExecution::MainThread
-        }
+        | "window.current" | "window.list" | "window.open" => MethodExecution::MainThread,
         "fs.readText" | "shell.exec" | "db.info" | "db.get" | "db.list" | "db.count"
         | "db.insert" | "db.update" | "db.delete" => MethodExecution::Background,
         _ => MethodExecution::Unknown,
@@ -1312,7 +1317,7 @@ fn prepare_linux_runtime() -> Result<()> {
 
     if display.backend().is_wayland() {
         return Err(RuntimeError::InvalidConfiguration(
-            "Wayland is not supported by this Linux-first x11 runtime yet".into(),
+            "Wayland is not supported by this Linux x11 runtime yet".into(),
         ));
     }
 
@@ -1389,7 +1394,10 @@ mod tests {
             method_execution("window.setTitle"),
             MethodExecution::MainThread
         );
-        assert_eq!(method_execution("window.current"), MethodExecution::MainThread);
+        assert_eq!(
+            method_execution("window.current"),
+            MethodExecution::MainThread
+        );
         assert_eq!(method_execution("window.list"), MethodExecution::MainThread);
         assert_eq!(method_execution("window.open"), MethodExecution::MainThread);
         assert_eq!(method_execution("db.list"), MethodExecution::Background);
@@ -1410,14 +1418,14 @@ mod tests {
     #[test]
     fn rejects_unsafe_window_routes() {
         let absolute = normalize_window_route("https://example.com").unwrap_err();
-        assert!(absolute
-            .to_string()
-            .contains("only accepts in-app routes"));
+        assert!(absolute.to_string().contains("only accepts in-app routes"));
 
         let parent_escape = normalize_window_route("../settings").unwrap_err();
-        assert!(parent_escape
-            .to_string()
-            .contains("may not escape parent directories"));
+        assert!(
+            parent_escape
+                .to_string()
+                .contains("may not escape parent directories")
+        );
     }
 
     #[test]
