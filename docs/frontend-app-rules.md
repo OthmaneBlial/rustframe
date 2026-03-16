@@ -107,6 +107,10 @@ Rules:
 - `packaging.linux.categories` defaults to `["Utility"]`.
 - `filesystem.roots` entries must be non-empty strings.
 - `shell.commands[].name` values must be unique.
+- `shell.commands[].args` and `shell.commands[].allowedArgs` entries must be non-empty when present.
+- `shell.commands[].cwd` must not be blank when present.
+- `shell.commands[].timeoutMs` and `shell.commands[].maxOutputBytes` must be greater than zero when present.
+- `shell.commands[].env` keys must be non-empty and must not contain `=` or NUL bytes.
 - `packaging.linux.keywords[]` entries must not contain semicolons.
 - `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` are supported inside declared values.
 - Relative filesystem roots resolve against the source app folder in debug builds and against the executable directory in release builds.
@@ -147,6 +151,8 @@ Frontend-only apps do not get filesystem or shell access by default.
 
 - `window.RustFrame.fs.readText(...)` exists in the bridge, but requires the runtime to allow one or more filesystem roots.
 - `window.RustFrame.shell.exec(...)` exists in the bridge, but requires the runtime to allow a named command.
+- `shell.exec` frontend args are denied unless that named command explicitly allowlists them.
+- Declared shell commands run with bounded time and bounded captured output.
 - `rustframe.json` is the frontend-only way to declare those capabilities.
 
 Without those capabilities, expect permission errors.

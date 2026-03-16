@@ -1,8 +1,8 @@
 use std::{
     fs,
-    sync::atomic::{AtomicUsize, Ordering},
     path::{Path, PathBuf},
     process::{Command, Output},
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use serde_json::Value;
@@ -77,10 +77,7 @@ fn create_test_workspace() -> PathBuf {
 }
 
 fn next_app_name(prefix: &str) -> String {
-    format!(
-        "{prefix}-{}",
-        NEXT_APP_ID.fetch_add(1, Ordering::Relaxed)
-    )
+    format!("{prefix}-{}", NEXT_APP_ID.fetch_add(1, Ordering::Relaxed))
 }
 
 fn app_title(name: &str) -> String {
@@ -119,12 +116,7 @@ fn run_cli(workspace: &Path, args: &[&str]) -> Output {
     run_command(&mut command)
 }
 
-fn run_cli_smoke(
-    workspace: &Path,
-    args: &[&str],
-    report_path: &Path,
-    data_dir: &Path,
-) -> Output {
+fn run_cli_smoke(workspace: &Path, args: &[&str], report_path: &Path, data_dir: &Path) -> Output {
     let mut command = Command::new(cli_binary());
     command
         .current_dir(workspace)
@@ -156,8 +148,7 @@ fn new_creates_manifest_first_app_scaffold() {
     assert!(!app_dir.join("bridge.js").exists());
 
     let manifest: Value =
-        serde_json::from_str(&fs::read_to_string(app_dir.join("rustframe.json")).unwrap())
-            .unwrap();
+        serde_json::from_str(&fs::read_to_string(app_dir.join("rustframe.json")).unwrap()).unwrap();
     assert_eq!(manifest["appId"], app_name);
     assert_eq!(manifest["window"]["title"], app_title(&app_name));
     assert_eq!(manifest["window"]["width"], 1280);
@@ -200,7 +191,11 @@ fn dev_and_export_support_runtime_smoke_checks() {
     );
 
     run_cli(&workspace, &["export", &app_name]);
-    let exported_binary = workspace.join("apps").join(&app_name).join("dist").join(&app_name);
+    let exported_binary = workspace
+        .join("apps")
+        .join(&app_name)
+        .join("dist")
+        .join(&app_name);
     assert!(exported_binary.exists());
 
     let export_report_path = smoke_dir.join("export-report.json");
@@ -219,9 +214,11 @@ fn dev_and_export_support_runtime_smoke_checks() {
     assert_eq!(export_report["activeDevUrl"], Value::Null);
     assert_eq!(export_report["window"]["title"], expected_title);
     assert_eq!(export_report["database"]["schemaVersion"], 1);
-    assert!(export_report["database"]["tables"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|value| value == "notes"));
+    assert!(
+        export_report["database"]["tables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == "notes")
+    );
 }

@@ -12,6 +12,8 @@ pub enum RuntimeError {
     InvalidParameter(String),
     #[error("permission denied: {0}")]
     PermissionDenied(String),
+    #[error("timed out: {0}")]
+    TimedOut(String),
     #[error("record not found: {0}")]
     RecordNotFound(String),
     #[error("unknown method: {0}")]

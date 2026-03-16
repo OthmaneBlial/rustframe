@@ -200,7 +200,7 @@ impl RustFrameBuilder {
     }
 
     pub fn allow_shell_command<I, S>(
-        mut self,
+        self,
         name: impl Into<String>,
         program: impl Into<String>,
         args: I,
@@ -209,8 +209,15 @@ impl RustFrameBuilder {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        self.shell_commands
-            .insert(name.into(), ShellCommand::new(program, args));
+        self.allow_shell_command_configured(name, ShellCommand::new(program, args))
+    }
+
+    pub fn allow_shell_command_configured(
+        mut self,
+        name: impl Into<String>,
+        command: ShellCommand,
+    ) -> Self {
+        self.shell_commands.insert(name.into(), command);
         self
     }
 
@@ -233,7 +240,7 @@ impl RustFrameBuilder {
             .and_then(|config| config.data_dir.clone())
             .or(data_dir);
         let fs_capability = FsCapability::new(fs_roots)?;
-        let shell_capability = ShellCapability::new(shell_commands);
+        let shell_capability = ShellCapability::try_new(shell_commands)?;
         let database_capability =
             load_database_capability(assets, app_id.clone(), database_data_dir, database)?;
         let dev_url = active_dev_url(dev_url);
@@ -263,10 +270,7 @@ impl RustFrameBuilder {
         )?;
         let window = WindowBuilder::new()
             .with_title(&window.title)
-            .with_inner_size(tao::dpi::LogicalSize::new(
-                window.width,
-                window.height,
-            ))
+            .with_inner_size(tao::dpi::LogicalSize::new(window.width, window.height))
             .build(&event_loop)?;
 
         let builder = WebViewBuilder::new()

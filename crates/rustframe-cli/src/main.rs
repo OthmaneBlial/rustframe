@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -72,6 +72,12 @@ struct AppShellCommand {
     name: String,
     program: String,
     args: Vec<String>,
+    allowed_args: Vec<String>,
+    cwd: Option<String>,
+    env: BTreeMap<String, String>,
+    clear_env: bool,
+    timeout_ms: Option<u64>,
+    max_output_bytes: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -146,6 +152,18 @@ struct ManifestShellCommand {
     program: String,
     #[serde(default)]
     args: Vec<String>,
+    #[serde(default)]
+    allowed_args: Vec<String>,
+    #[serde(default)]
+    cwd: Option<String>,
+    #[serde(default)]
+    env: BTreeMap<String, String>,
+    #[serde(default)]
+    clear_env: bool,
+    #[serde(default)]
+    timeout_ms: Option<u64>,
+    #[serde(default)]
+    max_output_bytes: Option<usize>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -576,6 +594,20 @@ fn read_app_config(name: &str, app_dir: &Path, asset_dir: &Path) -> CliResult<Ap
             name: command.name.trim().to_string(),
             program: command.program.trim().to_string(),
             args: command.args,
+            allowed_args: command
+                .allowed_args
+                .into_iter()
+                .map(|value| value.trim().to_string())
+                .collect(),
+            cwd: command.cwd.map(|value| value.trim().to_string()),
+            env: command
+                .env
+                .into_iter()
+                .map(|(key, value)| (key.trim().to_string(), value))
+                .collect(),
+            clear_env: command.clear_env,
+            timeout_ms: command.timeout_ms,
+            max_output_bytes: command.max_output_bytes,
         })
         .collect::<Vec<_>>();
     validate_shell_commands(&shell_commands)?;
@@ -935,10 +967,51 @@ fn render_shell_command_chain(commands: &[AppShellCommand]) -> String {
                 )
             };
 
-            format!(
-                "\n        .allow_shell_command({}, resolve_declared_shell_value({}), {args})",
-                quoted_literal(&command.name),
+            let mut command_chain = format!(
+                "rustframe::ShellCommand::new(resolve_declared_shell_value({}), {args})",
                 quoted_literal(&command.program),
+            );
+
+            if !command.allowed_args.is_empty() {
+                let allowed_args = command
+                    .allowed_args
+                    .iter()
+                    .map(|arg| format!("resolve_declared_shell_value({})", quoted_literal(arg)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                command_chain.push_str(&format!(".allow_extra_args(vec![{allowed_args}])"));
+            }
+
+            if let Some(cwd) = &command.cwd {
+                command_chain.push_str(&format!(
+                    ".current_dir(resolve_declared_shell_dir({}))",
+                    quoted_literal(cwd)
+                ));
+            }
+
+            for (key, value) in &command.env {
+                command_chain.push_str(&format!(
+                    ".env({}, resolve_declared_shell_value({}))",
+                    quoted_literal(key),
+                    quoted_literal(value)
+                ));
+            }
+
+            if command.clear_env {
+                command_chain.push_str(".clear_env()");
+            }
+
+            if let Some(timeout_ms) = command.timeout_ms {
+                command_chain.push_str(&format!(".timeout_ms({timeout_ms})"));
+            }
+
+            if let Some(max_output_bytes) = command.max_output_bytes {
+                command_chain.push_str(&format!(".max_output_bytes({max_output_bytes})"));
+            }
+
+            format!(
+                "\n        .allow_shell_command_configured({}, {command_chain})",
+                quoted_literal(&command.name),
             )
         })
         .collect::<Vec<_>>()
@@ -1079,6 +1152,61 @@ fn validate_shell_commands(commands: &[AppShellCommand]) -> CliResult<()> {
         if command.program.trim().is_empty() {
             return Err(format!(
                 "shell.commands['{}'].program must not be empty",
+                command.name
+            ));
+        }
+
+        if command.args.iter().any(|value| value.trim().is_empty()) {
+            return Err(format!(
+                "shell.commands['{}'].args entries must not be empty",
+                command.name
+            ));
+        }
+
+        if command
+            .allowed_args
+            .iter()
+            .any(|value| value.trim().is_empty())
+        {
+            return Err(format!(
+                "shell.commands['{}'].allowedArgs entries must not be empty",
+                command.name
+            ));
+        }
+
+        if matches!(command.cwd.as_deref(), Some("")) {
+            return Err(format!(
+                "shell.commands['{}'].cwd must not be empty",
+                command.name
+            ));
+        }
+
+        if matches!(command.timeout_ms, Some(0)) {
+            return Err(format!(
+                "shell.commands['{}'].timeoutMs must be greater than zero",
+                command.name
+            ));
+        }
+
+        if matches!(command.max_output_bytes, Some(0)) {
+            return Err(format!(
+                "shell.commands['{}'].maxOutputBytes must be greater than zero",
+                command.name
+            ));
+        }
+
+        for key in command.env.keys() {
+            if key.is_empty() || key.contains('=') || key.contains('\0') {
+                return Err(format!(
+                    "shell.commands['{}'].env defines invalid key '{}'",
+                    command.name, key
+                ));
+            }
+        }
+
+        if command.env.values().any(|value| value.contains('\0')) {
+            return Err(format!(
+                "shell.commands['{}'].env values must not contain NUL bytes",
                 command.name
             ));
         }
@@ -1816,7 +1944,7 @@ fn print_help() {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::Path};
+    use std::{collections::BTreeMap, fs, path::Path};
 
     use tempfile::tempdir;
 
@@ -1951,7 +2079,15 @@ mod tests {
                   {
                     "name": "listFixtures",
                     "program": "ls",
-                    "args": ["-la", "${SOURCE_APP_DIR}/fixtures"]
+                    "args": ["-la", "${SOURCE_APP_DIR}/fixtures"],
+                    "allowedArgs": ["--json"],
+                    "cwd": "${SOURCE_APP_DIR}",
+                    "env": {
+                      "LC_ALL": "C"
+                    },
+                    "clearEnv": true,
+                    "timeoutMs": 2500,
+                    "maxOutputBytes": 8192
                   }
                 ]
               }
@@ -1971,6 +2107,18 @@ mod tests {
             config.shell_commands[0].args,
             vec!["-la", "${SOURCE_APP_DIR}/fixtures"]
         );
+        assert_eq!(config.shell_commands[0].allowed_args, vec!["--json"]);
+        assert_eq!(
+            config.shell_commands[0].cwd.as_deref(),
+            Some("${SOURCE_APP_DIR}")
+        );
+        assert_eq!(
+            config.shell_commands[0].env,
+            BTreeMap::from([("LC_ALL".to_string(), "C".to_string())])
+        );
+        assert!(config.shell_commands[0].clear_env);
+        assert_eq!(config.shell_commands[0].timeout_ms, Some(2500));
+        assert_eq!(config.shell_commands[0].max_output_bytes, Some(8192));
     }
 
     #[test]
@@ -2113,6 +2261,68 @@ mod tests {
 
         let error = read_app_config("manifest-demo", temp.path(), temp.path()).unwrap_err();
         assert!(error.contains("shell.commands defines 'sync' more than once"));
+    }
+
+    #[test]
+    fn manifest_rejects_zero_shell_timeout() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            "<title>Manifest Demo</title>",
+        )
+        .unwrap();
+        fs::write(
+            temp.path().join("rustframe.json"),
+            r#"
+            {
+              "shell": {
+                "commands": [
+                  {
+                    "name": "sync",
+                    "program": "echo",
+                    "timeoutMs": 0
+                  }
+                ]
+              }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let error = read_app_config("manifest-demo", temp.path(), temp.path()).unwrap_err();
+        assert!(error.contains("shell.commands['sync'].timeoutMs must be greater than zero"));
+    }
+
+    #[test]
+    fn manifest_rejects_invalid_shell_env_key() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            "<title>Manifest Demo</title>",
+        )
+        .unwrap();
+        fs::write(
+            temp.path().join("rustframe.json"),
+            r#"
+            {
+              "shell": {
+                "commands": [
+                  {
+                    "name": "sync",
+                    "program": "echo",
+                    "env": {
+                      "BAD=KEY": "value"
+                    }
+                  }
+                ]
+              }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let error = read_app_config("manifest-demo", temp.path(), temp.path()).unwrap_err();
+        assert!(error.contains("shell.commands['sync'].env defines invalid key 'BAD=KEY'"));
     }
 
     #[test]
@@ -2440,6 +2650,12 @@ mod tests {
                     name: "listFixtures".into(),
                     program: "ls".into(),
                     args: vec!["-la".into(), "${SOURCE_APP_DIR}/fixtures".into()],
+                    allowed_args: vec!["--json".into(), "${EXE_DIR}/flags.txt".into()],
+                    cwd: Some("${SOURCE_APP_DIR}".into()),
+                    env: BTreeMap::from([("LC_ALL".into(), "C".into())]),
+                    clear_env: true,
+                    timeout_ms: Some(2_500),
+                    max_output_bytes: Some(8_192),
                 }],
                 packaging: default_packaging_config("Capability App"),
             },
@@ -2452,9 +2668,16 @@ mod tests {
         assert!(main.contains("fn resolve_declared_fs_root"));
         assert!(main.contains(".allow_fs_root(resolve_declared_fs_root(\"fixtures\"))"));
         assert!(main.contains("${SOURCE_APP_DIR}"));
-        assert!(main.contains(".allow_shell_command(\"listFixtures\""));
+        assert!(main.contains(".allow_shell_command_configured(\"listFixtures\""));
         assert!(main.contains("resolve_declared_shell_value(\"ls\")"));
         assert!(main.contains("resolve_declared_shell_value(\"${SOURCE_APP_DIR}/fixtures\")"));
+        assert!(main.contains(".allow_extra_args(vec![resolve_declared_shell_value(\"--json\")"));
+        assert!(main.contains("resolve_declared_shell_value(\"${EXE_DIR}/flags.txt\")"));
+        assert!(main.contains(".current_dir(resolve_declared_shell_dir(\"${SOURCE_APP_DIR}\"))"));
+        assert!(main.contains(".env(\"LC_ALL\", resolve_declared_shell_value(\"C\"))"));
+        assert!(main.contains(".clear_env()"));
+        assert!(main.contains(".timeout_ms(2500)"));
+        assert!(main.contains(".max_output_bytes(8192)"));
     }
 
     #[test]
@@ -2500,6 +2723,12 @@ mod tests {
                     name: "sync".into(),
                     program: "echo".into(),
                     args: vec!["${SOURCE_APP_DIR}".into()],
+                    allowed_args: Vec::new(),
+                    cwd: None,
+                    env: BTreeMap::new(),
+                    clear_env: false,
+                    timeout_ms: None,
+                    max_output_bytes: None,
                 }],
                 packaging: default_packaging_config("Ejected Demo"),
             },

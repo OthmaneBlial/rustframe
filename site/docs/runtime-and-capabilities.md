@@ -120,13 +120,15 @@ The capability demo previously wired this in Rust by hand; frontend-only apps ca
 
 ## Shell Capability
 
-The runtime can expose allowlisted commands through `allow_shell_command(...)`.
-Frontend-only apps now declare allowlisted commands through `rustframe.json`.
+The runtime can expose hardened commands through `allow_shell_command_configured(...)`.
+Frontend-only apps declare the same controls through `rustframe.json`.
 
-- `window.RustFrame.shell.exec(name, args)` resolves to structured `stdout`, `stderr`, and `exitCode`.
+- `window.RustFrame.shell.exec(name, args)` resolves to structured `stdout`, `stderr`, `exitCode`, and truncation flags.
 - Unknown commands are rejected.
+- Frontend-provided extra args are denied by default and must be allowlisted per command.
 - Commands run directly through `std::process::Command`, not through a shell pipeline.
-- `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` can be used inside the declared program or argument strings.
+- Each command can declare `cwd`, `env`, `clearEnv`, `timeoutMs`, and `maxOutputBytes`.
+- `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` can be used inside declared program, arg, cwd, and env values.
 
 ## Hidden Runner Generation
 

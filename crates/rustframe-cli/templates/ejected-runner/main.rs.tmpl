@@ -67,6 +67,19 @@ fn resolve_declared_shell_value(value: &str) -> String {
     expand_declared_value(value)
 }
 
+fn resolve_declared_shell_dir(value: &str) -> PathBuf {
+    let expanded = expand_declared_value(value);
+    let path = PathBuf::from(&expanded);
+
+    if path.is_absolute() {
+        path
+    } else if cfg!(debug_assertions) {
+        source_app_dir().join(path)
+    } else {
+        executable_dir().join(path)
+    }
+}
+
 fn main() -> Result<()> {
     let builder = RustFrame::builder()
         .title({{window_title}})
