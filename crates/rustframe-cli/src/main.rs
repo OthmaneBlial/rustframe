@@ -275,6 +275,8 @@ fn command_new(name: &str) -> CliResult<()> {
                 ("{{app_title}}", title.clone()),
                 ("{{app_description}}", title.clone()),
                 ("{{app_icon_path}}", "assets/icon.svg".to_string()),
+                ("{{window_width}}", "1280".to_string()),
+                ("{{window_height}}", "820".to_string()),
             ],
         ),
     )?;

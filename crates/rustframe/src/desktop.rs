@@ -1,7 +1,7 @@
-use std::{borrow::Cow, collections::BTreeMap, path::PathBuf, sync::mpsc, thread};
+use std::{borrow::Cow, collections::BTreeMap, env, fs, path::PathBuf, sync::mpsc, thread};
 
 use mime_guess::MimeGuess;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tao::{
     event::{Event, WindowEvent},
@@ -26,7 +26,8 @@ pub trait EmbeddedAssets {
     fn get(path: &str) -> Option<Cow<'static, [u8]>>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WindowOptions {
     pub title: String,
     pub width: f64,
@@ -41,6 +42,40 @@ impl Default for WindowOptions {
             height: 720.0,
         }
     }
+}
+
+#[derive(Debug)]
+struct RuntimeSmokeConfig {
+    output_path: Option<PathBuf>,
+    data_dir: Option<PathBuf>,
+}
+
+impl RuntimeSmokeConfig {
+    fn from_env() -> Option<Self> {
+        let enabled = env::var("RUSTFRAME_SMOKE_TEST")
+            .ok()
+            .map(|value| value != "0")
+            .unwrap_or(false);
+
+        enabled.then(|| Self {
+            output_path: env::var_os("RUSTFRAME_SMOKE_OUTPUT").map(PathBuf::from),
+            data_dir: env::var_os("RUSTFRAME_SMOKE_DATA_DIR").map(PathBuf::from),
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeSmokeReport {
+    app_id: Option<String>,
+    launch_mode: String,
+    active_dev_url: Option<String>,
+    window: WindowOptions,
+    has_index_html: bool,
+    bridge_injected: bool,
+    fs_roots: Vec<String>,
+    shell_commands: Vec<String>,
+    database: Option<crate::DatabaseInfo>,
 }
 
 pub struct RustFrame;
@@ -180,11 +215,41 @@ impl RustFrameBuilder {
     }
 
     pub fn run(self) -> Result<()> {
-        let assets = self.assets.ok_or(RuntimeError::MissingAssets)?;
-        let fs_capability = FsCapability::new(self.fs_roots)?;
-        let shell_capability = ShellCapability::new(self.shell_commands);
+        let RustFrameBuilder {
+            window,
+            app_id,
+            data_dir,
+            dev_url,
+            assets,
+            database,
+            fs_roots,
+            shell_commands,
+        } = self;
+
+        let assets = assets.ok_or(RuntimeError::MissingAssets)?;
+        let smoke = RuntimeSmokeConfig::from_env();
+        let database_data_dir = smoke
+            .as_ref()
+            .and_then(|config| config.data_dir.clone())
+            .or(data_dir);
+        let fs_capability = FsCapability::new(fs_roots)?;
+        let shell_capability = ShellCapability::new(shell_commands);
         let database_capability =
-            load_database_capability(assets, self.app_id, self.data_dir, self.database)?;
+            load_database_capability(assets, app_id.clone(), database_data_dir, database)?;
+        let dev_url = active_dev_url(dev_url);
+
+        if let Some(smoke) = smoke {
+            return run_runtime_smoke_check(
+                smoke,
+                &window,
+                app_id.as_deref(),
+                dev_url.as_deref(),
+                assets,
+                &fs_capability,
+                &shell_capability,
+                database_capability.as_ref(),
+            );
+        }
 
         prepare_linux_runtime()?;
 
@@ -197,10 +262,10 @@ impl RustFrameBuilder {
             database_capability,
         )?;
         let window = WindowBuilder::new()
-            .with_title(&self.window.title)
+            .with_title(&window.title)
             .with_inner_size(tao::dpi::LogicalSize::new(
-                self.window.width,
-                self.window.height,
+                window.width,
+                window.height,
             ))
             .build(&event_loop)?;
 
@@ -215,7 +280,6 @@ impl RustFrameBuilder {
                 let _ = ipc_proxy.send_event(UserEvent::Ipc(request.body().clone()));
             });
 
-        let dev_url = active_dev_url(self.dev_url);
         let builder = match dev_url {
             Some(url) => builder.with_url(url),
             None => builder.with_url(APP_URL),
@@ -258,6 +322,55 @@ impl RustFrameBuilder {
         #[allow(unreachable_code)]
         Ok(())
     }
+}
+
+fn run_runtime_smoke_check(
+    smoke: RuntimeSmokeConfig,
+    window: &WindowOptions,
+    app_id: Option<&str>,
+    dev_url: Option<&str>,
+    assets: EmbeddedAssetRouter,
+    fs_capability: &FsCapability,
+    shell_capability: &ShellCapability,
+    database_capability: Option<&DatabaseCapability>,
+) -> Result<()> {
+    let report = RuntimeSmokeReport {
+        app_id: app_id.map(ToOwned::to_owned),
+        launch_mode: if dev_url.is_some() {
+            "dev-server".to_string()
+        } else {
+            "embedded".to_string()
+        },
+        active_dev_url: dev_url.map(ToOwned::to_owned),
+        window: window.clone(),
+        has_index_html: assets.get("index.html").is_some(),
+        bridge_injected: true,
+        fs_roots: fs_capability
+            .roots()
+            .iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect(),
+        shell_commands: shell_capability
+            .command_names()
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect(),
+        database: database_capability.map(|database| database.info().clone()),
+    };
+
+    let contents = serde_json::to_string_pretty(&report)
+        .map_err(|error| RuntimeError::InvalidConfiguration(error.to_string()))?;
+
+    if let Some(output_path) = smoke.output_path {
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(output_path, contents)?;
+    } else {
+        println!("{contents}");
+    }
+
+    Ok(())
 }
 
 enum UserEvent {
