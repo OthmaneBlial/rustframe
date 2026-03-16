@@ -1,11 +1,11 @@
-use std::{borrow::Cow, collections::BTreeMap, path::PathBuf};
+use std::{borrow::Cow, collections::BTreeMap, path::PathBuf, sync::mpsc, thread};
 
 use mime_guess::MimeGuess;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tao::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoopBuilder},
+    event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy},
     window::{Window, WindowBuilder},
 };
 use wry::{
@@ -159,7 +159,13 @@ impl RustFrameBuilder {
         prepare_linux_runtime()?;
 
         let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
-        let proxy = event_loop.create_proxy();
+        let ipc_proxy = event_loop.create_proxy();
+        let worker = IpcWorker::spawn(
+            ipc_proxy.clone(),
+            fs_capability,
+            shell_capability,
+            database_capability,
+        )?;
         let window = WindowBuilder::new()
             .with_title(&self.window.title)
             .with_inner_size(tao::dpi::LogicalSize::new(
@@ -175,7 +181,7 @@ impl RustFrameBuilder {
             })
             .with_new_window_req_handler(|_, _| NewWindowResponse::Deny)
             .with_ipc_handler(move |request| {
-                let _ = proxy.send_event(UserEvent::Ipc(request.body().clone()));
+                let _ = ipc_proxy.send_event(UserEvent::Ipc(request.body().clone()));
             });
 
         let dev_url = active_dev_url(self.dev_url);
@@ -198,22 +204,15 @@ impl RustFrameBuilder {
                     *control_flow = ControlFlow::Exit;
                 }
                 Event::UserEvent(UserEvent::Ipc(body)) => {
-                    let outcome = handle_ipc_message(
-                        &body,
-                        &window,
-                        &fs_capability,
-                        &shell_capability,
-                        database_capability.as_ref(),
-                    );
-
-                    if let Ok(serialized) = serde_json::to_string(&outcome.response) {
-                        let script = format!("window.RustFrame.__resolveFromNative({serialized});");
-                        let _ = webview.evaluate_script(&script);
+                    if let Some(outcome) = dispatch_ipc_message(&body, &window, &worker) {
+                        resolve_ipc_response(&webview, &outcome.response);
+                        if outcome.should_exit {
+                            pending_exit = true;
+                        }
                     }
-
-                    if outcome.should_exit {
-                        pending_exit = true;
-                    }
+                }
+                Event::UserEvent(UserEvent::IpcResponse(response)) => {
+                    resolve_ipc_response(&webview, &response);
                 }
                 Event::MainEventsCleared => {
                     if pending_exit {
@@ -232,11 +231,51 @@ impl RustFrameBuilder {
 
 enum UserEvent {
     Ipc(String),
+    IpcResponse(IpcResponse),
 }
 
 struct IpcOutcome {
     response: IpcResponse,
     should_exit: bool,
+}
+
+struct IpcWorker {
+    sender: mpsc::Sender<IpcRequest>,
+}
+
+impl IpcWorker {
+    fn spawn(
+        proxy: EventLoopProxy<UserEvent>,
+        fs_capability: FsCapability,
+        shell_capability: ShellCapability,
+        database_capability: Option<DatabaseCapability>,
+    ) -> Result<Self> {
+        let (sender, receiver) = mpsc::channel::<IpcRequest>();
+        thread::Builder::new()
+            .name("rustframe-ipc-worker".into())
+            .spawn(move || {
+                while let Ok(request) = receiver.recv() {
+                    let response = execute_background_request(
+                        request,
+                        &fs_capability,
+                        &shell_capability,
+                        database_capability.as_ref(),
+                    );
+
+                    if proxy.send_event(UserEvent::IpcResponse(response)).is_err() {
+                        break;
+                    }
+                }
+            })?;
+
+        Ok(Self { sender })
+    }
+
+    fn dispatch(&self, request: IpcRequest) -> Result<()> {
+        self.sender.send(request).map_err(|_| {
+            RuntimeError::InvalidConfiguration("background IPC worker is unavailable".into())
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -258,35 +297,69 @@ struct DbGetParams {
     id: i64,
 }
 
-fn handle_ipc_message(
-    body: &str,
-    window: &Window,
-    fs_capability: &FsCapability,
-    shell_capability: &ShellCapability,
-    database_capability: Option<&DatabaseCapability>,
-) -> IpcOutcome {
+fn dispatch_ipc_message(body: &str, window: &Window, worker: &IpcWorker) -> Option<IpcOutcome> {
     match serde_json::from_str::<IpcRequest>(body) {
-        Ok(request) => handle_request(
-            request,
-            window,
-            fs_capability,
-            shell_capability,
-            database_capability,
-        ),
-        Err(error) => IpcOutcome {
+        Ok(request) => dispatch_request(request, window, worker),
+        Err(error) => Some(IpcOutcome {
             response: IpcResponse::failure(0, &RuntimeError::Json(error)),
             should_exit: false,
-        },
+        }),
     }
 }
 
-fn handle_request(
+fn dispatch_request(
     request: IpcRequest,
     window: &Window,
-    fs_capability: &FsCapability,
-    shell_capability: &ShellCapability,
-    database_capability: Option<&DatabaseCapability>,
-) -> IpcOutcome {
+    worker: &IpcWorker,
+) -> Option<IpcOutcome> {
+    match method_execution(&request.method) {
+        MethodExecution::MainThread => Some(handle_main_thread_request(request, window)),
+        MethodExecution::Background => {
+            let request_id = request.id;
+            match worker.dispatch(request) {
+                Ok(()) => None,
+                Err(error) => Some(IpcOutcome {
+                    response: IpcResponse::failure(request_id, &error),
+                    should_exit: false,
+                }),
+            }
+        }
+        MethodExecution::Unknown => Some(IpcOutcome {
+            response: IpcResponse::failure(
+                request.id,
+                &RuntimeError::UnknownMethod(request.method),
+            ),
+            should_exit: false,
+        }),
+    }
+}
+
+fn resolve_ipc_response(webview: &WebView, response: &IpcResponse) {
+    if let Ok(serialized) = serde_json::to_string(response) {
+        let script = format!("window.RustFrame.__resolveFromNative({serialized});");
+        let _ = webview.evaluate_script(&script);
+    }
+}
+
+fn method_execution(method: &str) -> MethodExecution {
+    match method {
+        "window.close" | "window.minimize" | "window.maximize" | "window.setTitle" => {
+            MethodExecution::MainThread
+        }
+        "fs.readText" | "shell.exec" | "db.info" | "db.get" | "db.list" | "db.count"
+        | "db.insert" | "db.update" | "db.delete" => MethodExecution::Background,
+        _ => MethodExecution::Unknown,
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MethodExecution {
+    MainThread,
+    Background,
+    Unknown,
+}
+
+fn handle_main_thread_request(request: IpcRequest, window: &Window) -> IpcOutcome {
     let mut should_exit = false;
     let result: Result<Value> = match request.method.as_str() {
         "window.close" => {
@@ -306,6 +379,27 @@ fn handle_request(
             window.set_title(&title);
             Ok(Value::Null)
         })(),
+        _ => Err(RuntimeError::UnknownMethod(request.method.clone())),
+    };
+
+    let response = match result {
+        Ok(data) => IpcResponse::success(request.id, data),
+        Err(error) => IpcResponse::failure(request.id, &error),
+    };
+
+    IpcOutcome {
+        response,
+        should_exit,
+    }
+}
+
+fn execute_background_request(
+    request: IpcRequest,
+    fs_capability: &FsCapability,
+    shell_capability: &ShellCapability,
+    database_capability: Option<&DatabaseCapability>,
+) -> IpcResponse {
+    let result: Result<Value> = match request.method.as_str() {
         "fs.readText" => (|| {
             let path = required_string(&request.params, "path")?;
             let content = fs_capability.read_text(path)?;
@@ -349,14 +443,9 @@ fn handle_request(
         method => Err(RuntimeError::UnknownMethod(method.to_string())),
     };
 
-    let response = match result {
+    match result {
         Ok(data) => IpcResponse::success(request.id, data),
         Err(error) => IpcResponse::failure(request.id, &error),
-    };
-
-    IpcOutcome {
-        response,
-        should_exit,
     }
 }
 
@@ -595,8 +684,8 @@ mod tests {
     use wry::http::Request;
 
     use super::{
-        EmbeddedAssetRouter, EmbeddedDatabaseConfig, active_dev_url, asset_response,
-        load_database_capability, normalize_asset_path,
+        EmbeddedAssetRouter, EmbeddedDatabaseConfig, MethodExecution, active_dev_url,
+        asset_response, load_database_capability, method_execution, normalize_asset_path,
     };
 
     fn fixture(path: &str) -> Option<Cow<'static, [u8]>> {
@@ -615,6 +704,17 @@ mod tests {
     fn normalizes_root_asset_path() {
         assert_eq!(normalize_asset_path("/"), "index.html");
         assert_eq!(normalize_asset_path("/styles.css"), "styles.css");
+    }
+
+    #[test]
+    fn routes_window_and_native_methods_to_the_expected_execution_context() {
+        assert_eq!(
+            method_execution("window.setTitle"),
+            MethodExecution::MainThread
+        );
+        assert_eq!(method_execution("db.list"), MethodExecution::Background);
+        assert_eq!(method_execution("shell.exec"), MethodExecution::Background);
+        assert_eq!(method_execution("missing.method"), MethodExecution::Unknown);
     }
 
     #[test]
