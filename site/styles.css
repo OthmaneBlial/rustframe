@@ -788,7 +788,9 @@ main {
 }
 
 .docs-content pre {
+    position: relative;
     padding: 16px;
+    padding-top: 52px;
     max-width: 100%;
     border: 1px solid var(--line);
     border-radius: 16px;
@@ -808,6 +810,27 @@ main {
     padding: 0;
     background: transparent;
     color: inherit;
+}
+
+.docs-copy-button {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: rgba(216, 173, 96, 0.08);
+    color: var(--text);
+    cursor: pointer;
+    transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.docs-copy-button:hover,
+.docs-copy-button:focus-visible {
+    background: rgba(216, 173, 96, 0.14);
+    transform: translateY(-1px);
+    outline: none;
 }
 
 .docs-content a {
@@ -1084,6 +1107,15 @@ main {
 
     .docs-content pre {
         padding: 14px;
+        padding-top: 50px;
         font-size: 0.88rem;
+    }
+
+    .docs-copy-button {
+        top: 10px;
+        right: 10px;
+        min-height: 30px;
+        padding: 0 10px;
+        font-size: 0.82rem;
     }
 }

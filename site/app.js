@@ -60,18 +60,7 @@ function setupCopyButtons() {
     }
 
     COPY_BUTTONS.forEach((button) => {
-        button.addEventListener("click", async () => {
-            const original = button.textContent;
-            try {
-                await navigator.clipboard.writeText(button.dataset.copy || "");
-                button.textContent = "Copied";
-            } catch {
-                button.textContent = "Copy failed";
-            }
-            window.setTimeout(() => {
-                button.textContent = original;
-            }, 1200);
-        });
+        bindCopyButton(button, () => button.dataset.copy || "");
     });
 }
 
@@ -149,9 +138,47 @@ async function loadDoc(docId, docsContent, titleNode, sourceNode) {
 
         const markdown = await response.text();
         docsContent.innerHTML = renderMarkdown(markdown);
+        enhanceDocsCodeBlocks(docsContent);
     } catch (error) {
         docsContent.innerHTML = `<p>Unable to load the selected doc.</p><pre>${escapeHtml(String(error))}</pre>`;
+        enhanceDocsCodeBlocks(docsContent);
     }
+}
+
+function enhanceDocsCodeBlocks(container) {
+    const blocks = container.querySelectorAll("pre");
+    blocks.forEach((block) => {
+        const code = block.querySelector("code");
+        if (!code || block.querySelector(".docs-copy-button")) {
+            return;
+        }
+
+        block.classList.add("has-copy-button");
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "docs-copy-button";
+        button.textContent = "Copy";
+        button.setAttribute("aria-label", "Copy code to clipboard");
+        block.append(button);
+
+        bindCopyButton(button, () => code.textContent || "");
+    });
+}
+
+function bindCopyButton(button, getText) {
+    button.addEventListener("click", async () => {
+        const original = button.textContent;
+        try {
+            await navigator.clipboard.writeText(getText());
+            button.textContent = "Copied";
+        } catch {
+            button.textContent = "Copy failed";
+        }
+        window.setTimeout(() => {
+            button.textContent = original;
+        }, 1200);
+    });
 }
 
 function renderMarkdown(markdown) {
