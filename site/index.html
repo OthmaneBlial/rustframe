@@ -39,9 +39,9 @@
                 <p class="eyebrow">Rust / Tao / Wry</p>
                 <h1>Frontend-first desktop apps without the usual framework pileup.</h1>
                 <p class="lede">
-                    RustFrame keeps the app folder plain, embeds real frontend assets into a native
-                    window, exposes a small IPC bridge, and enables SQLite, filesystem, or shell
-                    capabilities only when the runtime explicitly allows them.
+                    RustFrame keeps the app folder plain, injects the bridge from the runtime,
+                    drives the app from typed <code>rustframe.json</code>, and only turns on SQLite,
+                    filesystem, or shell access when the manifest and trust model explicitly allow it.
                 </p>
 
                 <div class="hero-actions">
@@ -52,19 +52,19 @@
                 <div class="signal-strip">
                     <article>
                         <span>Runtime</span>
-                        <strong>`tao` + `wry`</strong>
+                        <strong>`tao` + `wry` + multi-window shell</strong>
                     </article>
                     <article>
                         <span>Transport</span>
-                        <strong>Direct native IPC</strong>
+                        <strong>Runtime-injected native bridge</strong>
                     </article>
                     <article>
                         <span>Storage</span>
-                        <strong>Embedded schema + SQLite</strong>
+                        <strong>SQLite + versioned SQL migrations</strong>
                     </article>
                     <article>
                         <span>Support Matrix</span>
-                        <strong>Linux shipping, Windows/macOS native paths</strong>
+                        <strong>Linux, Windows, macOS host-native packaging</strong>
                     </article>
                 </div>
             </div>
@@ -134,17 +134,17 @@
                 <article class="info-tile">
                     <span class="tile-kicker">Runtime crate</span>
                     <h3>`crates/rustframe`</h3>
-                    <p>Owns the desktop shell, custom protocol, IPC dispatch, SQLite capability, filesystem scope, and shell allowlist support.</p>
+                    <p>Owns the desktop shell, injected bridge, multi-window IPC dispatch, SQLite migrations, filesystem scope, trust model, and hardened shell execution.</p>
                 </article>
                 <article class="info-tile">
                     <span class="tile-kicker">CLI crate</span>
                     <h3>`crates/rustframe-cli`</h3>
-                    <p>Scaffolds apps, reads window metadata from `index.html`, embeds assets, and writes the hidden runner under `target/rustframe/`.</p>
+                    <p>Scaffolds apps, parses typed <code>rustframe.json</code>, generates or ejects runners, validates targets, and packages host-native bundles.</p>
                 </article>
                 <article class="info-tile">
                     <span class="tile-kicker">Capability demo</span>
                     <h3>`examples/capability-demo`</h3>
-                    <p>Shows native window controls, sandboxed file reads, and allowlisted process execution without a localhost bridge.</p>
+                    <p>Shows window controls, scoped file reads, and hardened process execution without a localhost bridge or preload server.</p>
                 </article>
                 <article class="info-tile">
                     <span class="tile-kicker">App catalog</span>
@@ -164,52 +164,62 @@
                 <article class="workflow-step">
                     <span class="step-index">01</span>
                     <h3>Generate an app folder</h3>
-                    <p>RustFrame writes `index.html`, `styles.css`, `app.js`, and an optional `data/` directory into `apps/<name>/` while the runtime injects the native bridge.</p>
+                    <p>RustFrame writes <code>index.html</code>, <code>styles.css</code>, <code>app.js</code>, <code>rustframe.json</code>, and an optional <code>data/</code> directory into <code>apps/&lt;name&gt;/</code> while the runtime injects the native bridge.</p>
                 </article>
                 <article class="workflow-step">
                     <span class="step-index">02</span>
-                    <h3>Build the UI with plain web files</h3>
-                    <p>Window metadata lives in `rustframe.json` first, with HTML as fallback. The app folder stays frontend-first and free of visible Rust runner code.</p>
+                    <h3>Declare config and boundaries in the manifest</h3>
+                    <p>Typed window settings, trust model, capability roots, shell rules, and packaging metadata all live in <code>rustframe.json</code> instead of loose string metadata.</p>
                 </article>
                 <article class="workflow-step">
                     <span class="step-index">03</span>
-                    <h3>Run through a generated runner</h3>
-                    <p>`dev`, `export`, `platform-check`, and `package` materialize the hidden Rust runner under `target/rustframe/apps/<name>/runner/` and carry forward the embedded assets.</p>
+                    <h3>Run through a generated or ejected runner</h3>
+                    <p><code>dev</code>, <code>export</code>, <code>platform-check</code>, and <code>package</code> use the hidden runner by default, while <code>eject</code> gives advanced apps an owned native entrypoint.</p>
                 </article>
                 <article class="workflow-step">
                     <span class="step-index">04</span>
-                    <h3>Gate capabilities explicitly</h3>
-                    <p>SQLite turns on when `data/schema.json` exists. Filesystem and shell methods stay unavailable unless the runtime grants them.</p>
+                    <h3>Verify and ship on the native host</h3>
+                    <p><code>platform-check</code> validates host toolchain expectations, <code>package</code> builds native bundles, and end-to-end smoke coverage keeps the new/exported runtime path honest.</p>
                 </article>
             </div>
         </section>
 
         <section class="frame runtime reveal">
             <div class="section-heading">
-                <p class="eyebrow">Capabilities</p>
-                <h2>Small native surface, explicit scope</h2>
+                <p class="eyebrow">Runtime Contract</p>
+                <h2>Small native surface, explicit security and packaging boundaries</h2>
             </div>
 
             <div class="capability-grid">
                 <article class="capability-card">
                     <span class="capability-label">Window</span>
-                    <h3>Close, minimize, maximize, rename</h3>
-                    <p>The bridge exposes a small `window.RustFrame.window.*` surface instead of a large plugin system.</p>
+                    <h3>Primary and secondary windows share one runtime</h3>
+                    <p>The runtime can open route-scoped secondary windows while keeping one native event loop and one bridge contract.</p>
+                </article>
+                <article class="capability-card">
+                    <span class="capability-label">Security</span>
+                    <h3>Pick a trust model up front</h3>
+                    <p><code>local-first</code> and <code>networked</code> modes expose different bridge surfaces, so native power stays aligned with the frontend trust boundary.</p>
                 </article>
                 <article class="capability-card">
                     <span class="capability-label">Database</span>
-                    <h3>Schema and seeds embedded into the app</h3>
-                    <p>When `data/schema.json` exists, RustFrame provisions SQLite and exposes CRUD methods with automatic `id`, `createdAt`, and `updatedAt` fields.</p>
+                    <h3>Schema, seeds, and SQL migrations ship together</h3>
+                    <p>When <code>data/schema.json</code> exists, RustFrame provisions SQLite, runs versioned <code>data/migrations/*.sql</code>, and keeps additive schema reconciliation in place.</p>
                 </article>
                 <article class="capability-card">
                     <span class="capability-label">Filesystem</span>
-                    <h3>Read access is root-scoped</h3>
-                    <p>`fs.readText(...)` only succeeds inside explicitly allowed directories and rejects parent escapes or outside paths.</p>
+                    <h3>Read access is manifest-scoped</h3>
+                    <p><code>fs.readText(...)</code> only succeeds inside explicitly allowed roots and rejects parent escapes or outside paths.</p>
                 </article>
                 <article class="capability-card">
                     <span class="capability-label">Shell</span>
-                    <h3>Commands must be allowlisted by name</h3>
-                    <p>`shell.exec(...)` resolves to structured output, but only for commands that the runtime registered ahead of time.</p>
+                    <h3>Execution is allowlisted and hardened</h3>
+                    <p><code>shell.exec(...)</code> only runs declared commands, with explicit arg rules, cwd and env policy, timeouts, and output caps.</p>
+                </article>
+                <article class="capability-card">
+                    <span class="capability-label">Distribution</span>
+                    <h3>Validate targets before packaging</h3>
+                    <p><code>platform-check</code> surfaces native host constraints early, and <code>package</code> produces Linux, Windows, or macOS host-native bundles.</p>
                 </article>
             </div>
         </section>
@@ -288,24 +298,24 @@
                 <a class="doc-card" href="docs.html?doc=getting-started">
                     <span>Guide</span>
                     <strong>Getting started</strong>
-                    <p>Run the capability demo, scaffold an app, validate the support matrix, export a raw binary, and package a host-native bundle.</p>
+                    <p>Run the demo, scaffold an app, validate the support matrix, export a raw binary, and package a host-native bundle.</p>
                 </a>
                 <a class="doc-card" href="docs.html?doc=runtime-and-capabilities">
                     <span>Runtime</span>
                     <strong>Capabilities</strong>
-                    <p>See how embedded assets, direct IPC, SQLite, filesystem roots, and shell allowlists fit together.</p>
+                    <p>See how the injected bridge, trust model, multi-window runtime, SQLite migrations, filesystem roots, and shell hardening fit together.</p>
                 </a>
                 <a class="doc-card" href="docs.html?doc=frontend-app-rules">
                     <span>Contract</span>
                     <strong>Frontend app rules</strong>
-                    <p>Everything app folders must do to dev, export, and package without surprises.</p>
+                    <p>Everything app folders must do to declare config, dev, export, validate, and package without surprises.</p>
                 </a>
             </div>
         </section>
     </main>
 
     <footer class="site-footer">
-        <p>RustFrame ships Linux, Windows, and macOS host-native workflows, with Linux still carrying the heaviest runtime constraints from GTK and WebKitGTK.</p>
+        <p>RustFrame ships Linux, Windows, and macOS host-native workflows. Cross-host validation still needs the matching native toolchain, and Linux still carries the heaviest GTK, WebKitGTK, and X11 constraints.</p>
     </footer>
 
     <script src="app.js"></script>

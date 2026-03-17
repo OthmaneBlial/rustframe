@@ -81,6 +81,13 @@ function setupRevealObserver() {
         return;
     }
 
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        REVEAL_ITEMS.forEach((item) => item.classList.add("is-visible"));
+        return;
+    }
+
+    document.documentElement.classList.add("has-reveal");
+
     const observer = new IntersectionObserver(
         (entries) => {
             entries.forEach((entry) => {
