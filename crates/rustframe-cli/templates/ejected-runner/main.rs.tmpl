@@ -5,25 +5,33 @@ use std::{
     path::PathBuf,
 };
 
+use rust_embed::RustEmbed;
 use rustframe::{EmbeddedAssets, Result, RustFrame};
 
+#[derive(RustEmbed)]
+#[folder = {{asset_folder}}]
+#[exclude = "dist/*"]
+#[exclude = "dist/**"]
+#[exclude = "native/*"]
+#[exclude = "native/**"]
+#[exclude = ".*"]
+#[exclude = "**/.*"]
 struct AppAssets;
 
 impl EmbeddedAssets for AppAssets {
     fn get(path: &str) -> Option<Cow<'static, [u8]>> {
-        match path {
-{{asset_match_arms}}        }
+        AppAssets::get(path).map(|asset| asset.data)
     }
 }
 
 #[allow(dead_code)]
 fn source_app_dir() -> PathBuf {
-    PathBuf::from({{source_app_dir}})
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join({{relative_app_dir}})
 }
 
 #[allow(dead_code)]
 fn source_asset_dir() -> PathBuf {
-    PathBuf::from({{source_asset_dir}})
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join({{relative_asset_dir}})
 }
 
 #[allow(dead_code)]

@@ -2,7 +2,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use rusqlite::{
@@ -18,6 +18,7 @@ use crate::{Result, RuntimeError};
 
 const META_TABLE: &str = "__rustframe_meta";
 const APPLIED_SEEDS_TABLE: &str = "__rustframe_applied_seeds";
+const APPLIED_MIGRATIONS_TABLE: &str = "__rustframe_applied_migrations";
 const SCHEMA_VERSION_KEY: &str = "schema_version";
 const SCHEMA_CHECKSUM_KEY: &str = "schema_checksum";
 const DATABASE_FILE_NAME: &str = "app.db";
@@ -223,10 +224,79 @@ pub struct DatabaseSeedEntry {
 }
 
 #[derive(Clone, Debug)]
+pub struct DatabaseMigrationFile {
+    pub path: String,
+    pub version: u32,
+    pub checksum: String,
+    pub sql: String,
+}
+
+impl DatabaseMigrationFile {
+    pub fn from_sql(path: impl Into<String>, source: &str) -> Result<Self> {
+        let path = path.into();
+        let version = migration_version_from_path(&path)?;
+        if source.trim().is_empty() {
+            return Err(RuntimeError::InvalidConfiguration(format!(
+                "migration file '{}' must not be empty",
+                path
+            )));
+        }
+
+        Ok(Self {
+            path,
+            version,
+            checksum: hex_sha256(source.as_bytes()),
+            sql: source.to_string(),
+        })
+    }
+}
+
+fn migration_version_from_path(path: &str) -> Result<u32> {
+    let file_name = Path::new(path)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| {
+            RuntimeError::InvalidConfiguration(format!(
+                "migration path '{}' must include a UTF-8 file name",
+                path
+            ))
+        })?;
+
+    let digits = file_name
+        .chars()
+        .take_while(|character| character.is_ascii_digit())
+        .collect::<String>();
+
+    if digits.is_empty() {
+        return Err(RuntimeError::InvalidConfiguration(format!(
+            "migration file '{}' must start with a numeric version prefix",
+            path
+        )));
+    }
+
+    let version = digits.parse::<u32>().map_err(|error| {
+        RuntimeError::InvalidConfiguration(format!(
+            "migration file '{}' has an invalid version prefix: {}",
+            path, error
+        ))
+    })?;
+
+    if version == 0 {
+        return Err(RuntimeError::InvalidConfiguration(format!(
+            "migration file '{}' must start with a version greater than zero",
+            path
+        )));
+    }
+
+    Ok(version)
+}
+
+#[derive(Clone, Debug)]
 pub struct DatabaseOpenConfig {
     pub app_id: String,
     pub data_dir: Option<PathBuf>,
     pub schema: DatabaseSchema,
+    pub migration_files: Vec<DatabaseMigrationFile>,
     pub seed_files: Vec<DatabaseSeedFile>,
 }
 
@@ -321,7 +391,12 @@ impl DatabaseCapability {
         let tables = build_table_plans(&config.schema)?;
 
         initialize_meta_tables(&connection)?;
-        apply_schema(&connection, &config.schema, &tables)?;
+        apply_schema(
+            &connection,
+            &config.schema,
+            &tables,
+            &config.migration_files,
+        )?;
         apply_seed_files(&connection, &tables, &config.seed_files)?;
 
         let info = DatabaseInfo {
@@ -604,9 +679,16 @@ fn initialize_meta_tables(connection: &Connection) -> Result<()> {
             path TEXT PRIMARY KEY,
             checksum TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS {migration_table} (
+            version INTEGER PRIMARY KEY,
+            path TEXT NOT NULL,
+            checksum TEXT NOT NULL
+        );
         "#,
         meta_table = quote_identifier(META_TABLE),
         seed_table = quote_identifier(APPLIED_SEEDS_TABLE),
+        migration_table = quote_identifier(APPLIED_MIGRATIONS_TABLE),
     ))?;
 
     Ok(())
@@ -616,8 +698,10 @@ fn apply_schema(
     connection: &Connection,
     schema: &DatabaseSchema,
     tables: &BTreeMap<String, TablePlan>,
+    migration_files: &[DatabaseMigrationFile],
 ) -> Result<()> {
     let schema_checksum = hex_sha256(&serde_json::to_vec(schema)?);
+    let migrations_by_version = validate_migration_files(schema.version, migration_files)?;
     let stored_version = meta_value(connection, SCHEMA_VERSION_KEY)?
         .map(|value| value.parse::<u32>())
         .transpose()
@@ -626,6 +710,7 @@ fn apply_schema(
         })?;
 
     let stored_checksum = meta_value(connection, SCHEMA_CHECKSUM_KEY)?;
+    validate_applied_migration_checksums(connection, &migrations_by_version)?;
 
     match stored_version {
         None => {
@@ -640,6 +725,10 @@ fn apply_schema(
                     "database on disk is at schema version {}, but embedded schema version is {}",
                     version, schema.version
                 )));
+            }
+
+            if version < schema.version {
+                apply_migration_files(connection, &migrations_by_version, version, schema.version)?;
             }
 
             for table in &schema.tables {
@@ -692,7 +781,7 @@ fn apply_seed_files(
             }
 
             return Err(RuntimeError::InvalidConfiguration(format!(
-                "seed file '{}' changed after it had already been applied",
+                "seed file '{}' changed after it had already been applied; create a new versioned seed file or move the data change into data/migrations/*.sql",
                 seed.path
             )));
         }
@@ -717,6 +806,112 @@ fn apply_seed_files(
                 quote_identifier(APPLIED_SEEDS_TABLE)
             ),
             params![seed.path, seed.checksum],
+        )?;
+        transaction.commit()?;
+    }
+
+    Ok(())
+}
+
+fn validate_migration_files<'a>(
+    schema_version: u32,
+    migration_files: &'a [DatabaseMigrationFile],
+) -> Result<BTreeMap<u32, &'a DatabaseMigrationFile>> {
+    let mut migrations = BTreeMap::new();
+
+    for migration in migration_files {
+        if migration.version > schema_version {
+            return Err(RuntimeError::InvalidConfiguration(format!(
+                "migration '{}' targets version {}, but schema version is {}",
+                migration.path, migration.version, schema_version
+            )));
+        }
+
+        if migrations.insert(migration.version, migration).is_some() {
+            return Err(RuntimeError::InvalidConfiguration(format!(
+                "migration version {} is defined more than once",
+                migration.version
+            )));
+        }
+    }
+
+    Ok(migrations)
+}
+
+fn validate_applied_migration_checksums(
+    connection: &Connection,
+    migrations_by_version: &BTreeMap<u32, &DatabaseMigrationFile>,
+) -> Result<()> {
+    let mut statement = connection.prepare(&format!(
+        "SELECT version, path, checksum FROM {} ORDER BY version",
+        quote_identifier(APPLIED_MIGRATIONS_TABLE)
+    ))?;
+    let rows = statement.query_map([], |row| {
+        Ok((
+            row.get::<_, u32>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })?;
+
+    for row in rows {
+        let (version, path, checksum) = row?;
+        let Some(current) = migrations_by_version.get(&version) else {
+            continue;
+        };
+
+        if current.checksum != checksum {
+            return Err(RuntimeError::InvalidConfiguration(format!(
+                "migration file '{}' changed after version {} had already been applied (stored as '{}')",
+                current.path, version, path
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn apply_migration_files(
+    connection: &Connection,
+    migrations_by_version: &BTreeMap<u32, &DatabaseMigrationFile>,
+    from_version: u32,
+    to_version: u32,
+) -> Result<()> {
+    for version in (from_version + 1)..=to_version {
+        let Some(migration) = migrations_by_version.get(&version) else {
+            continue;
+        };
+
+        let existing = connection
+            .query_row(
+                &format!(
+                    "SELECT checksum FROM {} WHERE version = ?1",
+                    quote_identifier(APPLIED_MIGRATIONS_TABLE)
+                ),
+                params![version],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+
+        if let Some(checksum) = existing {
+            if checksum == migration.checksum {
+                continue;
+            }
+
+            return Err(RuntimeError::InvalidConfiguration(format!(
+                "migration file '{}' changed after version {} had already been applied",
+                migration.path, version
+            )));
+        }
+
+        let transaction = connection.unchecked_transaction()?;
+        transaction.execute_batch(&migration.sql)?;
+        transaction.execute(
+            &format!(
+                "INSERT INTO {} (version, path, checksum) VALUES (?1, ?2, ?3)",
+                quote_identifier(APPLIED_MIGRATIONS_TABLE)
+            ),
+            params![version, migration.path, migration.checksum],
         )?;
         transaction.commit()?;
     }
@@ -1293,7 +1488,8 @@ fn validate_app_id(value: &str) -> Result<()> {
         )));
     }
 
-    if !characters.all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+    if !characters
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
     {
         return Err(RuntimeError::InvalidConfiguration(format!(
             "app id '{}' may only contain letters, digits, underscores, and hyphens",
@@ -1390,9 +1586,10 @@ fn hex_sha256(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        APPLIED_SEEDS_TABLE, DatabaseCapability, DatabaseColumnType, DatabaseFilter,
-        DatabaseFilterOp, DatabaseListQuery, DatabaseOpenConfig, DatabaseOrder,
-        DatabaseOrderDirection, DatabaseSchema, DatabaseSeedFile, META_TABLE,
+        APPLIED_MIGRATIONS_TABLE, APPLIED_SEEDS_TABLE, DatabaseCapability, DatabaseColumnType,
+        DatabaseFilter, DatabaseFilterOp, DatabaseListQuery, DatabaseMigrationFile,
+        DatabaseOpenConfig, DatabaseOrder, DatabaseOrderDirection, DatabaseSchema,
+        DatabaseSeedFile, META_TABLE,
     };
     use rusqlite::Connection;
     use serde_json::json;
@@ -1439,6 +1636,7 @@ mod tests {
             app_id: "orbit_desk".into(),
             data_dir: Some(root.join("data")),
             schema,
+            migration_files: Vec::new(),
             seed_files: seeds,
         })
         .unwrap()
@@ -1493,6 +1691,7 @@ mod tests {
             app_id: "prism-gallery".into(),
             data_dir: Some(temp.path().join("data")),
             schema: sample_schema(),
+            migration_files: Vec::new(),
             seed_files: Vec::new(),
         })
         .unwrap();
@@ -1697,6 +1896,7 @@ mod tests {
             app_id: "orbit_desk".into(),
             data_dir: Some(data_dir.clone()),
             schema: sample_schema(),
+            migration_files: Vec::new(),
             seed_files: vec![seed.clone()],
         })
         .unwrap();
@@ -1719,6 +1919,7 @@ mod tests {
             app_id: "orbit_desk".into(),
             data_dir: Some(data_dir),
             schema: sample_schema(),
+            migration_files: Vec::new(),
             seed_files: vec![seed],
         })
         .unwrap();
@@ -1751,6 +1952,7 @@ mod tests {
             app_id: "orbit_desk".into(),
             data_dir: Some(data_dir.clone()),
             schema: sample_schema(),
+            migration_files: Vec::new(),
             seed_files: vec![first_seed],
         })
         .unwrap();
@@ -1764,6 +1966,7 @@ mod tests {
             app_id: "orbit_desk".into(),
             data_dir: Some(data_dir),
             schema: sample_schema(),
+            migration_files: Vec::new(),
             seed_files: vec![changed_seed],
         })
         .unwrap_err();
@@ -1805,6 +2008,7 @@ mod tests {
             app_id: "orbit_desk".into(),
             data_dir: Some(data_dir.clone()),
             schema: v1,
+            migration_files: Vec::new(),
             seed_files: Vec::new(),
         })
         .unwrap();
@@ -1835,6 +2039,7 @@ mod tests {
             app_id: "orbit_desk".into(),
             data_dir: Some(data_dir),
             schema: v2,
+            migration_files: Vec::new(),
             seed_files: Vec::new(),
         })
         .unwrap();
@@ -1851,6 +2056,146 @@ mod tests {
 
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0]["priority"], "high");
+    }
+
+    #[test]
+    fn applies_explicit_sql_migrations_for_non_additive_changes() {
+        let temp = tempdir().unwrap();
+        let data_dir = temp.path().join("data");
+
+        let v1 = DatabaseSchema::from_json(
+            r#"
+            {
+              "version": 1,
+              "tables": [
+                { "name": "tasks", "columns": [{ "name": "title", "type": "text", "required": true }] }
+              ]
+            }
+            "#,
+        )
+        .unwrap();
+
+        let first = DatabaseCapability::open(DatabaseOpenConfig {
+            app_id: "orbit_desk".into(),
+            data_dir: Some(data_dir.clone()),
+            schema: v1,
+            migration_files: Vec::new(),
+            seed_files: Vec::new(),
+        })
+        .unwrap();
+        first
+            .insert("tasks", json!({ "title": "Rename this field" }))
+            .unwrap();
+        drop(first);
+
+        let v2 = DatabaseSchema::from_json(
+            r#"
+            {
+              "version": 2,
+              "tables": [
+                { "name": "tasks", "columns": [{ "name": "name", "type": "text", "required": true }] }
+              ]
+            }
+            "#,
+        )
+        .unwrap();
+        let migration = DatabaseMigrationFile::from_sql(
+            "data/migrations/002-rename-title.sql",
+            r#"
+            ALTER TABLE tasks RENAME COLUMN title TO name;
+            "#,
+        )
+        .unwrap();
+
+        let upgraded = DatabaseCapability::open(DatabaseOpenConfig {
+            app_id: "orbit_desk".into(),
+            data_dir: Some(data_dir),
+            schema: v2,
+            migration_files: vec![migration],
+            seed_files: Vec::new(),
+        })
+        .unwrap();
+
+        let rows = upgraded
+            .list(&DatabaseListQuery {
+                table: "tasks".into(),
+                ..Default::default()
+            })
+            .unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["name"], "Rename this field");
+    }
+
+    #[test]
+    fn rejects_changed_migration_files_after_apply() {
+        let temp = tempdir().unwrap();
+        let data_dir = temp.path().join("data");
+
+        let v1 = DatabaseSchema::from_json(
+            r#"
+            {
+              "version": 1,
+              "tables": [
+                { "name": "tasks", "columns": [{ "name": "title", "type": "text", "required": true }] }
+              ]
+            }
+            "#,
+        )
+        .unwrap();
+        DatabaseCapability::open(DatabaseOpenConfig {
+            app_id: "orbit_desk".into(),
+            data_dir: Some(data_dir.clone()),
+            schema: v1,
+            migration_files: Vec::new(),
+            seed_files: Vec::new(),
+        })
+        .unwrap();
+
+        let v2 = DatabaseSchema::from_json(
+            r#"
+            {
+              "version": 2,
+              "tables": [
+                { "name": "tasks", "columns": [{ "name": "name", "type": "text", "required": true }] }
+              ]
+            }
+            "#,
+        )
+        .unwrap();
+        let first_migration = DatabaseMigrationFile::from_sql(
+            "data/migrations/002-rename-title.sql",
+            "ALTER TABLE tasks RENAME COLUMN title TO name;",
+        )
+        .unwrap();
+        DatabaseCapability::open(DatabaseOpenConfig {
+            app_id: "orbit_desk".into(),
+            data_dir: Some(data_dir.clone()),
+            schema: v2.clone(),
+            migration_files: vec![first_migration],
+            seed_files: Vec::new(),
+        })
+        .unwrap();
+
+        let changed_migration = DatabaseMigrationFile::from_sql(
+            "data/migrations/002-rename-title.sql",
+            "ALTER TABLE tasks RENAME COLUMN title TO display_name;",
+        )
+        .unwrap();
+        let error = DatabaseCapability::open(DatabaseOpenConfig {
+            app_id: "orbit_desk".into(),
+            data_dir: Some(data_dir),
+            schema: v2,
+            migration_files: vec![changed_migration],
+            seed_files: Vec::new(),
+        })
+        .unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("changed after version 2 had already been applied")
+        );
     }
 
     #[test]
@@ -1872,7 +2217,9 @@ mod tests {
     #[test]
     fn rejects_missing_required_fields_on_insert() {
         let capability = open_database(sample_schema(), Vec::new());
-        let error = capability.insert("settings", json!({ "value": "night" })).unwrap_err();
+        let error = capability
+            .insert("settings", json!({ "value": "night" }))
+            .unwrap_err();
 
         assert!(error.to_string().contains("missing required field 'key'"));
     }
@@ -1905,6 +2252,7 @@ mod tests {
 
         assert!(tables.iter().any(|name| name == META_TABLE));
         assert!(tables.iter().any(|name| name == APPLIED_SEEDS_TABLE));
+        assert!(tables.iter().any(|name| name == APPLIED_MIGRATIONS_TABLE));
     }
 
     #[test]

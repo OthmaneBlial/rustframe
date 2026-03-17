@@ -3,8 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="rustframe:width" content="{{window_width}}">
-    <meta name="rustframe:height" content="{{window_height}}">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'">
     <title>{{app_title}}</title>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -94,7 +93,7 @@
                     <li><code>index.html</code> for structure and metadata</li>
                     <li><code>styles.css</code> for styling</li>
                     <li><code>app.js</code> for behavior</li>
-                    <li><code>bridge.js</code> for native APIs</li>
+                    <li><code>window.RustFrame</code> injected by the runtime</li>
                     <li><code>data/schema.json</code> for tables</li>
                     <li><code>data/seeds/*.json</code> for initial rows</li>
                 </ul>
@@ -102,7 +101,6 @@
         </section>
     </main>
 
-    <script src="bridge.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

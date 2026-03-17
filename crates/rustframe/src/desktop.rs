@@ -1,12 +1,19 @@
-use std::{borrow::Cow, collections::BTreeMap, path::PathBuf};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    env, fs,
+    path::PathBuf,
+    sync::mpsc,
+    thread,
+};
 
 use mime_guess::MimeGuess;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tao::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoopBuilder},
-    window::{Window, WindowBuilder},
+    event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget},
+    window::{Window, WindowBuilder, WindowId},
 };
 use wry::{
     NewWindowResponse, WebView, WebViewBuilder,
@@ -14,17 +21,22 @@ use wry::{
 };
 
 use crate::{
-    DatabaseCapability, DatabaseListQuery, DatabaseOpenConfig, DatabaseSchema, DatabaseSeedFile,
-    FsCapability, IpcRequest, IpcResponse, Result, RuntimeError, ShellCapability, ShellCommand,
+    DatabaseCapability, DatabaseListQuery, DatabaseMigrationFile, DatabaseOpenConfig,
+    DatabaseSchema, DatabaseSeedFile, FsCapability, IpcRequest, IpcResponse, Result, RuntimeError,
+    ShellCapability, ShellCommand,
 };
 
 const APP_URL: &str = "app://localhost/";
+const RUSTFRAME_BRIDGE_SCRIPT: &str = include_str!("bridge.js");
+const PRIMARY_WINDOW_ID: &str = "main";
+const MAX_OPEN_WINDOWS: usize = 16;
 
 pub trait EmbeddedAssets {
     fn get(path: &str) -> Option<Cow<'static, [u8]>>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WindowOptions {
     pub title: String,
     pub width: f64,
@@ -39,6 +51,122 @@ impl Default for WindowOptions {
             height: 720.0,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum FrontendTrust {
+    #[default]
+    LocalFirst,
+    Networked,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrontendSecurity {
+    pub model: FrontendTrust,
+    pub database: bool,
+    pub filesystem: bool,
+    pub shell: bool,
+}
+
+impl Default for FrontendSecurity {
+    fn default() -> Self {
+        Self::local_first()
+    }
+}
+
+impl FrontendSecurity {
+    pub fn local_first() -> Self {
+        Self {
+            model: FrontendTrust::LocalFirst,
+            database: true,
+            filesystem: true,
+            shell: true,
+        }
+    }
+
+    pub fn networked() -> Self {
+        Self {
+            model: FrontendTrust::Networked,
+            database: false,
+            filesystem: false,
+            shell: false,
+        }
+    }
+
+    pub fn database(mut self, allowed: bool) -> Self {
+        self.database = allowed;
+        self
+    }
+
+    pub fn filesystem(mut self, allowed: bool) -> Self {
+        self.filesystem = allowed;
+        self
+    }
+
+    pub fn shell(mut self, allowed: bool) -> Self {
+        self.shell = allowed;
+        self
+    }
+
+    fn resolve(
+        &self,
+        fs_capability: &FsCapability,
+        shell_capability: &ShellCapability,
+        database_capability: Option<&DatabaseCapability>,
+    ) -> ResolvedFrontendSecurity {
+        ResolvedFrontendSecurity {
+            model: self.model,
+            database: self.database && database_capability.is_some(),
+            filesystem: self.filesystem && !fs_capability.roots().is_empty(),
+            shell: self.shell && !shell_capability.command_names().is_empty(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ResolvedFrontendSecurity {
+    model: FrontendTrust,
+    database: bool,
+    filesystem: bool,
+    shell: bool,
+}
+
+#[derive(Debug)]
+struct RuntimeSmokeConfig {
+    output_path: Option<PathBuf>,
+    data_dir: Option<PathBuf>,
+}
+
+impl RuntimeSmokeConfig {
+    fn from_env() -> Option<Self> {
+        let enabled = env::var("RUSTFRAME_SMOKE_TEST")
+            .ok()
+            .map(|value| value != "0")
+            .unwrap_or(false);
+
+        enabled.then(|| Self {
+            output_path: env::var_os("RUSTFRAME_SMOKE_OUTPUT").map(PathBuf::from),
+            data_dir: env::var_os("RUSTFRAME_SMOKE_DATA_DIR").map(PathBuf::from),
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeSmokeReport {
+    app_id: Option<String>,
+    launch_mode: String,
+    active_dev_url: Option<String>,
+    window: WindowOptions,
+    security: ResolvedFrontendSecurity,
+    has_index_html: bool,
+    bridge_injected: bool,
+    fs_roots: Vec<String>,
+    shell_commands: Vec<String>,
+    database: Option<crate::DatabaseInfo>,
 }
 
 pub struct RustFrame;
@@ -68,11 +196,236 @@ impl EmbeddedAssetRouter {
 struct EmbeddedDatabaseConfig {
     schema_path: String,
     seed_paths: Vec<String>,
+    migration_paths: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WindowRecord {
+    id: String,
+    title: String,
+    route: String,
+    width: f64,
+    height: f64,
+    is_primary: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WindowOpenParams {
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    route: Option<String>,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    width: Option<f64>,
+    #[serde(default)]
+    height: Option<f64>,
+}
+
+struct ManagedWindow {
+    record: WindowRecord,
+    window: Window,
+    webview: WebView,
+}
+
+struct WindowManager {
+    assets: EmbeddedAssetRouter,
+    security: ResolvedFrontendSecurity,
+    ipc_proxy: EventLoopProxy<UserEvent>,
+    windows: HashMap<WindowId, ManagedWindow>,
+    default_window: WindowOptions,
+    dev_url: Option<String>,
+    next_window_index: u64,
+}
+
+impl WindowManager {
+    fn new(
+        assets: EmbeddedAssetRouter,
+        security: ResolvedFrontendSecurity,
+        ipc_proxy: EventLoopProxy<UserEvent>,
+        default_window: WindowOptions,
+        dev_url: Option<String>,
+    ) -> Self {
+        Self {
+            assets,
+            security,
+            ipc_proxy,
+            windows: HashMap::new(),
+            default_window,
+            dev_url,
+            next_window_index: 2,
+        }
+    }
+
+    fn open_primary(&mut self, target: &EventLoopWindowTarget<UserEvent>) -> Result<WindowRecord> {
+        self.open_window(
+            target,
+            WindowOpenParams {
+                id: Some(PRIMARY_WINDOW_ID.to_string()),
+                route: Some("/".into()),
+                title: Some(self.default_window.title.clone()),
+                width: Some(self.default_window.width),
+                height: Some(self.default_window.height),
+            },
+            true,
+        )
+    }
+
+    fn open_window(
+        &mut self,
+        target: &EventLoopWindowTarget<UserEvent>,
+        params: WindowOpenParams,
+        is_primary: bool,
+    ) -> Result<WindowRecord> {
+        let id = normalize_window_label(params.id, self.next_window_index)?;
+        if !is_primary {
+            self.next_window_index += 1;
+        }
+
+        if let Some(existing) = self
+            .windows
+            .values()
+            .find(|managed| managed.record.id == id)
+        {
+            existing.window.set_focus();
+            return Ok(existing.record.clone());
+        }
+
+        if self.windows.len() >= MAX_OPEN_WINDOWS {
+            return Err(RuntimeError::PermissionDenied(format!(
+                "window.open is limited to {MAX_OPEN_WINDOWS} windows per app"
+            )));
+        }
+
+        let route = normalize_window_route(params.route.as_deref().unwrap_or("/"))?;
+        let title = params
+            .title
+            .map(|value| validate_window_title(&value))
+            .transpose()?
+            .unwrap_or_else(|| self.default_window.title.clone());
+        let width = params
+            .width
+            .map(validate_window_dimension)
+            .transpose()?
+            .unwrap_or(self.default_window.width);
+        let height = params
+            .height
+            .map(validate_window_dimension)
+            .transpose()?
+            .unwrap_or(self.default_window.height);
+
+        let record = WindowRecord {
+            id,
+            title: title.clone(),
+            route: route.clone(),
+            width,
+            height,
+            is_primary,
+        };
+
+        let window = WindowBuilder::new()
+            .with_title(&title)
+            .with_inner_size(tao::dpi::LogicalSize::new(width, height))
+            .build(target)?;
+        let native_window_id = window.id();
+        let bridge_config_script = bridge_config_script(&self.security, &record)?;
+        let ipc_proxy = self.ipc_proxy.clone();
+        let assets = self.assets;
+        let url = window_url(self.dev_url.as_deref(), &route);
+        let builder = WebViewBuilder::new()
+            .with_background_color((6, 9, 18, 255))
+            .with_initialization_script(&bridge_config_script)
+            .with_initialization_script(RUSTFRAME_BRIDGE_SCRIPT)
+            .with_custom_protocol("app".into(), move |_id, request| {
+                asset_response(assets, request)
+            })
+            .with_new_window_req_handler(|_, _| NewWindowResponse::Deny)
+            .with_ipc_handler(move |request| {
+                let _ = ipc_proxy.send_event(UserEvent::Ipc {
+                    window_id: native_window_id,
+                    body: request.body().clone(),
+                });
+            })
+            .with_url(&url);
+        let webview = build_webview(builder, &window)?;
+
+        self.windows.insert(
+            native_window_id,
+            ManagedWindow {
+                record: record.clone(),
+                window,
+                webview,
+            },
+        );
+
+        Ok(record)
+    }
+
+    fn current(&self, window_id: WindowId) -> Result<WindowRecord> {
+        self.windows
+            .get(&window_id)
+            .map(|managed| managed.record.clone())
+            .ok_or_else(|| RuntimeError::InvalidParameter("window is no longer available".into()))
+    }
+
+    fn list(&self) -> Vec<WindowRecord> {
+        let mut windows = self
+            .windows
+            .values()
+            .map(|managed| managed.record.clone())
+            .collect::<Vec<_>>();
+        windows.sort_by(|left, right| left.id.cmp(&right.id));
+        windows
+    }
+
+    fn minimize(&self, window_id: WindowId) -> Result<()> {
+        let window = self.window(window_id)?;
+        window.set_minimized(true);
+        Ok(())
+    }
+
+    fn maximize(&self, window_id: WindowId) -> Result<()> {
+        let window = self.window(window_id)?;
+        window.set_maximized(true);
+        Ok(())
+    }
+
+    fn set_title(&mut self, window_id: WindowId, title: String) -> Result<()> {
+        let title = validate_window_title(&title)?;
+        let managed = self.windows.get_mut(&window_id).ok_or_else(|| {
+            RuntimeError::InvalidParameter("window is no longer available".into())
+        })?;
+        managed.window.set_title(&title);
+        managed.record.title = title;
+        Ok(())
+    }
+
+    fn resolve_response(&self, window_id: WindowId, response: &IpcResponse) {
+        if let Some(managed) = self.windows.get(&window_id) {
+            resolve_ipc_response(&managed.webview, response);
+        }
+    }
+
+    fn close_window(&mut self, window_id: WindowId) -> bool {
+        self.windows.remove(&window_id);
+        self.windows.is_empty()
+    }
+
+    fn window(&self, window_id: WindowId) -> Result<&Window> {
+        self.windows
+            .get(&window_id)
+            .map(|managed| &managed.window)
+            .ok_or_else(|| RuntimeError::InvalidParameter("window is no longer available".into()))
+    }
 }
 
 #[derive(Default)]
 pub struct RustFrameBuilder {
     window: WindowOptions,
+    security: FrontendSecurity,
     app_id: Option<String>,
     data_dir: Option<PathBuf>,
     dev_url: Option<String>,
@@ -91,6 +444,15 @@ impl RustFrameBuilder {
     pub fn app_id(mut self, id: impl Into<String>) -> Self {
         self.app_id = Some(id.into());
         self
+    }
+
+    pub fn frontend_security(mut self, security: FrontendSecurity) -> Self {
+        self.security = security;
+        self
+    }
+
+    pub fn networked_frontend(self) -> Self {
+        self.frontend_security(FrontendSecurity::networked())
     }
 
     pub fn data_dir(mut self, path: impl Into<PathBuf>) -> Self {
@@ -125,6 +487,33 @@ impl RustFrameBuilder {
                 .into_iter()
                 .map(|path| path.as_ref().to_string())
                 .collect(),
+            migration_paths: Vec::new(),
+        });
+        self
+    }
+
+    pub fn embedded_database_with_migrations<I, S, J, T>(
+        mut self,
+        schema_path: impl Into<String>,
+        seed_paths: I,
+        migration_paths: J,
+    ) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+        J: IntoIterator<Item = T>,
+        T: AsRef<str>,
+    {
+        self.database = Some(EmbeddedDatabaseConfig {
+            schema_path: schema_path.into(),
+            seed_paths: seed_paths
+                .into_iter()
+                .map(|path| path.as_ref().to_string())
+                .collect(),
+            migration_paths: migration_paths
+                .into_iter()
+                .map(|path| path.as_ref().to_string())
+                .collect(),
         });
         self
     }
@@ -135,7 +524,7 @@ impl RustFrameBuilder {
     }
 
     pub fn allow_shell_command<I, S>(
-        mut self,
+        self,
         name: impl Into<String>,
         program: impl Into<String>,
         args: I,
@@ -144,79 +533,114 @@ impl RustFrameBuilder {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        self.shell_commands
-            .insert(name.into(), ShellCommand::new(program, args));
+        self.allow_shell_command_configured(name, ShellCommand::new(program, args))
+    }
+
+    pub fn allow_shell_command_configured(
+        mut self,
+        name: impl Into<String>,
+        command: ShellCommand,
+    ) -> Self {
+        self.shell_commands.insert(name.into(), command);
         self
     }
 
     pub fn run(self) -> Result<()> {
-        let assets = self.assets.ok_or(RuntimeError::MissingAssets)?;
-        let fs_capability = FsCapability::new(self.fs_roots)?;
-        let shell_capability = ShellCapability::new(self.shell_commands);
+        let RustFrameBuilder {
+            window,
+            security,
+            app_id,
+            data_dir,
+            dev_url,
+            assets,
+            database,
+            fs_roots,
+            shell_commands,
+        } = self;
+
+        let assets = assets.ok_or(RuntimeError::MissingAssets)?;
+        let smoke = RuntimeSmokeConfig::from_env();
+        let database_data_dir = smoke
+            .as_ref()
+            .and_then(|config| config.data_dir.clone())
+            .or(data_dir);
+        let fs_capability = FsCapability::new(fs_roots)?;
+        let shell_capability = ShellCapability::try_new(shell_commands)?;
         let database_capability =
-            load_database_capability(assets, self.app_id, self.data_dir, self.database)?;
+            load_database_capability(assets, app_id.clone(), database_data_dir, database)?;
+        let dev_url = active_dev_url(dev_url);
+        let security = security.resolve(
+            &fs_capability,
+            &shell_capability,
+            database_capability.as_ref(),
+        );
+
+        if let Some(smoke) = smoke {
+            return run_runtime_smoke_check(
+                smoke,
+                &window,
+                app_id.as_deref(),
+                dev_url.as_deref(),
+                &security,
+                assets,
+                &fs_capability,
+                &shell_capability,
+                database_capability.as_ref(),
+            );
+        }
 
         prepare_linux_runtime()?;
 
         let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
-        let proxy = event_loop.create_proxy();
-        let window = WindowBuilder::new()
-            .with_title(&self.window.title)
-            .with_inner_size(tao::dpi::LogicalSize::new(
-                self.window.width,
-                self.window.height,
-            ))
-            .build(&event_loop)?;
+        let ipc_proxy = event_loop.create_proxy();
+        let worker = IpcWorker::spawn(
+            ipc_proxy.clone(),
+            fs_capability,
+            shell_capability,
+            database_capability,
+        )?;
+        let mut window_manager =
+            WindowManager::new(assets, security.clone(), ipc_proxy, window.clone(), dev_url);
+        window_manager.open_primary(&event_loop)?;
 
-        let builder = WebViewBuilder::new()
-            .with_background_color((6, 9, 18, 255))
-            .with_custom_protocol("app".into(), move |_id, request| {
-                asset_response(assets, request)
-            })
-            .with_new_window_req_handler(|_, _| NewWindowResponse::Deny)
-            .with_ipc_handler(move |request| {
-                let _ = proxy.send_event(UserEvent::Ipc(request.body().clone()));
-            });
-
-        let dev_url = active_dev_url(self.dev_url);
-        let builder = match dev_url {
-            Some(url) => builder.with_url(url),
-            None => builder.with_url(APP_URL),
-        };
-
-        let webview = build_webview(builder, &window)?;
-        let mut pending_exit = false;
-
-        event_loop.run(move |event, _, control_flow| {
+        event_loop.run(move |event, target, control_flow| {
             *control_flow = ControlFlow::Wait;
 
             match event {
                 Event::WindowEvent {
+                    window_id,
                     event: WindowEvent::CloseRequested,
                     ..
                 } => {
-                    *control_flow = ControlFlow::Exit;
+                    if window_manager.close_window(window_id) {
+                        *control_flow = ControlFlow::Exit;
+                    }
                 }
-                Event::UserEvent(UserEvent::Ipc(body)) => {
-                    let outcome = handle_ipc_message(
+                Event::UserEvent(UserEvent::Ipc { window_id, body }) => {
+                    if let Some(outcome) = dispatch_ipc_message(
                         &body,
-                        &window,
-                        &fs_capability,
-                        &shell_capability,
-                        database_capability.as_ref(),
-                    );
-
-                    if let Ok(serialized) = serde_json::to_string(&outcome.response) {
-                        let script = format!("window.RustFrame.__resolveFromNative({serialized});");
-                        let _ = webview.evaluate_script(&script);
+                        window_id,
+                        &worker,
+                        &security,
+                        &mut window_manager,
+                        target,
+                    ) {
+                        window_manager.resolve_response(window_id, &outcome.response);
+                        if let Some(close_window_id) = outcome.close_window {
+                            if window_manager.close_window(close_window_id) {
+                                *control_flow = ControlFlow::Exit;
+                            }
+                        }
                     }
-
-                    if outcome.should_exit {
-                        pending_exit = true;
-                    }
+                }
+                Event::UserEvent(UserEvent::IpcResponse {
+                    window_id,
+                    response,
+                }) => {
+                    window_manager.resolve_response(window_id, &response);
                 }
                 Event::MainEventsCleared => {
-                    if pending_exit {
+                    if window_manager.windows.is_empty() {
                         *control_flow = ControlFlow::Exit;
                     }
                     pump_linux_events();
@@ -230,13 +654,144 @@ impl RustFrameBuilder {
     }
 }
 
+fn run_runtime_smoke_check(
+    smoke: RuntimeSmokeConfig,
+    window: &WindowOptions,
+    app_id: Option<&str>,
+    dev_url: Option<&str>,
+    security: &ResolvedFrontendSecurity,
+    assets: EmbeddedAssetRouter,
+    fs_capability: &FsCapability,
+    shell_capability: &ShellCapability,
+    database_capability: Option<&DatabaseCapability>,
+) -> Result<()> {
+    let report = RuntimeSmokeReport {
+        app_id: app_id.map(ToOwned::to_owned),
+        launch_mode: if dev_url.is_some() {
+            "dev-server".to_string()
+        } else {
+            "embedded".to_string()
+        },
+        active_dev_url: dev_url.map(ToOwned::to_owned),
+        window: window.clone(),
+        security: security.clone(),
+        has_index_html: assets.get("index.html").is_some(),
+        bridge_injected: true,
+        fs_roots: fs_capability
+            .roots()
+            .iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect(),
+        shell_commands: shell_capability
+            .command_names()
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect(),
+        database: database_capability.map(|database| database.info().clone()),
+    };
+
+    let contents = serde_json::to_string_pretty(&report)
+        .map_err(|error| RuntimeError::InvalidConfiguration(error.to_string()))?;
+
+    if let Some(output_path) = smoke.output_path {
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(output_path, contents)?;
+    } else {
+        println!("{contents}");
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BridgeConfig<'a> {
+    #[serde(flatten)]
+    security: &'a ResolvedFrontendSecurity,
+    current_window: &'a WindowRecord,
+}
+
+fn bridge_config_script(
+    security: &ResolvedFrontendSecurity,
+    current_window: &WindowRecord,
+) -> Result<String> {
+    let serialized = serde_json::to_string(&BridgeConfig {
+        security,
+        current_window,
+    })?;
+    Ok(format!(
+        "window.__RUSTFRAME_BRIDGE_CONFIG__ = Object.freeze({serialized});"
+    ))
+}
+
 enum UserEvent {
-    Ipc(String),
+    Ipc {
+        window_id: WindowId,
+        body: String,
+    },
+    IpcResponse {
+        window_id: WindowId,
+        response: IpcResponse,
+    },
 }
 
 struct IpcOutcome {
     response: IpcResponse,
-    should_exit: bool,
+    close_window: Option<WindowId>,
+}
+
+struct BackgroundIpcRequest {
+    window_id: WindowId,
+    request: IpcRequest,
+}
+
+struct IpcWorker {
+    sender: mpsc::Sender<BackgroundIpcRequest>,
+}
+
+impl IpcWorker {
+    fn spawn(
+        proxy: EventLoopProxy<UserEvent>,
+        fs_capability: FsCapability,
+        shell_capability: ShellCapability,
+        database_capability: Option<DatabaseCapability>,
+    ) -> Result<Self> {
+        let (sender, receiver) = mpsc::channel::<BackgroundIpcRequest>();
+        thread::Builder::new()
+            .name("rustframe-ipc-worker".into())
+            .spawn(move || {
+                while let Ok(background_request) = receiver.recv() {
+                    let response = execute_background_request(
+                        background_request.request,
+                        &fs_capability,
+                        &shell_capability,
+                        database_capability.as_ref(),
+                    );
+
+                    if proxy
+                        .send_event(UserEvent::IpcResponse {
+                            window_id: background_request.window_id,
+                            response,
+                        })
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+            })?;
+
+        Ok(Self { sender })
+    }
+
+    fn dispatch(&self, window_id: WindowId, request: IpcRequest) -> Result<()> {
+        self.sender
+            .send(BackgroundIpcRequest { window_id, request })
+            .map_err(|_| {
+                RuntimeError::InvalidConfiguration("background IPC worker is unavailable".into())
+            })
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -258,54 +813,164 @@ struct DbGetParams {
     id: i64,
 }
 
-fn handle_ipc_message(
+fn dispatch_ipc_message(
     body: &str,
-    window: &Window,
-    fs_capability: &FsCapability,
-    shell_capability: &ShellCapability,
-    database_capability: Option<&DatabaseCapability>,
-) -> IpcOutcome {
+    window_id: WindowId,
+    worker: &IpcWorker,
+    security: &ResolvedFrontendSecurity,
+    window_manager: &mut WindowManager,
+    target: &EventLoopWindowTarget<UserEvent>,
+) -> Option<IpcOutcome> {
     match serde_json::from_str::<IpcRequest>(body) {
-        Ok(request) => handle_request(
-            request,
-            window,
-            fs_capability,
-            shell_capability,
-            database_capability,
-        ),
-        Err(error) => IpcOutcome {
+        Ok(request) => {
+            dispatch_request(request, window_id, worker, security, window_manager, target)
+        }
+        Err(error) => Some(IpcOutcome {
             response: IpcResponse::failure(0, &RuntimeError::Json(error)),
-            should_exit: false,
-        },
+            close_window: None,
+        }),
     }
 }
 
-fn handle_request(
+fn dispatch_request(
     request: IpcRequest,
-    window: &Window,
+    window_id: WindowId,
+    worker: &IpcWorker,
+    security: &ResolvedFrontendSecurity,
+    window_manager: &mut WindowManager,
+    target: &EventLoopWindowTarget<UserEvent>,
+) -> Option<IpcOutcome> {
+    if let Err(error) = authorize_method(&request.method, security) {
+        return Some(IpcOutcome {
+            response: IpcResponse::failure(request.id, &error),
+            close_window: None,
+        });
+    }
+
+    match method_execution(&request.method) {
+        MethodExecution::MainThread => Some(handle_main_thread_request(
+            request,
+            window_id,
+            window_manager,
+            target,
+        )),
+        MethodExecution::Background => {
+            let request_id = request.id;
+            match worker.dispatch(window_id, request) {
+                Ok(()) => None,
+                Err(error) => Some(IpcOutcome {
+                    response: IpcResponse::failure(request_id, &error),
+                    close_window: None,
+                }),
+            }
+        }
+        MethodExecution::Unknown => Some(IpcOutcome {
+            response: IpcResponse::failure(
+                request.id,
+                &RuntimeError::UnknownMethod(request.method),
+            ),
+            close_window: None,
+        }),
+    }
+}
+
+fn authorize_method(method: &str, security: &ResolvedFrontendSecurity) -> Result<()> {
+    match method {
+        "fs.readText" if !security.filesystem => Err(RuntimeError::PermissionDenied(
+            "filesystem bridge is disabled for this frontend".into(),
+        )),
+        "shell.exec" if !security.shell => Err(RuntimeError::PermissionDenied(
+            "shell bridge is disabled for this frontend".into(),
+        )),
+        "db.info" | "db.get" | "db.list" | "db.count" | "db.insert" | "db.update" | "db.delete"
+            if !security.database =>
+        {
+            Err(RuntimeError::PermissionDenied(
+                "database bridge is disabled for this frontend".into(),
+            ))
+        }
+        _ => Ok(()),
+    }
+}
+
+fn resolve_ipc_response(webview: &WebView, response: &IpcResponse) {
+    if let Ok(serialized) = serde_json::to_string(response) {
+        let script = format!(
+            "if (window.RustFrame && typeof window.RustFrame.__resolveFromNative === 'function') {{ window.RustFrame.__resolveFromNative({serialized}); }}"
+        );
+        let _ = webview.evaluate_script(&script);
+    }
+}
+
+fn method_execution(method: &str) -> MethodExecution {
+    match method {
+        "window.close" | "window.minimize" | "window.maximize" | "window.setTitle"
+        | "window.current" | "window.list" | "window.open" => MethodExecution::MainThread,
+        "fs.readText" | "shell.exec" | "db.info" | "db.get" | "db.list" | "db.count"
+        | "db.insert" | "db.update" | "db.delete" => MethodExecution::Background,
+        _ => MethodExecution::Unknown,
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MethodExecution {
+    MainThread,
+    Background,
+    Unknown,
+}
+
+fn handle_main_thread_request(
+    request: IpcRequest,
+    window_id: WindowId,
+    window_manager: &mut WindowManager,
+    target: &EventLoopWindowTarget<UserEvent>,
+) -> IpcOutcome {
+    let mut close_window = None;
+    let result: Result<Value> = match request.method.as_str() {
+        "window.close" => {
+            close_window = Some(window_id);
+            Ok(Value::Null)
+        }
+        "window.minimize" => (|| {
+            window_manager.minimize(window_id)?;
+            Ok(Value::Null)
+        })(),
+        "window.maximize" => (|| {
+            window_manager.maximize(window_id)?;
+            Ok(Value::Null)
+        })(),
+        "window.setTitle" => (|| {
+            let title = required_string(&request.params, "title")?;
+            window_manager.set_title(window_id, title)?;
+            Ok(json!(window_manager.current(window_id)?))
+        })(),
+        "window.current" => (|| Ok(json!(window_manager.current(window_id)?)))(),
+        "window.list" => Ok(json!(window_manager.list())),
+        "window.open" => (|| {
+            let params: WindowOpenParams = parse_params(&request.params)?;
+            Ok(json!(window_manager.open_window(target, params, false)?))
+        })(),
+        _ => Err(RuntimeError::UnknownMethod(request.method.clone())),
+    };
+
+    let response = match result {
+        Ok(data) => IpcResponse::success(request.id, data),
+        Err(error) => IpcResponse::failure(request.id, &error),
+    };
+
+    IpcOutcome {
+        response,
+        close_window,
+    }
+}
+
+fn execute_background_request(
+    request: IpcRequest,
     fs_capability: &FsCapability,
     shell_capability: &ShellCapability,
     database_capability: Option<&DatabaseCapability>,
-) -> IpcOutcome {
-    let mut should_exit = false;
+) -> IpcResponse {
     let result: Result<Value> = match request.method.as_str() {
-        "window.close" => {
-            should_exit = true;
-            Ok(Value::Null)
-        }
-        "window.minimize" => {
-            window.set_minimized(true);
-            Ok(Value::Null)
-        }
-        "window.maximize" => {
-            window.set_maximized(true);
-            Ok(Value::Null)
-        }
-        "window.setTitle" => (|| {
-            let title = required_string(&request.params, "title")?;
-            window.set_title(&title);
-            Ok(Value::Null)
-        })(),
         "fs.readText" => (|| {
             let path = required_string(&request.params, "path")?;
             let content = fs_capability.read_text(path)?;
@@ -349,14 +1014,9 @@ fn handle_request(
         method => Err(RuntimeError::UnknownMethod(method.to_string())),
     };
 
-    let response = match result {
+    match result {
         Ok(data) => IpcResponse::success(request.id, data),
         Err(error) => IpcResponse::failure(request.id, &error),
-    };
-
-    IpcOutcome {
-        response,
-        should_exit,
     }
 }
 
@@ -402,6 +1062,106 @@ fn optional_string_vec(params: &Value, key: &str) -> Result<Vec<String>> {
         .collect()
 }
 
+fn normalize_window_label(value: Option<String>, next_window_index: u64) -> Result<String> {
+    let Some(value) = value else {
+        return Ok(format!("window-{next_window_index}"));
+    };
+
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(RuntimeError::InvalidParameter(
+            "window id must not be empty".into(),
+        ));
+    }
+
+    if !trimmed
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+    {
+        return Err(RuntimeError::InvalidParameter(
+            "window id may only contain letters, digits, underscores, and hyphens".into(),
+        ));
+    }
+
+    Ok(trimmed.to_string())
+}
+
+fn validate_window_title(value: &str) -> Result<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(RuntimeError::InvalidParameter(
+            "window title must not be empty".into(),
+        ));
+    }
+
+    Ok(trimmed.to_string())
+}
+
+fn validate_window_dimension(value: f64) -> Result<f64> {
+    if !value.is_finite() || value <= 0.0 {
+        return Err(RuntimeError::InvalidParameter(
+            "window dimensions must be positive numbers".into(),
+        ));
+    }
+
+    Ok(value)
+}
+
+fn normalize_window_route(value: &str) -> Result<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok("/".into());
+    }
+
+    if trimmed.contains("://") || trimmed.starts_with("//") {
+        return Err(RuntimeError::PermissionDenied(
+            "window.open only accepts in-app routes, not absolute URLs".into(),
+        ));
+    }
+
+    let mut route_end = trimmed.len();
+    for delimiter in ['?', '#'] {
+        if let Some(index) = trimmed.find(delimiter) {
+            route_end = route_end.min(index);
+        }
+    }
+    let path = &trimmed[..route_end];
+    let suffix = &trimmed[route_end..];
+
+    let mut segments = Vec::new();
+    for segment in path.split('/') {
+        if segment.is_empty() || segment == "." {
+            continue;
+        }
+        if segment == ".." {
+            return Err(RuntimeError::PermissionDenied(
+                "window.open routes may not escape parent directories".into(),
+            ));
+        }
+        segments.push(segment);
+    }
+
+    let mut normalized = String::from("/");
+    normalized.push_str(&segments.join("/"));
+    if normalized.len() > 1 && path.ends_with('/') {
+        normalized.push('/');
+    }
+    normalized.push_str(suffix);
+
+    Ok(normalized)
+}
+
+fn window_url(dev_url: Option<&str>, route: &str) -> String {
+    if let Some(url) = dev_url {
+        let base = url.trim_end_matches('/');
+        format!("{base}{route}")
+    } else if route == "/" {
+        APP_URL.to_string()
+    } else {
+        format!("{}{}", APP_URL.trim_end_matches('/'), route)
+    }
+}
+
 fn load_database_capability(
     assets: EmbeddedAssetRouter,
     app_id: Option<String>,
@@ -419,6 +1179,14 @@ fn load_database_capability(
     })?;
     let schema_text = embedded_text_asset(assets, &config.schema_path)?;
     let schema = DatabaseSchema::from_json(&schema_text)?;
+    let mut migration_files = Vec::new();
+    for migration_path in &config.migration_paths {
+        let migration_text = embedded_text_asset(assets, migration_path)?;
+        migration_files.push(DatabaseMigrationFile::from_sql(
+            migration_path.clone(),
+            &migration_text,
+        )?);
+    }
     let mut seed_files = Vec::new();
     for seed_path in &config.seed_paths {
         let seed_text = embedded_text_asset(assets, seed_path)?;
@@ -429,6 +1197,7 @@ fn load_database_capability(
         app_id,
         data_dir,
         schema,
+        migration_files,
         seed_files,
     })
     .map(Some)
@@ -548,7 +1317,7 @@ fn prepare_linux_runtime() -> Result<()> {
 
     if display.backend().is_wayland() {
         return Err(RuntimeError::InvalidConfiguration(
-            "Wayland is not supported by this Linux-first x11 runtime yet".into(),
+            "Wayland is not supported by this Linux x11 runtime yet".into(),
         ));
     }
 
@@ -595,8 +1364,10 @@ mod tests {
     use wry::http::Request;
 
     use super::{
-        EmbeddedAssetRouter, EmbeddedDatabaseConfig, active_dev_url, asset_response,
-        load_database_capability, normalize_asset_path,
+        EmbeddedAssetRouter, EmbeddedDatabaseConfig, FrontendSecurity, FrontendTrust,
+        MethodExecution, ResolvedFrontendSecurity, WindowRecord, active_dev_url, asset_response,
+        authorize_method, bridge_config_script, load_database_capability, method_execution,
+        normalize_asset_path, normalize_window_route, window_url,
     };
 
     fn fixture(path: &str) -> Option<Cow<'static, [u8]>> {
@@ -615,6 +1386,126 @@ mod tests {
     fn normalizes_root_asset_path() {
         assert_eq!(normalize_asset_path("/"), "index.html");
         assert_eq!(normalize_asset_path("/styles.css"), "styles.css");
+    }
+
+    #[test]
+    fn routes_window_and_native_methods_to_the_expected_execution_context() {
+        assert_eq!(
+            method_execution("window.setTitle"),
+            MethodExecution::MainThread
+        );
+        assert_eq!(
+            method_execution("window.current"),
+            MethodExecution::MainThread
+        );
+        assert_eq!(method_execution("window.list"), MethodExecution::MainThread);
+        assert_eq!(method_execution("window.open"), MethodExecution::MainThread);
+        assert_eq!(method_execution("db.list"), MethodExecution::Background);
+        assert_eq!(method_execution("shell.exec"), MethodExecution::Background);
+        assert_eq!(method_execution("missing.method"), MethodExecution::Unknown);
+    }
+
+    #[test]
+    fn normalizes_window_routes() {
+        assert_eq!(normalize_window_route("/settings").unwrap(), "/settings");
+        assert_eq!(
+            normalize_window_route("settings/prefs?tab=general").unwrap(),
+            "/settings/prefs?tab=general"
+        );
+        assert_eq!(normalize_window_route("./inspector").unwrap(), "/inspector");
+    }
+
+    #[test]
+    fn rejects_unsafe_window_routes() {
+        let absolute = normalize_window_route("https://example.com").unwrap_err();
+        assert!(absolute.to_string().contains("only accepts in-app routes"));
+
+        let parent_escape = normalize_window_route("../settings").unwrap_err();
+        assert!(
+            parent_escape
+                .to_string()
+                .contains("may not escape parent directories")
+        );
+    }
+
+    #[test]
+    fn builds_window_urls_for_embedded_and_dev_modes() {
+        assert_eq!(window_url(None, "/settings"), "app://localhost/settings");
+        assert_eq!(
+            window_url(Some("http://127.0.0.1:5173"), "/inspector?id=1"),
+            "http://127.0.0.1:5173/inspector?id=1"
+        );
+    }
+
+    #[test]
+    fn frontend_security_defaults_to_local_first() {
+        let security = FrontendSecurity::default();
+
+        assert_eq!(security.model, FrontendTrust::LocalFirst);
+        assert!(security.database);
+        assert!(security.filesystem);
+        assert!(security.shell);
+    }
+
+    #[test]
+    fn networked_frontend_blocks_database_shell_and_filesystem_methods() {
+        let security = ResolvedFrontendSecurity {
+            model: FrontendTrust::Networked,
+            database: false,
+            filesystem: false,
+            shell: false,
+        };
+
+        let db_error = authorize_method("db.list", &security).unwrap_err();
+        assert!(
+            db_error
+                .to_string()
+                .contains("database bridge is disabled for this frontend")
+        );
+
+        let fs_error = authorize_method("fs.readText", &security).unwrap_err();
+        assert!(
+            fs_error
+                .to_string()
+                .contains("filesystem bridge is disabled for this frontend")
+        );
+
+        let shell_error = authorize_method("shell.exec", &security).unwrap_err();
+        assert!(
+            shell_error
+                .to_string()
+                .contains("shell bridge is disabled for this frontend")
+        );
+
+        assert!(authorize_method("window.setTitle", &security).is_ok());
+    }
+
+    #[test]
+    fn bridge_config_script_serializes_frontend_security() {
+        let script = bridge_config_script(
+            &ResolvedFrontendSecurity {
+                model: FrontendTrust::Networked,
+                database: true,
+                filesystem: false,
+                shell: false,
+            },
+            &WindowRecord {
+                id: "settings".into(),
+                title: "Settings".into(),
+                route: "/settings".into(),
+                width: 720.0,
+                height: 540.0,
+                is_primary: false,
+            },
+        )
+        .unwrap();
+
+        assert!(script.contains("\"model\":\"networked\""));
+        assert!(script.contains("\"database\":true"));
+        assert!(script.contains("\"filesystem\":false"));
+        assert!(script.contains("\"shell\":false"));
+        assert!(script.contains("\"currentWindow\":{"));
+        assert!(script.contains("\"id\":\"settings\""));
     }
 
     #[test]
@@ -648,6 +1539,7 @@ mod tests {
             Some(EmbeddedDatabaseConfig {
                 schema_path: "data/schema.json".into(),
                 seed_paths: vec!["data/seeds/001-defaults.json".into()],
+                migration_paths: Vec::new(),
             }),
         )
         .unwrap()
@@ -716,6 +1608,7 @@ mod tests {
             Some(EmbeddedDatabaseConfig {
                 schema_path: "data/schema.json".into(),
                 seed_paths: Vec::new(),
+                migration_paths: Vec::new(),
             }),
         )
         .unwrap_err();

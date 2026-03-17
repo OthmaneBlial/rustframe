@@ -34,9 +34,9 @@ async function handleMaximize() {
     writeBlock("Window updated", "Maximize request sent.");
 }
 
-async function handleReadBridge() {
-    const content = await window.RustFrame.fs.readText("bridge.js");
-    writeBlock("frontend/bridge.js", content.slice(0, 1200));
+async function handleReadApp() {
+    const content = await window.RustFrame.fs.readText("app.js");
+    writeBlock("frontend/app.js", content.slice(0, 1200));
 }
 
 async function handleListFrontend() {
@@ -51,7 +51,7 @@ const actions = {
     "set-title": handleSetTitle,
     minimize: handleMinimize,
     maximize: handleMaximize,
-    "read-bridge": handleReadBridge,
+    "read-app": handleReadApp,
     "list-frontend": handleListFrontend
 };
 

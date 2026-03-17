@@ -2,8 +2,8 @@ use serde_json::json;
 use tempfile::tempdir;
 
 use rustframe::{
-    DatabaseCapability, DatabaseFilter, DatabaseFilterOp, DatabaseListQuery, DatabaseOpenConfig,
-    DatabaseOrder, DatabaseOrderDirection, DatabaseSchema, DatabaseSeedFile,
+    DatabaseCapability, DatabaseFilter, DatabaseFilterOp, DatabaseListQuery, DatabaseMigrationFile,
+    DatabaseOpenConfig, DatabaseOrder, DatabaseOrderDirection, DatabaseSchema, DatabaseSeedFile,
 };
 
 fn schema() -> DatabaseSchema {
@@ -36,6 +36,7 @@ fn persists_rows_across_database_reopen() {
         app_id: "orbit_desk".into(),
         data_dir: Some(data_dir.clone()),
         schema: schema(),
+        migration_files: Vec::new(),
         seed_files: Vec::new(),
     })
     .unwrap();
@@ -52,6 +53,7 @@ fn persists_rows_across_database_reopen() {
         app_id: "orbit_desk".into(),
         data_dir: Some(data_dir),
         schema: schema(),
+        migration_files: Vec::new(),
         seed_files: Vec::new(),
     })
     .unwrap();
@@ -86,6 +88,7 @@ fn seeds_and_query_api_work_through_public_types() {
         app_id: "orbit_desk".into(),
         data_dir: Some(temp.path().join("data")),
         schema: schema(),
+        migration_files: Vec::new(),
         seed_files: vec![seed],
     })
     .unwrap();
@@ -109,4 +112,71 @@ fn seeds_and_query_api_work_through_public_types() {
 
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0]["title"], "A");
+}
+
+#[test]
+fn sql_migrations_work_through_public_types() {
+    let temp = tempdir().unwrap();
+    let data_dir = temp.path().join("data");
+
+    let v1 = DatabaseSchema::from_json(
+        r#"
+        {
+          "version": 1,
+          "tables": [
+            { "name": "tasks", "columns": [{ "name": "title", "type": "text", "required": true }] }
+          ]
+        }
+        "#,
+    )
+    .unwrap();
+
+    let first = DatabaseCapability::open(DatabaseOpenConfig {
+        app_id: "orbit_desk".into(),
+        data_dir: Some(data_dir.clone()),
+        schema: v1,
+        migration_files: Vec::new(),
+        seed_files: Vec::new(),
+    })
+    .unwrap();
+    first
+        .insert("tasks", json!({ "title": "Ship migration" }))
+        .unwrap();
+    drop(first);
+
+    let v2 = DatabaseSchema::from_json(
+        r#"
+        {
+          "version": 2,
+          "tables": [
+            { "name": "tasks", "columns": [{ "name": "name", "type": "text", "required": true }] }
+          ]
+        }
+        "#,
+    )
+    .unwrap();
+    let migration = DatabaseMigrationFile::from_sql(
+        "data/migrations/002-rename-title.sql",
+        "ALTER TABLE tasks RENAME COLUMN title TO name;",
+    )
+    .unwrap();
+
+    let database = DatabaseCapability::open(DatabaseOpenConfig {
+        app_id: "orbit_desk".into(),
+        data_dir: Some(data_dir),
+        schema: v2,
+        migration_files: vec![migration],
+        seed_files: Vec::new(),
+    })
+    .unwrap();
+
+    let row = database
+        .list(&DatabaseListQuery {
+            table: "tasks".into(),
+            ..Default::default()
+        })
+        .unwrap()
+        .remove(0);
+
+    assert_eq!(row["name"], "Ship migration");
 }

@@ -69,6 +69,10 @@ impl From<&RuntimeError> for IpcErrorResponse {
                 code: "permission_denied",
                 message: error.to_string(),
             },
+            RuntimeError::TimedOut(_) => Self {
+                code: "timeout",
+                message: error.to_string(),
+            },
             RuntimeError::RecordNotFound(_) => Self {
                 code: "not_found",
                 message: error.to_string(),

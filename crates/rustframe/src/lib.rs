@@ -9,9 +9,12 @@ mod desktop;
 pub use capability::{FsCapability, ShellCapability, ShellCommand, ShellOutput};
 pub use database::{
     DatabaseCapability, DatabaseFilter, DatabaseFilterOp, DatabaseInfo, DatabaseListQuery,
-    DatabaseOpenConfig, DatabaseOrder, DatabaseOrderDirection, DatabaseSchema, DatabaseSeedFile,
+    DatabaseMigrationFile, DatabaseOpenConfig, DatabaseOrder, DatabaseOrderDirection,
+    DatabaseSchema, DatabaseSeedFile,
 };
 #[cfg(feature = "desktop")]
-pub use desktop::{EmbeddedAssets, RustFrame, RustFrameBuilder, WindowOptions};
+pub use desktop::{
+    EmbeddedAssets, FrontendSecurity, FrontendTrust, RustFrame, RustFrameBuilder, WindowOptions,
+};
 pub use error::{Result, RuntimeError};
 pub use ipc::{IpcErrorResponse, IpcRequest, IpcResponse};

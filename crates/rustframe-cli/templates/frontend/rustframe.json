@@ -1,0 +1,33 @@
+{
+  "appId": "{{app_name}}",
+  "window": {
+    "title": "{{app_title}}",
+    "width": {{window_width}},
+    "height": {{window_height}}
+  },
+  "security": {
+    "model": "local-first"
+  },
+  "packaging": {
+    "version": "0.1.0",
+    "description": "{{app_description}}",
+    "linux": {
+      "icon": "{{app_icon_path}}",
+      "categories": ["Utility"],
+      "keywords": ["desktop", "rustframe"]
+    },
+    "windows": {
+      "icon": "{{app_icon_path}}"
+    },
+    "macos": {
+      "bundleIdentifier": "dev.rustframe.{{app_name}}",
+      "icon": "{{app_icon_path}}"
+    }
+  },
+  "filesystem": {
+    "roots": []
+  },
+  "shell": {
+    "commands": []
+  }
+}
