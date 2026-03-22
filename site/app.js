@@ -14,6 +14,16 @@ const DOCS = {
         source: "docs/getting-started.md",
         path: "docs/getting-started.md",
     },
+    "choosing-rustframe": {
+        title: "Choosing RustFrame",
+        source: "docs/choosing-rustframe.md",
+        path: "docs/choosing-rustframe.md",
+    },
+    "architecture-overview": {
+        title: "Architecture overview",
+        source: "docs/architecture-overview.md",
+        path: "docs/architecture-overview.md",
+    },
     "runtime-and-capabilities": {
         title: "Runtime and capabilities",
         source: "docs/runtime-and-capabilities.md",

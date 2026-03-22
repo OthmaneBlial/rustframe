@@ -1,10 +1,12 @@
 # RustFrame Docs
 
-RustFrame is a stripped-down desktop application framework in Rust built around `tao` and `wry`. This folder collects the repo's working contract in one place so the public site, the examples, and the developer workflow all point at the same source material.
+RustFrame is a Rust workspace for local-first desktop workflow tools that should stay mostly frontend code. This folder collects the repo's working contract in one place so the public site, the examples, and the developer workflow all point at the same source material.
 
 ## Start Here
 
 - [Getting Started](./getting-started.md)
+- [Choosing RustFrame](./choosing-rustframe.md)
+- [Architecture Overview](./architecture-overview.md)
 - [Runtime And Capabilities](./runtime-and-capabilities.md)
 - [Frontend App Rules](./frontend-app-rules.md)
 - [Example Apps](./example-apps.md)

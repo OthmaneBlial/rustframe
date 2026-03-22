@@ -8,6 +8,10 @@
 <p align="center">
   <a href="docs/getting-started.md">Getting Started</a>
   ·
+  <a href="docs/choosing-rustframe.md">Choosing RustFrame</a>
+  ·
+  <a href="docs/architecture-overview.md">Architecture Overview</a>
+  ·
   <a href="docs/runtime-and-capabilities.md">Runtime And Capabilities</a>
   ·
   <a href="FRONTEND_APP_RULES.md">Frontend App Rules</a>
@@ -258,6 +262,8 @@ These are not footnotes. They define the shape of the project today.
 ## Read Next
 
 - [Getting Started](docs/getting-started.md)
+- [Choosing RustFrame](docs/choosing-rustframe.md)
+- [Architecture Overview](docs/architecture-overview.md)
 - [Runtime And Capabilities](docs/runtime-and-capabilities.md)
 - [Frontend App Rules](FRONTEND_APP_RULES.md)
 - [Example Apps](docs/example-apps.md)
