@@ -19,6 +19,7 @@ Included starters:
 - `vite-vanilla`
 - `react-vite`
 - `vue-vite`
+- `svelte-vite`
 
 They all use the same assumptions:
 
