@@ -247,6 +247,10 @@ main {
 .hero-actions,
 .signal-strip,
 .command-list,
+.fit-grid,
+.workflow-rail,
+.package-grid,
+.package-artifacts,
 .docs-grid,
 .tile-grid,
 .workflow-grid,
@@ -303,6 +307,9 @@ main {
 .info-tile,
 .workflow-step,
 .capability-card,
+.fit-card,
+.package-card,
+.manifest-card,
 .doc-card,
 .command-card,
 .shot-card,
@@ -347,6 +354,96 @@ main {
     display: grid;
     gap: 16px;
     padding: 20px;
+}
+
+.fit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workflow-rail {
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+    align-items: start;
+}
+
+.package-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.fit-card,
+.package-card,
+.manifest-card {
+    display: grid;
+    gap: 12px;
+    padding: 20px;
+}
+
+.fit-card h3,
+.package-card h3,
+.manifest-card h3 {
+    margin: 0;
+    font-family: "Baskerville", "Iowan Old Style", serif;
+    letter-spacing: -0.02em;
+    font-size: 1.45rem;
+}
+
+.section-note,
+.fit-card p,
+.package-card p,
+.manifest-card p,
+.fit-card li,
+.package-card li {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+.section-note {
+    max-width: 66ch;
+}
+
+.card-list {
+    margin: 0;
+    padding-left: 20px;
+    display: grid;
+    gap: 10px;
+}
+
+.package-artifacts {
+    margin-top: 4px;
+}
+
+.package-artifact {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: rgba(3, 6, 11, 0.58);
+}
+
+.package-artifact strong {
+    font-size: 0.96rem;
+}
+
+.package-artifact code {
+    color: var(--cool);
+}
+
+.package-card pre,
+.manifest-card pre {
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: rgba(3, 6, 11, 0.58);
+    overflow: auto;
+}
+
+.package-card code,
+.manifest-card code {
+    color: #f4d391;
 }
 
 .card-head {
@@ -851,9 +948,12 @@ main {
 
     .feature-stack,
     .signal-strip,
+    .fit-grid,
     .tile-grid,
+    .workflow-rail,
     .workflow-grid,
     .capability-grid,
+    .package-grid,
     .gallery-grid,
     .docs-grid,
     .docs-nav {
@@ -920,9 +1020,12 @@ main {
 
     .feature-stack,
     .signal-strip,
+    .fit-grid,
     .tile-grid,
+    .workflow-rail,
     .workflow-grid,
     .capability-grid,
+    .package-grid,
     .gallery-grid,
     .docs-grid,
     .docs-nav {
@@ -961,6 +1064,11 @@ main {
     .command-panel {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .package-artifact {
+        flex-direction: column;
+        gap: 8px;
     }
 
     .docs-panel {
@@ -1052,6 +1160,9 @@ main {
     .info-tile,
     .workflow-step,
     .capability-card,
+    .fit-card,
+    .package-card,
+    .manifest-card,
     .doc-card,
     .gallery-copy {
         padding: 16px;
