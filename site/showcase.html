@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RustFrame Showcase</title>
+    <meta
+        name="description"
+        content="A public map of RustFrame starters, flagship workflows, and credible reference apps."
+    >
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page-showcase">
+    <div class="site-grid" aria-hidden="true"></div>
+    <div class="site-glow site-glow-a" aria-hidden="true"></div>
+    <div class="site-glow site-glow-b" aria-hidden="true"></div>
+
+    <header class="topbar">
+        <a class="brand" href="index.html">
+            <span class="brand-mark">RF</span>
+            <span class="brand-copy">
+                <strong>RustFrame</strong>
+                <span>Showcase</span>
+            </span>
+        </a>
+
+        <nav class="topnav" aria-label="Primary">
+            <a href="index.html">Home</a>
+            <a href="docs.html">Docs</a>
+            <a href="docs.html?doc=community-templates">Template guide</a>
+            <a class="topnav-cta" href="https://github.com/OthmaneBlial/rustframe" target="_blank" rel="noreferrer">GitHub</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="frame showcase-hero reveal">
+            <div class="hero-copy">
+                <p class="eyebrow">Phase 5</p>
+                <h1>Expand the ecosystem without losing the wedge.</h1>
+                <p class="lede">
+                    This showcase is the public map for what RustFrame should help people start from:
+                    one flagship workflow, one queue starter, a few credible references, and optional
+                    frontend-stack starters that still keep the runtime model intact.
+                </p>
+
+                <div class="hero-actions">
+                    <a class="button button-primary" href="#showcase">Browse entries</a>
+                    <a class="button button-ghost" href="docs.html?doc=community-templates">Read the template guide</a>
+                </div>
+            </div>
+
+            <aside class="showcase-sidebar">
+                <article class="package-card">
+                    <span class="tile-kicker">How to read this</span>
+                    <h3>Not every card is making the same claim.</h3>
+                    <p>The flagship app proves the wedge. Starters help teams move faster. Reference apps show layout and workflow patterns. The point is to help people choose a starting point honestly.</p>
+                </article>
+                <article class="package-card">
+                    <span class="tile-kicker">Ecosystem rule</span>
+                    <h3>Keep the surface tied to real jobs.</h3>
+                    <p>Community templates, remote sync patterns, and capability extensions should all stay anchored to credible local-first workflows instead of broad framework marketing.</p>
+                </article>
+                <article class="package-card">
+                    <span class="tile-kicker">Next step</span>
+                    <h3>Use the catalog and docs together.</h3>
+                    <p>Pick a starting point here, then move into the docs for the exact manifest, runtime, packaging, and trust-model constraints behind it.</p>
+                </article>
+            </aside>
+        </section>
+
+        <section class="frame reveal" id="showcase">
+            <div class="section-heading">
+                <p class="eyebrow">Showcase</p>
+                <h2>One public map for starters, flagship workflows, and references.</h2>
+                <p class="section-note">
+                    The showcase stays intentionally selective. Entries here should help a builder decide what to clone,
+                    adapt, or study next without implying that RustFrame already has a broad plugin ecosystem.
+                </p>
+            </div>
+
+            <div id="showcase-grid" class="showcase-grid">
+                <article class="showcase-empty">Loading showcase…</article>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <p>The showcase is the ecosystem layer after fit, not before it. RustFrame still starts with one credible flagship workflow and a narrow local-first desktop job.</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

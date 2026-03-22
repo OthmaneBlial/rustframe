@@ -649,6 +649,110 @@ main {
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.showcase-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+    gap: clamp(20px, 2.5vw, 30px);
+    align-items: start;
+}
+
+.showcase-sidebar {
+    display: grid;
+    gap: 16px;
+}
+
+.showcase-grid {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.showcase-card,
+.showcase-empty {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--panel-soft);
+}
+
+.showcase-card {
+    overflow: hidden;
+}
+
+.showcase-visual {
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(135deg, rgba(216, 173, 96, 0.12), rgba(132, 201, 255, 0.08));
+}
+
+.showcase-visual img,
+.showcase-placeholder {
+    width: 100%;
+    aspect-ratio: 1460 / 940;
+}
+
+.showcase-visual img {
+    object-fit: cover;
+}
+
+.showcase-placeholder {
+    display: grid;
+    place-items: center;
+}
+
+.showcase-placeholder span {
+    padding: 10px 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.72rem;
+    font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+}
+
+.showcase-copy {
+    display: grid;
+    gap: 10px;
+    padding: 18px;
+}
+
+.showcase-copy h3 {
+    margin: 0;
+    font-family: "Baskerville", "Iowan Old Style", serif;
+    letter-spacing: -0.02em;
+    font-size: 1.7rem;
+}
+
+.showcase-copy p,
+.showcase-meta {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+.showcase-meta strong {
+    color: var(--text);
+}
+
+.showcase-tags,
+.showcase-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.showcase-tag {
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    font-size: 0.84rem;
+}
+
+.showcase-empty {
+    padding: 20px;
+}
+
 .doc-card {
     display: grid;
     gap: 10px;
@@ -951,10 +1055,12 @@ main {
     .fit-grid,
     .tile-grid,
     .workflow-rail,
+    .showcase-hero,
     .workflow-grid,
     .capability-grid,
     .package-grid,
     .gallery-grid,
+    .showcase-grid,
     .docs-grid,
     .docs-nav {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1023,10 +1129,12 @@ main {
     .fit-grid,
     .tile-grid,
     .workflow-rail,
+    .showcase-hero,
     .workflow-grid,
     .capability-grid,
     .package-grid,
     .gallery-grid,
+    .showcase-grid,
     .docs-grid,
     .docs-nav {
         grid-template-columns: 1fr;
@@ -1146,7 +1254,8 @@ main {
 
     .command-card h2,
     .gallery-copy h3,
-    .doc-card strong {
+    .doc-card strong,
+    .showcase-copy h3 {
         font-size: 1.4rem;
     }
 
@@ -1164,7 +1273,8 @@ main {
     .package-card,
     .manifest-card,
     .doc-card,
-    .gallery-copy {
+    .gallery-copy,
+    .showcase-copy {
         padding: 16px;
     }
 

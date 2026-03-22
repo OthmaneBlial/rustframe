@@ -1,0 +1,113 @@
+{
+  "templates": [
+    {
+      "id": "workflow-starter",
+      "title": "Workflow Queue Starter",
+      "source": "apps/hello-rustframe",
+      "category": "starter",
+      "summary": "A minimal local-first queue app with embedded SQLite, runtime search, and a product-shaped review flow.",
+      "bestFor": [
+        "internal triage desks",
+        "review queues",
+        "operator dashboards"
+      ],
+      "capabilities": [
+        "database",
+        "window"
+      ],
+      "screenshot": "assets/screenshots/hello-rustframe.png",
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/hello-rustframe"
+    },
+    {
+      "id": "research-desk",
+      "title": "Research Desk",
+      "source": "apps/research-desk",
+      "category": "flagship",
+      "summary": "A local archive review workflow with scoped filesystem access, allowlisted indexing, queue export, and reader windows.",
+      "bestFor": [
+        "document review",
+        "research archives",
+        "evidence workbenches"
+      ],
+      "capabilities": [
+        "database",
+        "filesystem",
+        "shell",
+        "multi-window"
+      ],
+      "screenshot": "assets/screenshots/research-desk.png",
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/research-desk"
+    },
+    {
+      "id": "dispatch-room",
+      "title": "Dispatch Room",
+      "source": "apps/dispatch-room",
+      "category": "reference",
+      "summary": "A status-heavy incident workflow that shows how to structure a dense triage board around a local SQLite model.",
+      "bestFor": [
+        "incident triage",
+        "ops coordination",
+        "status boards"
+      ],
+      "capabilities": [
+        "database",
+        "window"
+      ],
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/dispatch-room"
+    },
+    {
+      "id": "prism-gallery",
+      "title": "Prism Gallery",
+      "source": "apps/prism-gallery",
+      "category": "reference",
+      "summary": "A media-forward reference layout for asset review and library-style browsing.",
+      "bestFor": [
+        "asset libraries",
+        "media review",
+        "creative approvals"
+      ],
+      "capabilities": [
+        "database",
+        "window"
+      ],
+      "screenshot": "assets/screenshots/prism-gallery.png",
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/prism-gallery"
+    },
+    {
+      "id": "quill-studio",
+      "title": "Quill Studio",
+      "source": "apps/quill-studio",
+      "category": "reference",
+      "summary": "An editorial workflow template for teams that need structured story status, assignment, and review state.",
+      "bestFor": [
+        "editorial desks",
+        "content planning",
+        "story pipelines"
+      ],
+      "capabilities": [
+        "database",
+        "window"
+      ],
+      "screenshot": "assets/screenshots/quill-studio.png",
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/quill-studio"
+    },
+    {
+      "id": "svelte-vite-starter",
+      "title": "Svelte Vite Starter",
+      "source": "examples/frontend-starters/svelte-vite",
+      "category": "frontend-starter",
+      "summary": "A dev-server starter for teams that want Svelte while RustFrame still owns the desktop runtime.",
+      "bestFor": [
+        "Svelte teams",
+        "dev-server workflows",
+        "component-first apps"
+      ],
+      "capabilities": [
+        "database",
+        "window",
+        "dev-server"
+      ],
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/examples/frontend-starters/svelte-vite"
+    }
+  ]
+}
