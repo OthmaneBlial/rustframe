@@ -1,0 +1,120 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="140" y1="80" x2="1460" y2="820" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4EFE6"/>
+      <stop offset="0.5" stop-color="#E7EBF3"/>
+      <stop offset="1" stop-color="#DDD8CF"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#121722"/>
+      <stop offset="1" stop-color="#0A0E15"/>
+    </linearGradient>
+    <linearGradient id="warm" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#D8AD60"/>
+      <stop offset="1" stop-color="#F3D297"/>
+    </linearGradient>
+    <linearGradient id="cool" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#84C9FF"/>
+      <stop offset="1" stop-color="#CCE8FF"/>
+    </linearGradient>
+    <filter id="shadow" x="70" y="50" width="1460" height="820" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="20"/>
+      <feGaussianBlur stdDeviation="30"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.055 0 0 0 0 0.075 0 0 0 0 0.11 0 0 0 0.24 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_1" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" rx="36" fill="#F6F2EA"/>
+  <rect x="54" y="54" width="1492" height="792" rx="32" fill="url(#bg)"/>
+  <path d="M137 128H1463" stroke="#C6C1B8" stroke-width="2" stroke-dasharray="5 10"/>
+  <path d="M800 118V786" stroke="#D6D0C7" stroke-width="1.5" stroke-dasharray="4 8"/>
+  <circle cx="124" cy="108" r="12" fill="#121722"/>
+  <circle cx="156" cy="108" r="12" fill="#D8AD60"/>
+  <circle cx="188" cy="108" r="12" fill="#84C9FF"/>
+
+  <g filter="url(#shadow)">
+    <rect x="110" y="148" width="1380" height="640" rx="30" fill="url(#panel)"/>
+  </g>
+
+  <rect x="146" y="184" width="624" height="570" rx="24" fill="#171D29" stroke="#273246"/>
+  <text x="182" y="232" fill="#D8AD60" font-family="'Courier New', monospace" font-size="22" letter-spacing="5.28">RUSTFRAME</text>
+  <text x="182" y="286" fill="#F1F4FB" font-family="Georgia, 'Times New Roman', serif" font-size="92" font-weight="700">
+    <tspan x="182" dy="0">Plain frontend</tspan>
+    <tspan x="182" dy="96">files.</tspan>
+    <tspan x="182" dy="96">Real desktop</tspan>
+    <tspan x="182" dy="96">shell.</tspan>
+  </text>
+  <text x="184" y="688" fill="#96A4BC" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="28">
+    <tspan x="184" dy="0">Local-first workflow tools with embedded SQLite,</tspan>
+    <tspan x="184" dy="40">scoped filesystem access, and a small explicit native surface.</tspan>
+  </text>
+
+  <rect x="822" y="184" width="308" height="256" rx="24" fill="#101621" stroke="#273246"/>
+  <text x="852" y="224" fill="#8EA2BE" font-family="'Courier New', monospace" font-size="18" letter-spacing="3.6">FLAGSHIP APP</text>
+  <text x="852" y="286" fill="#F1F4FB" font-family="Georgia, 'Times New Roman', serif" font-size="52" font-weight="700">Research Desk</text>
+  <text x="852" y="338" fill="#9AA9C0" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="24">
+    <tspan x="852" dy="0">Review a local archive,</tspan>
+    <tspan x="852" dy="34">store decisions in SQLite,</tspan>
+    <tspan x="852" dy="34">and keep the source files close.</tspan>
+  </text>
+  <rect x="852" y="384" width="116" height="24" rx="12" fill="#D8AD601F" stroke="#6B5530"/>
+  <text x="871" y="401" fill="#F3D297" font-family="'Courier New', monospace" font-size="14">filesystem</text>
+  <rect x="980" y="384" width="82" height="24" rx="12" fill="#84C9FF1C" stroke="#3E627A"/>
+  <text x="1002" y="401" fill="#CCE8FF" font-family="'Courier New', monospace" font-size="14">shell</text>
+  <rect x="1074" y="384" width="138" height="24" rx="12" fill="#D8AD601F" stroke="#6B5530"/>
+  <text x="1096" y="401" fill="#F3D297" font-family="'Courier New', monospace" font-size="14">multi-window</text>
+
+  <rect x="1152" y="184" width="302" height="160" rx="24" fill="#101621" stroke="#273246"/>
+  <text x="1182" y="224" fill="#8EA2BE" font-family="'Courier New', monospace" font-size="18" letter-spacing="3.6">THE PITCH</text>
+  <text x="1182" y="274" fill="#F1F4FB" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="28" font-weight="600">
+    <tspan x="1182" dy="0">Too native for a tab.</tspan>
+    <tspan x="1182" dy="38">Too small for a full</tspan>
+    <tspan x="1182" dy="38">desktop project.</tspan>
+  </text>
+
+  <rect x="1152" y="362" width="302" height="196" rx="24" fill="#101621" stroke="#273246"/>
+  <text x="1182" y="402" fill="#8EA2BE" font-family="'Courier New', monospace" font-size="18" letter-spacing="3.6">DEFAULT SHAPE</text>
+  <text x="1182" y="456" fill="#F1F4FB" font-family="'Courier New', monospace" font-size="24">
+    <tspan x="1182" dy="0">apps/&lt;name&gt;/</tspan>
+    <tspan x="1182" dy="34">  index.html</tspan>
+    <tspan x="1182" dy="34">  styles.css</tspan>
+    <tspan x="1182" dy="34">  app.js</tspan>
+    <tspan x="1182" dy="34">  rustframe.json</tspan>
+  </text>
+
+  <rect x="822" y="470" width="632" height="284" rx="24" fill="#0F141E" stroke="#273246"/>
+  <text x="852" y="510" fill="#8EA2BE" font-family="'Courier New', monospace" font-size="18" letter-spacing="3.6">WHY PEOPLE MIGHT CARE</text>
+
+  <rect x="852" y="540" width="176" height="72" rx="18" fill="#151C28" stroke="#273246"/>
+  <text x="878" y="571" fill="#F3D297" font-family="'Courier New', monospace" font-size="16" letter-spacing="2.4">LOCAL DATA</text>
+  <text x="878" y="598" fill="#E9EEF7" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="22">Embedded SQLite</text>
+
+  <rect x="1048" y="540" width="186" height="72" rx="18" fill="#151C28" stroke="#273246"/>
+  <text x="1074" y="571" fill="#CCE8FF" font-family="'Courier New', monospace" font-size="16" letter-spacing="2.4">MACHINE ACCESS</text>
+  <text x="1074" y="598" fill="#E9EEF7" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="22">Scoped filesystem</text>
+
+  <rect x="1254" y="540" width="170" height="72" rx="18" fill="#151C28" stroke="#273246"/>
+  <text x="1280" y="571" fill="#F3D297" font-family="'Courier New', monospace" font-size="16" letter-spacing="2.4">AUTOMATION</text>
+  <text x="1280" y="598" fill="#E9EEF7" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="22">Allowlisted shell</text>
+
+  <rect x="852" y="632" width="228" height="72" rx="18" fill="#151C28" stroke="#273246"/>
+  <text x="878" y="663" fill="#CCE8FF" font-family="'Courier New', monospace" font-size="16" letter-spacing="2.4">PACKAGING</text>
+  <text x="878" y="690" fill="#E9EEF7" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="22">Linux, Windows, macOS</text>
+
+  <rect x="1100" y="632" width="324" height="72" rx="18" fill="#151C28" stroke="#273246"/>
+  <text x="1126" y="663" fill="#F3D297" font-family="'Courier New', monospace" font-size="16" letter-spacing="2.4">ESCAPE HATCH</text>
+  <text x="1126" y="690" fill="#E9EEF7" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="22">Eject when the app outgrows the runner</text>
+
+  <rect x="118" y="806" width="1364" height="54" rx="18" fill="#111723"/>
+  <text x="154" y="841" fill="#F1F4FB" font-family="'Courier New', monospace" font-size="20">cargo run -p rustframe-cli -- dev research-desk</text>
+  <rect x="1146" y="820" width="94" height="24" rx="12" fill="url(#warm)"/>
+  <text x="1168" y="836" fill="#111723" font-family="'Courier New', monospace" font-size="14" font-weight="700">doctor</text>
+  <rect x="1252" y="820" width="106" height="24" rx="12" fill="url(#cool)"/>
+  <text x="1273" y="836" fill="#111723" font-family="'Courier New', monospace" font-size="14" font-weight="700">inspect</text>
+  <rect x="1370" y="820" width="84" height="24" rx="12" fill="url(#warm)"/>
+  <text x="1390" y="836" fill="#111723" font-family="'Courier New', monospace" font-size="14" font-weight="700">ship</text>
+</svg>

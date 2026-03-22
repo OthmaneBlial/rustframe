@@ -1,69 +1,90 @@
 # RustFrame
 
 <p align="center">
-  <strong>Local-first desktop workflow tools with mostly frontend code.</strong><br>
-  Keep the app as plain web files. Let the runtime own the native shell, embedded SQLite, and scoped machine access.
+  <strong>Build local-first desktop workflow tools with plain frontend files.</strong><br>
+  Native window. Embedded SQLite. Scoped machine access. No full desktop project on day one.
 </p>
 
 <p align="center">
-  <a href="docs/getting-started.md">Getting Started</a>
+  <a href="docs/getting-started.md">Get Started</a>
   ·
-  <a href="docs/choosing-rustframe.md">Choosing RustFrame</a>
+  <a href="docs/choosing-rustframe.md">Fit Guide</a>
   ·
-  <a href="docs/architecture-overview.md">Architecture Overview</a>
+  <a href="docs/architecture-overview.md">Architecture</a>
   ·
-  <a href="docs/runtime-and-capabilities.md">Runtime And Capabilities</a>
-  ·
-  <a href="docs/build-in-20-minutes.md">Build In 20 Minutes</a>
-  ·
-  <a href="docs/cookbook.md">Cookbook</a>
-  ·
-  <a href="docs/threat-model.md">Threat Model</a>
-  ·
-  <a href="docs/migrations-and-versioning.md">Migrations And Versioning</a>
-  ·
-  <a href="docs/platform-support.md">Platform Support</a>
-  ·
-  <a href="docs/signing-and-notarization.md">Signing And Notarization</a>
-  ·
-  <a href="docs/update-strategy.md">Update Strategy</a>
-  ·
-  <a href="docs/release-checklist.md">Release Checklist</a>
-  ·
-  <a href="docs/community-templates.md">Community Templates</a>
-  ·
-  <a href="docs/remote-sync-patterns.md">Remote Sync Patterns</a>
-  ·
-  <a href="docs/capability-extension-patterns.md">Capability Extension Patterns</a>
-  ·
-  <a href="FRONTEND_APP_RULES.md">Frontend App Rules</a>
+  <a href="docs/runtime-and-capabilities.md">Runtime</a>
   ·
   <a href="docs/example-apps.md">Example Apps</a>
+  ·
+  <a href="docs/README.md">All Docs</a>
 </p>
 
 <p align="center">
-  <img src="site/assets/screenshots/research-desk.png" alt="Research Desk screenshot" width="100%">
+  <img src="site/assets/readme-hero.svg" alt="RustFrame editorial hero graphic" width="100%">
 </p>
 
-RustFrame is a Rust workspace for building local-first desktop tools where the app should stay mostly HTML, CSS, and JavaScript.
+RustFrame is not trying to be the next everything-framework for desktop apps.
 
-It is not trying to win every desktop use case. It is aimed at a narrower slice:
+It is a narrower bet:
 
-- personal and internal desktop tools
-- structured local data apps
-- file-centric workflow surfaces
-- apps that need a native window, embedded SQLite, and some scoped machine access
-- developers who want a frontend-first authoring model without turning every app into a visible native project
+> workflow tools that are too native for a browser tab, but too small to deserve a full desktop framework project from day one
 
-## The Short Version
+That means apps that are mostly frontend code, but still need:
 
-RustFrame exists for this gap:
+- a real desktop window
+- local SQLite
+- scoped filesystem access
+- one or two allowlisted automations
+- packaging into a real installable desktop app
 
-> I can build the product as a frontend, but I still need a real desktop shell, local data, and a few native capabilities.
+If that is not your shape, RustFrame is probably the wrong tool. That honesty is part of the pitch.
 
-That gap is where a normal browser tab often stops being enough, but a full desktop framework can feel broader than the job.
+## The Honest Pitch
 
-RustFrame keeps the default authoring model small:
+- If a browser tab is enough, use a browser tab.
+- If you already know you need deep native APIs, broad plugins, or a mature ecosystem, use Tauri, Electron, or a native stack.
+- If your app is mostly HTML, CSS, and JavaScript but still needs a desktop shell, local data, and a tight native surface, RustFrame is where it starts to make sense.
+
+## Why This Project Exists
+
+The painful part of many small desktop tools is not the UI.
+
+It is all the scaffolding around the UI:
+
+- the native project
+- the bridge layer
+- the SQLite glue
+- the packaging story
+- the capability boundaries
+- the awkward jump from "simple tool" to "needs a bit more native control"
+
+RustFrame tries to make that path smaller without pretending the desktop disappears.
+
+## Run This First
+
+The flagship app is `apps/research-desk`.
+
+If you want to decide whether RustFrame is useful, do not start with the template. Start here:
+
+```bash
+cargo run -p rustframe-cli -- dev research-desk
+```
+
+`research-desk` is the clearest proof of the wedge today. It:
+
+- indexes a bundled local archive into SQLite
+- reads real files through scoped filesystem roots
+- runs an allowlisted Python indexer from the UI
+- opens reader windows for focused review
+- exports the visible review queue
+
+That is the current answer to "why not just a browser tab?"
+
+## What Makes RustFrame Different
+
+RustFrame changes the default authoring model.
+
+Your app starts as a plain folder:
 
 ```text
 apps/<name>/
@@ -83,108 +104,62 @@ The runtime owns the rest:
 - the native window
 - the injected `window.RustFrame` bridge
 - embedded assets
-- the hidden runner
 - SQLite provisioning and migrations
 - scoped filesystem access
 - allowlisted shell execution
 - packaging and host validation
+- the eject path when the app outgrows the hidden runner
 
-## What RustFrame Is For
+That keeps the early path small while still leaving a way out later.
 
-RustFrame is strongest when you are building tools like:
+## Best Fit
 
-- a local research desk that stores notes, tags, and imported files in SQLite
-- a media review workbench that indexes local assets and runs approved ingest commands
-- an operations runbook desktop app with structured records, offline data, and multi-window views
+Use RustFrame when:
 
-The common pattern is the point:
+- your app should stay mostly frontend code
+- you want local SQLite without building the full desktop stack yourself
+- you need a native window, local files, and a few explicit machine capabilities
+- you want packaging, export, and capability boundaries to be runtime-owned
+- you want to eject only after the product earns that complexity
 
-- frontend-heavy UI
-- local-first data
-- a native shell
-- a few carefully scoped machine capabilities
+Do not use RustFrame when:
 
-## Flagship Workflow
+- the product works fine as a normal web app or PWA
+- you need deep platform integrations immediately
+- you want a large desktop ecosystem from day one
+- you need Chromium-level rendering consistency everywhere
+- you are already productive in Tauri, Electron, or native and not feeling friction
 
-The current flagship app is `apps/research-desk`.
+## Browser vs RustFrame vs Tauri/Electron
 
-It is the clearest answer to "what is this useful for?":
+| Question | Browser tab | RustFrame | Tauri / Electron |
+| --- | --- | --- | --- |
+| Native desktop window | No | Yes | Yes |
+| Embedded local SQLite by default | No | Yes | Possible |
+| Scoped filesystem and allowlisted commands | Limited | Yes | Yes |
+| Plain frontend folder as the default app shape | Yes | Yes | Not usually |
+| Mature plugin ecosystem | N/A | No | Yes |
+| Best for narrow local-first workflow tools | Sometimes | Yes | Sometimes |
+| Best for broad desktop app ambitions | No | No | Yes |
 
-- indexes a bundled local archive into SQLite
-- reads the real source files through scoped filesystem roots
-- runs an allowlisted Python indexer from the UI
-- opens dedicated reader windows for focused review
-- exports the visible review queue
+The point is not "RustFrame beats Tauri." The point is that there is a smaller product slice where RustFrame can be the cleaner starting shape.
 
-If you want to evaluate RustFrame today, run `research-desk` before you judge the rest of the example set.
+## What Ships Today
 
-## Use RustFrame When
-
-- Your app should stay mostly frontend code.
-- You want embedded SQLite without building the entire desktop stack yourself.
-- You need a native window, packaging flow, and limited native access.
-- You want filesystem or shell access to be explicit and scoped in the manifest.
-- You want an escape hatch later, not a large native project on day one.
-
-## Do Not Use RustFrame When
-
-- You already know you need deep native APIs immediately.
-- You need a large plugin ecosystem or many desktop integrations from day one.
-- You are building a browser-first product that works fine as a tab or PWA.
-- You want a mature general-purpose framework with a broad community surface today.
-- You are building a VS Code class app or anything with very deep platform coupling.
-
-If you are already happy in Tauri, Electron, Wails, or a full native stack, use the tool that fits your product.
-
-## Why It Exists
-
-For many local tools, the hard part is not the UI.
-
-It is everything that shows up around the UI:
-
-- the native project
-- the bridge setup
-- the packaging path
-- the database glue
-- the capability boundaries
-- the gradual move from "simple app" to "needs more native control"
-
-RustFrame tries to make that path feel smaller without pretending the desktop disappears.
-
-## What Already Ships
-
-This repo already includes:
+RustFrame already includes:
 
 - a runtime crate built on `tao` and `wry`
 - a CLI that can `new`, `doctor`, `dev`, `inspect`, `reset-data`, `export`, `platform-check`, `package --verify`, and `eject`
-- runtime-injected `window.RustFrame` ownership instead of per-app bridge duplication
-- embedded SQLite with schema files, seeds, versioned SQL migrations, and runtime full-text search
-- scoped filesystem helpers for reads, writes, open, reveal, and save/open dialogs declared in `rustframe.json`
-- hardened shell capabilities declared in `rustframe.json`, with explicit timeout/output limits and a dev audit log
-- a frontend trust model with `local-first` and `networked` boundaries
-- clipboard writes and multi-window state persistence in the runtime bridge
-- multi-window support
-- workflow-first starter templates plus Vite, React Vite, Vue Vite, and Svelte Vite frontend starters
-- a machine-readable community template catalog for credible workflow-shaped starting points
-- ecosystem docs for community templates, remote sync patterns, and capability extension patterns
+- runtime-owned `window.RustFrame` injection instead of per-app bridge duplication
+- embedded SQLite with schema files, immutable seeds, versioned SQL migrations, and runtime full-text search
+- scoped filesystem helpers for reads, writes, dialogs, open, and reveal
+- hardened shell capabilities with explicit timeout and output limits
+- `local-first` and `networked` trust models
+- clipboard writes and multi-window state persistence
 - host-native packaging flows for Linux, Windows, and macOS
+- workflow-first starters plus Vite, React Vite, Vue Vite, and Svelte Vite starters
+- a community template catalog and ecosystem docs for sync and capability extension patterns
 - automated tests and workflow smoke coverage
-
-## Why Not Just A Browser?
-
-A browser tab is still the right answer for many apps.
-
-RustFrame matters when you need some combination of:
-
-- packaged desktop distribution
-- a native window and window management
-- embedded local SQLite controlled by the runtime
-- manifest-scoped filesystem access with open or reveal helpers
-- allowlisted process execution
-- deterministic clipboard and file-handling affordances around a local workflow
-- a frontend that is trusted differently depending on the app's security model
-
-If you do not need those things, the browser is simpler.
 
 ## Start In Minutes
 
@@ -202,21 +177,13 @@ Check the host first:
 cargo run -p rustframe-cli -- doctor
 ```
 
-Run the flagship workflow app:
+Run the flagship workflow:
 
 ```bash
 cargo run -p rustframe-cli -- dev research-desk
 ```
 
-That app is the best current proof of the wedge: a local archive review tool with SQLite, scoped filesystem access, allowlisted automation, and reader windows.
-
-Run the capability demo:
-
-```bash
-cargo run -p capability-demo
-```
-
-Create an app:
+Generate a new app:
 
 ```bash
 cargo run -p rustframe-cli -- new hello-rustframe
@@ -228,25 +195,25 @@ Run it:
 cargo run -p rustframe-cli -- dev hello-rustframe
 ```
 
+Inspect the resolved contract:
+
+```bash
+cargo run -p rustframe-cli -- inspect hello-rustframe
+```
+
 Export the raw binary:
 
 ```bash
 cargo run -p rustframe-cli -- export hello-rustframe
 ```
 
-Package a host-native bundle:
-
-```bash
-cargo run -p rustframe-cli -- package hello-rustframe
-```
-
-Verify the produced bundle layout:
+Package and verify a host-native bundle:
 
 ```bash
 cargo run -p rustframe-cli -- package hello-rustframe --verify
 ```
 
-If you want frontend tooling during development, point RustFrame at a dev server:
+If you want to develop with a frontend dev server:
 
 ```bash
 cargo run -p rustframe-cli -- dev hello-rustframe http://127.0.0.1:5173
@@ -254,88 +221,45 @@ cargo run -p rustframe-cli -- dev hello-rustframe http://127.0.0.1:5173
 
 Starter source for Vite, React Vite, Vue Vite, and Svelte Vite lives under `examples/frontend-starters/`.
 
-The current ecosystem catalog lives under `examples/community-templates/`.
+## Ecosystem, But On Purpose
 
-## Ecosystem Surface
-
-Phase 5 stays intentionally narrow. The repo now includes:
-
-- optional frontend starters for Vite, React, Vue, and Svelte
-- a community template catalog tied to real workflow apps and starters
-- remote sync guidance that keeps SQLite as the primary local UX surface
-- capability extension guidance that treats ejection as the intentional native escape hatch
-
-The point is to expand the ecosystem around the wedge that already works, not to go back to selling RustFrame as a generic wrapper.
-
-## Read Next
+Phase 5 added a small ecosystem surface, but it stays tied to the wedge:
 
 - [Community Templates](docs/community-templates.md)
 - [Remote Sync Patterns](docs/remote-sync-patterns.md)
 - [Capability Extension Patterns](docs/capability-extension-patterns.md)
+- [Example Apps](docs/example-apps.md)
 
-## What You Configure
+The machine-readable template catalog lives here:
 
-RustFrame uses `rustframe.json` as the primary app contract:
-
-```json
-{
-  "appId": "hello-rustframe",
-  "window": {
-    "title": "Hello Rustframe",
-    "width": 1280,
-    "height": 820
-  },
-  "security": {
-    "model": "local-first"
-  },
-  "devUrl": "http://127.0.0.1:5173"
-}
+```text
+examples/community-templates/catalog.json
 ```
 
-That manifest can also declare:
+The rule is simple: ecosystem only after fit. One credible flagship workflow matters more than a hundred random demos.
 
-- filesystem roots
-- shell commands
-- security overrides
-- packaging metadata
-- per-platform icons and bundle settings
-
-## What The Example Set Proves
-
-The repo now ships one flagship workflow app, a capability demo, and a wider reference set.
-
-Today they prove that the same runtime can already support:
-
-- one credible file-centric workflow app, not just UI variety
-- frontend-only apps
-- SQLite-backed apps
-- multi-window workflows
-- filesystem and shell capabilities
-- different UI directions without changing the runtime contract
-
-The important change is that `apps/research-desk` is now the main story and the rest of the examples are references around it.
-
-## Current Limitations
+## Reality Check
 
 RustFrame is promising, but still early:
 
 - the ecosystem is small
-- deep native integrations are not the main path yet
-- signing and updates are now documented, but they still live at the release-pipeline layer rather than inside the runtime
+- deep native integration is not the default path
+- signing and updates are documented, but still handled at the release-pipeline layer
 - Linux still carries heavier GTK, WebKitGTK, and display-stack constraints
-- cross-host validation still requires the matching native host toolchain
+- cross-host validation still depends on the matching native host toolchain
 
-These are not footnotes. They define the shape of the project today.
+Those are not footnotes. They define the real shape of the project today.
 
 ## Production Surface
 
 RustFrame now has a clearer shipping contract for small production tools:
 
-- supported hosts are documented in [Platform Support](docs/platform-support.md)
-- signing and notarization expectations are documented in [Signing And Notarization](docs/signing-and-notarization.md)
-- the current manual or host-assisted update path is documented in [Update Strategy](docs/update-strategy.md)
-- release preparation is documented in [Release Checklist](docs/release-checklist.md)
-- repo CI verifies packaged bundles on supported hosts
+- [Platform Support](docs/platform-support.md)
+- [Signing And Notarization](docs/signing-and-notarization.md)
+- [Update Strategy](docs/update-strategy.md)
+- [Release Checklist](docs/release-checklist.md)
+
+Repo CI also verifies packaged bundles on supported hosts.
 
 ## Repo Map
 
@@ -343,12 +267,14 @@ RustFrame now has a clearer shipping contract for small production tools:
   Reusable runtime crate.
 - `crates/rustframe-cli`
   Scaffolding, validation, export, packaging, and ejection tooling.
-- `examples/capability-demo`
-  Sample app showing the native bridge, filesystem scope, and shell execution model.
 - `apps/research-desk`
   Flagship local archive review workflow.
-- `apps/*`
-  Smaller reference apps and templates.
+- `apps/hello-rustframe`
+  Default workflow-first starter app.
+- `examples/frontend-starters/`
+  Optional frontend-stack starters.
+- `examples/capability-demo`
+  Sample app proving the bridge, filesystem scope, and shell model.
 - `docs/`
   Product and implementation docs.
 - `site/`
@@ -360,15 +286,11 @@ RustFrame now has a clearer shipping contract for small production tools:
 - [Choosing RustFrame](docs/choosing-rustframe.md)
 - [Architecture Overview](docs/architecture-overview.md)
 - [Runtime And Capabilities](docs/runtime-and-capabilities.md)
-- [Platform Support](docs/platform-support.md)
-- [Signing And Notarization](docs/signing-and-notarization.md)
-- [Update Strategy](docs/update-strategy.md)
-- [Release Checklist](docs/release-checklist.md)
 - [Frontend App Rules](FRONTEND_APP_RULES.md)
 - [Example Apps](docs/example-apps.md)
 
-The right next move is still the simplest one:
+The shortest useful next step is still:
 
 ```bash
-cargo run -p capability-demo
+cargo run -p rustframe-cli -- dev research-desk
 ```
