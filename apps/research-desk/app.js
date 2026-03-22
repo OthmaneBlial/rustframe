@@ -15,11 +15,14 @@ const state = {
     dbInfo: null,
     documents: [],
     settingsByKey: new Map(),
+    workspaceEntries: [],
     windows: [],
     selectedId: null,
     selectedContent: "",
+    selectedFileMeta: null,
     readerDocument: null,
     readerContent: "",
+    readerFileMeta: null,
     search: "",
     collection: "all",
     status: "all",
@@ -35,6 +38,15 @@ window.requestAnimationFrame(() => {
 APP.addEventListener("click", handleClick);
 APP.addEventListener("input", handleInput);
 
+if (window.RustFrame?.events?.onFileDrop) {
+    window.RustFrame.events.onFileDrop((payload) => {
+        if (state.mode !== "main") {
+            return;
+        }
+        void importExternalFiles(payload?.files || [], "drag and drop");
+    });
+}
+
 boot().catch((error) => {
     state.log = `Research Desk failed to boot.\n${formatError(error)}`;
     renderFatal();
@@ -46,6 +58,7 @@ async function boot() {
 
     if (state.mode === "main") {
         await refreshDocuments();
+        await loadWorkspaceEntries();
         if (!state.documents.length) {
             try {
                 await indexWorkspace("first boot");
@@ -106,6 +119,14 @@ async function refreshWindows() {
     state.windows = await window.RustFrame.window.list();
 }
 
+async function loadWorkspaceEntries() {
+    try {
+        state.workspaceEntries = await window.RustFrame.fs.listDir(".");
+    } catch {
+        state.workspaceEntries = [];
+    }
+}
+
 function selectDefaultDocument() {
     const visible = visibleDocuments();
     if (!visible.length) {
@@ -123,13 +144,16 @@ async function refreshSelectedContent() {
     const selected = selectedDocument();
     if (!selected) {
         state.selectedContent = "";
+        state.selectedFileMeta = null;
         return;
     }
 
     try {
         state.selectedContent = await window.RustFrame.fs.readText(selected.path);
+        state.selectedFileMeta = await window.RustFrame.fs.metadata(selected.path);
     } catch (error) {
         state.selectedContent = `Unable to load source document.\n\n${formatError(error)}`;
+        state.selectedFileMeta = null;
     }
 }
 
@@ -139,13 +163,16 @@ async function loadReaderDocument() {
 
     if (!row) {
         state.readerContent = "";
+        state.readerFileMeta = null;
         return;
     }
 
     try {
         state.readerContent = await window.RustFrame.fs.readText(row.path);
+        state.readerFileMeta = await window.RustFrame.fs.metadata(row.path);
     } catch (error) {
         state.readerContent = `Unable to load source document.\n\n${formatError(error)}`;
+        state.readerFileMeta = null;
     }
 }
 
@@ -169,6 +196,7 @@ async function indexWorkspace(reason) {
         selectDefaultDocument();
         await refreshSelectedContent();
         await refreshWindows();
+        await loadWorkspaceEntries();
         writeLog(
             `Indexed ${indexed.length} archive documents using ${result.label}.\n` +
             `Reason: ${reason}\n` +
@@ -315,8 +343,71 @@ async function exportVisibleDocuments() {
 
     const text = `${JSON.stringify(payload, null, 2)}\n`;
     const dateLabel = new Date().toISOString().slice(0, 10);
-    downloadText(`research-desk-export-${dateLabel}.json`, text, "application/json");
-    writeLog(`Exported ${payload.count} visible documents as JSON.`);
+    const saved = await window.RustFrame.dialog.saveText({
+        title: "Export visible research queue",
+        defaultName: `research-desk-export-${dateLabel}.json`,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        contents: text
+    });
+
+    if (saved) {
+        writeLog(`Exported ${payload.count} visible documents to ${saved.path}.`);
+    } else {
+        writeLog("Export canceled.");
+    }
+}
+
+async function importExternalFiles(fileEntries, sourceLabel) {
+    const provided = Array.isArray(fileEntries) ? fileEntries : [];
+    if (!provided.length) {
+        writeLog("Import canceled.");
+        return;
+    }
+
+    const supported = provided
+        .filter((entry) => entry && entry.isFile)
+        .filter((entry) => ["md", "txt"].includes(normalizeExtension(entry.extension)));
+
+    if (!supported.length) {
+        writeLog("No supported Markdown or text files were provided for import.");
+        return;
+    }
+
+    state.importBusy = true;
+    render();
+
+    try {
+        for (let index = 0; index < supported.length; index += 1) {
+            const fileEntry = supported[index];
+            const destination = buildImportDestination(fileEntry, index);
+            await window.RustFrame.fs.copyFrom(fileEntry.path, destination);
+        }
+
+        await indexWorkspace(`${sourceLabel} import`);
+        writeLog(
+            `Imported ${supported.length} files from ${sourceLabel} into workspace/imports.\n` +
+            `${state.log}`
+        );
+    } finally {
+        state.importBusy = false;
+        render();
+    }
+}
+
+function buildImportDestination(fileEntry, index) {
+    const extension = normalizeExtension(fileEntry.extension) || "md";
+    const stem = String(fileEntry.name || "imported-note")
+        .replace(/\.[^.]+$/u, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/gu, "-")
+        .replace(/^-+|-+$/gu, "")
+        .slice(0, 48) || "imported-note";
+    const timestamp = new Date().toISOString().replace(/[-:TZ.]/gu, "").slice(0, 14);
+    return window.RustFrame.path.join("imports", `${timestamp}-${index + 1}-${stem}.${extension}`);
+}
+
+function normalizeExtension(value) {
+    return String(value || "").trim().replace(/^\./u, "").toLowerCase();
 }
 
 function handleInput(event) {
@@ -337,6 +428,17 @@ async function handleClick(event) {
     try {
         if (action === "index") {
             await indexWorkspace("manual refresh");
+            return;
+        }
+
+        if (action === "import-files") {
+            const files = await window.RustFrame.dialog.openFiles({
+                title: "Import archive files",
+                filters: [
+                    { name: "Markdown and text", extensions: ["md", "txt"] }
+                ]
+            });
+            await importExternalFiles(files, "file picker");
             return;
         }
 
@@ -495,6 +597,7 @@ function renderMain() {
     const collectionNames = ["all", ...new Set(state.documents.map((entry) => entry.collection))];
     const readerWindows = state.windows.filter((entry) => !entry.isPrimary).length;
     const reviewQueue = state.documents.filter((entry) => entry.status === "queued" || entry.status === "reviewing").length;
+    const workspaceFolders = state.workspaceEntries.filter((entry) => entry.isDir);
 
     APP.innerHTML = `
         <section class="shell-frame masthead">
@@ -503,12 +606,13 @@ function renderMain() {
                 <h1>Review a local archive, store decisions in SQLite, and keep the source files close.</h1>
                 <p class="section-copy">
                     This flagship app indexes a bundled research workspace, opens the real source files
-                    through the filesystem bridge, and uses reader windows for focused review passes.
+                    through the filesystem bridge, supports drag-and-drop intake, and uses reader windows for focused review passes.
                 </p>
                 <div class="action-row">
                     <button class="button button-primary" type="button" data-action="index" ${state.importBusy ? "disabled" : ""}>
                         ${state.importBusy ? "Indexing archive…" : "Index workspace"}
                     </button>
+                    <button class="button" type="button" data-action="import-files" ${state.importBusy ? "disabled" : ""}>Import files</button>
                     <button class="button" type="button" data-action="export">Export visible queue</button>
                     <button class="ghost-button" type="button" data-action="sync-title">Sync title</button>
                     <button class="ghost-button" type="button" data-action="close-window">Close</button>
@@ -596,6 +700,23 @@ function renderMain() {
                         <strong>Workspace indexing</strong>
                         <p class="section-copy">The import button runs an allowlisted local indexing command and merges the results into the database.</p>
                     </div>
+                    <div class="meta-box">
+                        <p class="label">Desktop intake</p>
+                        <strong>File picker and drag drop</strong>
+                        <p class="section-copy">Import local <code>.md</code> and <code>.txt</code> files straight into <code>workspace/imports</code> without leaving the app.</p>
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <div class="window-list">
+                    <p class="label">Workspace folders</p>
+                    ${workspaceFolders.length ? workspaceFolders.map((entry) => `
+                        <div class="window-chip">
+                            <small>${escapeHtml(entry.path)}</small>
+                            <strong>${escapeHtml(entry.name)}</strong>
+                        </div>
+                    `).join("") : `<p class="section-copy">No workspace folders were discovered yet.</p>`}
                 </div>
 
                 <div class="section-divider"></div>
@@ -734,12 +855,12 @@ function renderReader() {
                 <div class="meta-list">
                     <div class="meta-box">
                         <p class="label">Source file</p>
-                        <strong>${escapeHtml(state.readerDocument.path)}</strong>
-                        <p class="section-copy">${escapeHtml(formatBytes(state.readerDocument.fileSize))} · ${escapeHtml(String(state.readerDocument.lineCount))} lines · ${escapeHtml(String(state.readerDocument.readingMinutes))} min read</p>
+                        <strong>${escapeHtml(state.readerFileMeta?.path || state.readerDocument.path)}</strong>
+                        <p class="section-copy">${escapeHtml(formatBytes(state.readerFileMeta?.size ?? state.readerDocument.fileSize))} · ${escapeHtml(String(state.readerDocument.lineCount))} lines · ${escapeHtml(String(state.readerDocument.readingMinutes))} min read</p>
                     </div>
                     <div class="meta-box">
                         <p class="label">Last modified</p>
-                        <strong>${escapeHtml(formatDateTime(state.readerDocument.sourceModifiedAt))}</strong>
+                        <strong>${escapeHtml(formatDateTime(state.readerFileMeta?.modifiedAt || state.readerDocument.sourceModifiedAt))}</strong>
                         <p class="section-copy">Reader windows share the same runtime and the same database as the main queue.</p>
                     </div>
                 </div>
@@ -815,13 +936,13 @@ function renderPreview(documentRecord) {
             <div class="meta-list">
                 <div class="meta-box">
                     <p class="label">Source file</p>
-                    <strong>${escapeHtml(documentRecord.path)}</strong>
-                    <p class="section-copy">${escapeHtml(formatDateTime(documentRecord.sourceModifiedAt))}</p>
+                    <strong>${escapeHtml(state.selectedFileMeta?.path || documentRecord.path)}</strong>
+                    <p class="section-copy">${escapeHtml(formatDateTime(state.selectedFileMeta?.modifiedAt || documentRecord.sourceModifiedAt))}</p>
                 </div>
                 <div class="meta-box">
                     <p class="label">Reviewer</p>
                     <strong>${escapeHtml(documentRecord.reviewer || "Unassigned")}</strong>
-                    <p class="section-copy">${escapeHtml(formatBytes(documentRecord.fileSize))} · ${escapeHtml(String(documentRecord.lineCount))} lines · ${escapeHtml(String(documentRecord.readingMinutes))} min read</p>
+                    <p class="section-copy">${escapeHtml(formatBytes(state.selectedFileMeta?.size ?? documentRecord.fileSize))} · ${escapeHtml(String(documentRecord.lineCount))} lines · ${escapeHtml(String(documentRecord.readingMinutes))} min read</p>
                 </div>
             </div>
 
@@ -1011,18 +1132,6 @@ function renderRichText(source) {
 
 function renderTag(value, className) {
     return `<span class="tag ${className}">${escapeHtml(value)}</span>`;
-}
-
-function downloadText(filename, text, mimeType) {
-    const blob = new Blob([text], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function renderFatal() {

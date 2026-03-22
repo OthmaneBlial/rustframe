@@ -1,5 +1,6 @@
 (function () {
     const pending = new Map();
+    const fileDropListeners = new Set();
     let nextId = 1;
     const bridgeConfig = (() => {
         const raw = window.__RUSTFRAME_BRIDGE_CONFIG__;
@@ -55,6 +56,90 @@
         });
     }
 
+    function normalizePath(input = ".") {
+        const value = String(input || ".").replaceAll("\\", "/");
+        const isAbsolute = value.startsWith("/");
+        const parts = value.split("/");
+        const normalized = [];
+
+        for (const part of parts) {
+            if (!part || part === ".") {
+                continue;
+            }
+
+            if (part === "..") {
+                if (normalized.length && normalized[normalized.length - 1] !== "..") {
+                    normalized.pop();
+                    continue;
+                }
+
+                if (!isAbsolute) {
+                    normalized.push(part);
+                }
+                continue;
+            }
+
+            normalized.push(part);
+        }
+
+        const joined = normalized.join("/");
+        if (isAbsolute) {
+            return `/${joined}`.replace(/\/+$/u, "") || "/";
+        }
+
+        return joined || ".";
+    }
+
+    function joinPath(...parts) {
+        return normalizePath(parts.filter((part) => part !== undefined && part !== null).join("/"));
+    }
+
+    function dirname(input = ".") {
+        const normalized = normalizePath(input);
+        if (normalized === "." || normalized === "/") {
+            return normalized;
+        }
+
+        const parts = normalized.split("/");
+        parts.pop();
+        if (!parts.length) {
+            return normalized.startsWith("/") ? "/" : ".";
+        }
+        return parts.join("/") || ".";
+    }
+
+    function basename(input = ".") {
+        const normalized = normalizePath(input);
+        if (normalized === "." || normalized === "/") {
+            return normalized;
+        }
+        const parts = normalized.split("/");
+        return parts[parts.length - 1] || normalized;
+    }
+
+    function extname(input = ".") {
+        const name = basename(input);
+        const index = name.lastIndexOf(".");
+        if (index <= 0 || index === name.length - 1) {
+            return "";
+        }
+        return name.slice(index);
+    }
+
+    function emitFileDrop(payload) {
+        fileDropListeners.forEach((listener) => {
+            try {
+                listener(payload);
+            } catch (error) {
+                window.setTimeout(() => {
+                    throw error;
+                }, 0);
+            }
+        });
+
+        window.dispatchEvent(new CustomEvent("rustframe:file-drop", { detail: payload }));
+    }
+
     function resolveFromNative(message) {
         const callback = pending.get(message.id);
         if (!callback) {
@@ -73,6 +158,7 @@
 
     window.RustFrame = Object.freeze({
         __resolveFromNative: resolveFromNative,
+        __emitFileDrop: emitFileDrop,
         invoke,
         security: bridgeConfig,
         window: Object.freeze({
@@ -96,7 +182,58 @@
         fs: Object.freeze({
             readText: (path) => bridgeConfig.filesystem
                 ? invoke("fs.readText", { path })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            readBinary: (path) => bridgeConfig.filesystem
+                ? invoke("fs.readBinary", { path })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            metadata: (path) => bridgeConfig.filesystem
+                ? invoke("fs.metadata", { path })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            listDir: (path = ".") => bridgeConfig.filesystem
+                ? invoke("fs.listDir", { path })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            writeText: (path, contents) => bridgeConfig.filesystem
+                ? invoke("fs.writeText", { path, contents })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            writeBinary: (path, base64) => bridgeConfig.filesystem
+                ? invoke("fs.writeBinary", { path, base64 })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            copyFrom: (sourcePath, destinationPath) => bridgeConfig.filesystem
+                ? invoke("fs.copyFrom", { sourcePath, destinationPath })
                 : rejectRestrictedBridge("filesystem bridge is disabled for this frontend")
+        }),
+        dialog: Object.freeze({
+            openFile: (options = {}) => bridgeConfig.filesystem
+                ? invoke("dialog.openFile", options)
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            openFiles: (options = {}) => bridgeConfig.filesystem
+                ? invoke("dialog.openFiles", options)
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            openDirectory: (options = {}) => bridgeConfig.filesystem
+                ? invoke("dialog.openDirectory", options)
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            saveText: (options = {}) => bridgeConfig.filesystem
+                ? invoke("dialog.saveText", options)
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            saveBinary: (options = {}) => bridgeConfig.filesystem
+                ? invoke("dialog.saveBinary", options)
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend")
+        }),
+        events: Object.freeze({
+            onFileDrop: (listener) => {
+                if (typeof listener !== "function") {
+                    throw new TypeError("RustFrame.events.onFileDrop expects a function");
+                }
+                fileDropListeners.add(listener);
+                return () => fileDropListeners.delete(listener);
+            }
+        }),
+        path: Object.freeze({
+            normalize: normalizePath,
+            join: joinPath,
+            dirname,
+            basename,
+            extname
         }),
         shell: Object.freeze({
             exec: (command, args = []) => bridgeConfig.shell

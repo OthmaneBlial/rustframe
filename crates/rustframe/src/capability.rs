@@ -8,7 +8,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use serde::Serialize;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{Result, RuntimeError};
 
@@ -18,6 +20,36 @@ const DEFAULT_SHELL_MAX_OUTPUT_BYTES: usize = 64 * 1024;
 #[derive(Clone, Debug, Default)]
 pub struct FsCapability {
     roots: Vec<PathBuf>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsEntry {
+    pub path: String,
+    pub absolute_path: String,
+    pub name: String,
+    pub parent: String,
+    pub is_dir: bool,
+    pub is_file: bool,
+    pub size: u64,
+    pub extension: Option<String>,
+    pub modified_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsBinaryContents {
+    #[serde(flatten)]
+    pub file: FsEntry,
+    pub byte_length: usize,
+    pub base64: String,
+}
+
+#[derive(Clone, Debug)]
+struct ResolvedFsPath {
+    root: PathBuf,
+    absolute: PathBuf,
+    relative: PathBuf,
 }
 
 impl FsCapability {
@@ -59,11 +91,132 @@ impl FsCapability {
     where
         P: AsRef<Path>,
     {
-        let path = self.resolve(requested.as_ref())?;
-        fs::read_to_string(path).map_err(Into::into)
+        let resolved = self.resolve_existing(requested.as_ref())?;
+        fs::read_to_string(resolved.absolute).map_err(Into::into)
+    }
+
+    pub fn read_binary<P>(&self, requested: P) -> Result<FsBinaryContents>
+    where
+        P: AsRef<Path>,
+    {
+        let resolved = self.resolve_existing(requested.as_ref())?;
+        let bytes = fs::read(&resolved.absolute)?;
+        Ok(FsBinaryContents {
+            file: self.entry_for_resolved(&resolved)?,
+            byte_length: bytes.len(),
+            base64: BASE64_STANDARD.encode(bytes),
+        })
+    }
+
+    pub fn metadata<P>(&self, requested: P) -> Result<FsEntry>
+    where
+        P: AsRef<Path>,
+    {
+        let resolved = self.resolve_existing(requested.as_ref())?;
+        self.entry_for_resolved(&resolved)
+    }
+
+    pub fn list_dir<P>(&self, requested: P) -> Result<Vec<FsEntry>>
+    where
+        P: AsRef<Path>,
+    {
+        let resolved = self.resolve_existing(requested.as_ref())?;
+        if !resolved.absolute.is_dir() {
+            return Err(RuntimeError::InvalidParameter(format!(
+                "'{}' is not a directory",
+                display_requested_path(requested.as_ref())
+            )));
+        }
+
+        let mut entries = fs::read_dir(&resolved.absolute)?
+            .map(|entry| {
+                let entry = entry?;
+                let child_absolute = entry.path();
+                let child_relative = child_absolute
+                    .strip_prefix(&resolved.root)
+                    .map(PathBuf::from)
+                    .map_err(|_| {
+                        RuntimeError::PermissionDenied(format!(
+                            "path '{}' is outside the configured filesystem roots",
+                            child_absolute.display()
+                        ))
+                    })?;
+
+                self.entry_for_paths(&resolved.root, &child_absolute, &child_relative)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        entries.sort_by(|left, right| {
+            right
+                .is_dir
+                .cmp(&left.is_dir)
+                .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+                .then_with(|| left.path.cmp(&right.path))
+        });
+
+        Ok(entries)
+    }
+
+    pub fn write_text<P>(&self, requested: P, contents: &str) -> Result<FsEntry>
+    where
+        P: AsRef<Path>,
+    {
+        let resolved = self.resolve_for_write(requested.as_ref())?;
+        self.prepare_write_target(&resolved)?;
+        fs::write(&resolved.absolute, contents)?;
+        self.entry_for_resolved(&resolved)
+    }
+
+    pub fn write_binary<P>(&self, requested: P, contents_base64: &str) -> Result<FsEntry>
+    where
+        P: AsRef<Path>,
+    {
+        let bytes = BASE64_STANDARD.decode(contents_base64).map_err(|error| {
+            RuntimeError::InvalidParameter(format!("binary payload is not valid base64: {error}"))
+        })?;
+        let resolved = self.resolve_for_write(requested.as_ref())?;
+        self.prepare_write_target(&resolved)?;
+        fs::write(&resolved.absolute, bytes)?;
+        self.entry_for_resolved(&resolved)
+    }
+
+    pub fn copy_from<P, Q>(&self, source: P, destination: Q) -> Result<FsEntry>
+    where
+        P: AsRef<Path>,
+        Q: AsRef<Path>,
+    {
+        let source = source.as_ref();
+        if !source.is_absolute() {
+            return Err(RuntimeError::InvalidParameter(
+                "copy source must be an absolute path".into(),
+            ));
+        }
+
+        let source_metadata = fs::metadata(source).map_err(|error| {
+            RuntimeError::InvalidParameter(format!(
+                "unable to read copy source '{}': {error}",
+                source.display()
+            ))
+        })?;
+
+        if !source_metadata.is_file() {
+            return Err(RuntimeError::InvalidParameter(format!(
+                "copy source '{}' is not a file",
+                source.display()
+            )));
+        }
+
+        let resolved = self.resolve_for_write(destination.as_ref())?;
+        self.prepare_write_target(&resolved)?;
+        fs::copy(source, &resolved.absolute)?;
+        self.entry_for_resolved(&resolved)
     }
 
     pub fn resolve(&self, requested: &Path) -> Result<PathBuf> {
+        Ok(self.resolve_existing(requested)?.absolute)
+    }
+
+    fn resolve_existing(&self, requested: &Path) -> Result<ResolvedFsPath> {
         if self.roots.is_empty() {
             return Err(RuntimeError::PermissionDenied(
                 "no filesystem roots have been allowed".into(),
@@ -95,7 +248,14 @@ impl FsCapability {
             };
 
             if canonical.starts_with(root) {
-                return Ok(canonical);
+                return Ok(ResolvedFsPath {
+                    root: root.clone(),
+                    relative: canonical
+                        .strip_prefix(root)
+                        .map(PathBuf::from)
+                        .unwrap_or_default(),
+                    absolute: canonical,
+                });
             }
         }
 
@@ -105,9 +265,37 @@ impl FsCapability {
         )))
     }
 
-    fn ensure_allowed(&self, canonical: PathBuf, requested: &Path) -> Result<PathBuf> {
-        if self.roots.iter().any(|root| canonical.starts_with(root)) {
-            return Ok(canonical);
+    fn resolve_for_write(&self, requested: &Path) -> Result<ResolvedFsPath> {
+        if self.roots.is_empty() {
+            return Err(RuntimeError::PermissionDenied(
+                "no filesystem roots have been allowed".into(),
+            ));
+        }
+
+        if requested.as_os_str().is_empty() {
+            return Err(RuntimeError::InvalidParameter(
+                "path must not be empty".into(),
+            ));
+        }
+
+        if requested.is_absolute() {
+            for root in &self.roots {
+                if let Ok(resolved) = resolve_candidate_for_write(root, requested) {
+                    return Ok(resolved);
+                }
+            }
+
+            return Err(RuntimeError::PermissionDenied(format!(
+                "path '{}' is outside the configured filesystem roots",
+                requested.display()
+            )));
+        }
+
+        for root in &self.roots {
+            let candidate = root.join(requested);
+            if let Ok(resolved) = resolve_candidate_for_write(root, &candidate) {
+                return Ok(resolved);
+            }
         }
 
         Err(RuntimeError::PermissionDenied(format!(
@@ -115,6 +303,137 @@ impl FsCapability {
             requested.display()
         )))
     }
+
+    fn ensure_allowed(&self, canonical: PathBuf, requested: &Path) -> Result<ResolvedFsPath> {
+        if let Some(root) = self.roots.iter().find(|root| canonical.starts_with(root.as_path())) {
+            return Ok(ResolvedFsPath {
+                root: root.clone(),
+                relative: canonical
+                    .strip_prefix(root)
+                    .map(PathBuf::from)
+                    .unwrap_or_default(),
+                absolute: canonical,
+            });
+        }
+
+        Err(RuntimeError::PermissionDenied(format!(
+            "path '{}' is outside the configured filesystem roots",
+            requested.display()
+        )))
+    }
+
+    fn prepare_write_target(&self, resolved: &ResolvedFsPath) -> Result<()> {
+        if let Some(parent) = resolved.absolute.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        if resolved.absolute.exists() && resolved.absolute.is_dir() {
+            return Err(RuntimeError::InvalidParameter(format!(
+                "'{}' is a directory",
+                display_requested_path(&resolved.relative)
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn entry_for_resolved(&self, resolved: &ResolvedFsPath) -> Result<FsEntry> {
+        self.entry_for_paths(&resolved.root, &resolved.absolute, &resolved.relative)
+    }
+
+    fn entry_for_paths(&self, root: &Path, absolute: &Path, relative: &Path) -> Result<FsEntry> {
+        let metadata = fs::metadata(absolute)?;
+        Ok(FsEntry {
+            path: display_requested_path(relative),
+            absolute_path: absolute.to_string_lossy().to_string(),
+            name: absolute
+                .file_name()
+                .map(|value| value.to_string_lossy().to_string())
+                .unwrap_or_else(|| root.to_string_lossy().to_string()),
+            parent: relative
+                .parent()
+                .map(display_requested_path)
+                .unwrap_or_else(|| ".".into()),
+            is_dir: metadata.is_dir(),
+            is_file: metadata.is_file(),
+            size: metadata.len(),
+            extension: absolute
+                .extension()
+                .map(|value| value.to_string_lossy().to_string()),
+            modified_at: modified_at_string(&metadata).ok(),
+        })
+    }
+}
+
+fn resolve_candidate_for_write(root: &Path, candidate: &Path) -> Result<ResolvedFsPath> {
+    let mut existing_ancestor = candidate.to_path_buf();
+    let mut missing_segments = Vec::new();
+
+    while !existing_ancestor.exists() {
+        let segment = existing_ancestor.file_name().ok_or_else(|| {
+            RuntimeError::InvalidParameter(format!(
+                "unable to resolve '{}' for writing",
+                candidate.display()
+            ))
+        })?;
+        missing_segments.push(segment.to_os_string());
+        existing_ancestor = existing_ancestor.parent().ok_or_else(|| {
+            RuntimeError::InvalidParameter(format!(
+                "unable to resolve '{}' for writing",
+                candidate.display()
+            ))
+        })?
+        .to_path_buf();
+    }
+
+    let canonical_ancestor = existing_ancestor.canonicalize().map_err(|error| {
+        RuntimeError::InvalidParameter(format!(
+            "unable to resolve '{}': {error}",
+            candidate.display()
+        ))
+    })?;
+
+    if !canonical_ancestor.starts_with(root) {
+        return Err(RuntimeError::PermissionDenied(format!(
+            "path '{}' is outside the configured filesystem roots",
+            candidate.display()
+        )));
+    }
+
+    let mut absolute = canonical_ancestor.clone();
+    for segment in missing_segments.iter().rev() {
+        absolute.push(segment);
+    }
+
+    let relative = absolute.strip_prefix(root).map(PathBuf::from).map_err(|_| {
+        RuntimeError::PermissionDenied(format!(
+            "path '{}' is outside the configured filesystem roots",
+            candidate.display()
+        ))
+    })?;
+
+    Ok(ResolvedFsPath {
+        root: root.to_path_buf(),
+        absolute,
+        relative,
+    })
+}
+
+fn display_requested_path(path: &Path) -> String {
+    let rendered = path.to_string_lossy().replace('\\', "/");
+    if rendered.is_empty() {
+        ".".into()
+    } else {
+        rendered
+    }
+}
+
+fn modified_at_string(metadata: &fs::Metadata) -> std::io::Result<String> {
+    let modified_at = metadata.modified()?;
+    let timestamp = OffsetDateTime::from(modified_at)
+        .format(&Rfc3339)
+        .map_err(std::io::Error::other)?;
+    Ok(timestamp)
 }
 
 #[derive(Clone, Debug)]
@@ -417,9 +736,10 @@ fn collect_reader(
 mod tests {
     use std::{collections::BTreeMap, fs};
 
+    use base64::Engine as _;
     use tempfile::tempdir;
 
-    use super::{FsCapability, ShellCapability, ShellCommand};
+    use super::{BASE64_STANDARD, FsCapability, ShellCapability, ShellCommand};
 
     #[test]
     fn reads_file_inside_allowed_root() {
@@ -451,6 +771,74 @@ mod tests {
             error
                 .to_string()
                 .contains("outside the configured filesystem roots")
+        );
+    }
+
+    #[test]
+    fn lists_directory_entries_and_metadata() {
+        let temp = tempdir().unwrap();
+        let root = temp.path().join("frontend");
+        fs::create_dir_all(root.join("notes")).unwrap();
+        fs::write(root.join("notes/brief.md"), "# Brief").unwrap();
+        fs::write(root.join("summary.txt"), "ready").unwrap();
+
+        let capability = FsCapability::new([root]).unwrap();
+        let entries = capability.list_dir(".").unwrap();
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].path, "notes");
+        assert!(entries[0].is_dir);
+        assert_eq!(entries[1].path, "summary.txt");
+        assert!(entries[1].is_file);
+        assert_eq!(entries[1].extension.as_deref(), Some("txt"));
+    }
+
+    #[test]
+    fn writes_text_inside_allowed_root() {
+        let temp = tempdir().unwrap();
+        let root = temp.path().join("frontend");
+        fs::create_dir_all(&root).unwrap();
+
+        let capability = FsCapability::new([root.clone()]).unwrap();
+        let written = capability.write_text("imports/brief.md", "# Imported").unwrap();
+
+        assert_eq!(written.path, "imports/brief.md");
+        assert_eq!(fs::read_to_string(root.join("imports/brief.md")).unwrap(), "# Imported");
+    }
+
+    #[test]
+    fn reads_and_writes_binary_payloads() {
+        let temp = tempdir().unwrap();
+        let root = temp.path().join("frontend");
+        fs::create_dir_all(&root).unwrap();
+
+        let capability = FsCapability::new([root.clone()]).unwrap();
+        capability
+            .write_binary("assets/icon.bin", &BASE64_STANDARD.encode([0_u8, 1, 2, 3]))
+            .unwrap();
+
+        let binary = capability.read_binary("assets/icon.bin").unwrap();
+
+        assert_eq!(binary.byte_length, 4);
+        assert_eq!(binary.base64, BASE64_STANDARD.encode([0_u8, 1, 2, 3]));
+        assert_eq!(fs::read(root.join("assets/icon.bin")).unwrap(), vec![0_u8, 1, 2, 3]);
+    }
+
+    #[test]
+    fn copies_external_files_into_allowed_root() {
+        let temp = tempdir().unwrap();
+        let root = temp.path().join("frontend");
+        fs::create_dir_all(&root).unwrap();
+        let external = temp.path().join("source.md");
+        fs::write(&external, "# External").unwrap();
+
+        let capability = FsCapability::new([root.clone()]).unwrap();
+        let copied = capability.copy_from(&external, "imports/source.md").unwrap();
+
+        assert_eq!(copied.path, "imports/source.md");
+        assert_eq!(
+            fs::read_to_string(root.join("imports/source.md")).unwrap(),
+            "# External"
         );
     }
 

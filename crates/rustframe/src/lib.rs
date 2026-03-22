@@ -6,7 +6,9 @@ mod ipc;
 #[cfg(feature = "desktop")]
 mod desktop;
 
-pub use capability::{FsCapability, ShellCapability, ShellCommand, ShellOutput};
+pub use capability::{
+    FsBinaryContents, FsCapability, FsEntry, ShellCapability, ShellCommand, ShellOutput,
+};
 pub use database::{
     DatabaseCapability, DatabaseFilter, DatabaseFilterOp, DatabaseInfo, DatabaseListQuery,
     DatabaseMigrationFile, DatabaseOpenConfig, DatabaseOrder, DatabaseOrderDirection,

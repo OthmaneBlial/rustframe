@@ -2,12 +2,14 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
     env, fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::mpsc,
     thread,
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use mime_guess::MimeGuess;
+use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tao::{
@@ -19,6 +21,7 @@ use wry::{
     NewWindowResponse, WebView, WebViewBuilder,
     http::{Request, Response, header::CONTENT_TYPE},
 };
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{
     DatabaseCapability, DatabaseListQuery, DatabaseMigrationFile, DatabaseOpenConfig,
@@ -409,6 +412,27 @@ impl WindowManager {
         }
     }
 
+    fn emit_file_drop(&self, window_id: WindowId, paths: &[PathBuf]) {
+        let Some(managed) = self.windows.get(&window_id) else {
+            return;
+        };
+
+        let files = paths
+            .iter()
+            .filter_map(|path| external_path_record(path).ok())
+            .collect::<Vec<_>>();
+        if files.is_empty() {
+            return;
+        }
+
+        if let Ok(serialized) = serde_json::to_string(&json!({ "files": files })) {
+            let script = format!(
+                "if (window.RustFrame && typeof window.RustFrame.__emitFileDrop === 'function') {{ window.RustFrame.__emitFileDrop({serialized}); }}"
+            );
+            let _ = managed.webview.evaluate_script(&script);
+        }
+    }
+
     fn close_window(&mut self, window_id: WindowId) -> bool {
         self.windows.remove(&window_id);
         self.windows.is_empty()
@@ -595,7 +619,7 @@ impl RustFrameBuilder {
         let ipc_proxy = event_loop.create_proxy();
         let worker = IpcWorker::spawn(
             ipc_proxy.clone(),
-            fs_capability,
+            fs_capability.clone(),
             shell_capability,
             database_capability,
         )?;
@@ -607,6 +631,15 @@ impl RustFrameBuilder {
             *control_flow = ControlFlow::Wait;
 
             match event {
+                Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::DroppedFile(path),
+                    ..
+                } => {
+                    if security.filesystem {
+                        window_manager.emit_file_drop(window_id, &[path]);
+                    }
+                }
                 Event::WindowEvent {
                     window_id,
                     event: WindowEvent::CloseRequested,
@@ -622,6 +655,7 @@ impl RustFrameBuilder {
                         window_id,
                         &worker,
                         &security,
+                        &fs_capability,
                         &mut window_manager,
                         target,
                     ) {
@@ -813,17 +847,108 @@ struct DbGetParams {
     id: i64,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FsWriteTextParams {
+    path: String,
+    contents: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FsWriteBinaryParams {
+    path: String,
+    base64: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FsCopyParams {
+    source_path: String,
+    destination_path: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DialogFileOptions {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    directory: Option<String>,
+    #[serde(default)]
+    filters: Vec<DialogFilter>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DialogSaveOptions {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    directory: Option<String>,
+    #[serde(default)]
+    default_name: Option<String>,
+    #[serde(default)]
+    filters: Vec<DialogFilter>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DialogSaveTextParams {
+    #[serde(flatten)]
+    options: DialogSaveOptions,
+    contents: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DialogSaveBinaryParams {
+    #[serde(flatten)]
+    options: DialogSaveOptions,
+    base64: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DialogFilter {
+    name: String,
+    #[serde(default)]
+    extensions: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalPathRecord {
+    path: String,
+    name: String,
+    parent: String,
+    is_dir: bool,
+    is_file: bool,
+    size: u64,
+    extension: Option<String>,
+    modified_at: Option<String>,
+}
+
 fn dispatch_ipc_message(
     body: &str,
     window_id: WindowId,
     worker: &IpcWorker,
     security: &ResolvedFrontendSecurity,
+    fs_capability: &FsCapability,
     window_manager: &mut WindowManager,
     target: &EventLoopWindowTarget<UserEvent>,
 ) -> Option<IpcOutcome> {
     match serde_json::from_str::<IpcRequest>(body) {
         Ok(request) => {
-            dispatch_request(request, window_id, worker, security, window_manager, target)
+            dispatch_request(
+                request,
+                window_id,
+                worker,
+                security,
+                fs_capability,
+                window_manager,
+                target,
+            )
         }
         Err(error) => Some(IpcOutcome {
             response: IpcResponse::failure(0, &RuntimeError::Json(error)),
@@ -837,6 +962,7 @@ fn dispatch_request(
     window_id: WindowId,
     worker: &IpcWorker,
     security: &ResolvedFrontendSecurity,
+    fs_capability: &FsCapability,
     window_manager: &mut WindowManager,
     target: &EventLoopWindowTarget<UserEvent>,
 ) -> Option<IpcOutcome> {
@@ -851,6 +977,7 @@ fn dispatch_request(
         MethodExecution::MainThread => Some(handle_main_thread_request(
             request,
             window_id,
+            fs_capability,
             window_manager,
             target,
         )),
@@ -876,9 +1003,15 @@ fn dispatch_request(
 
 fn authorize_method(method: &str, security: &ResolvedFrontendSecurity) -> Result<()> {
     match method {
-        "fs.readText" if !security.filesystem => Err(RuntimeError::PermissionDenied(
-            "filesystem bridge is disabled for this frontend".into(),
-        )),
+        "fs.readText" | "fs.readBinary" | "fs.metadata" | "fs.listDir" | "fs.writeText"
+        | "fs.writeBinary" | "fs.copyFrom" | "dialog.openFile" | "dialog.openFiles"
+        | "dialog.openDirectory" | "dialog.saveText" | "dialog.saveBinary"
+            if !security.filesystem =>
+        {
+            Err(RuntimeError::PermissionDenied(
+                "filesystem bridge is disabled for this frontend".into(),
+            ))
+        }
         "shell.exec" if !security.shell => Err(RuntimeError::PermissionDenied(
             "shell bridge is disabled for this frontend".into(),
         )),
@@ -905,9 +1038,14 @@ fn resolve_ipc_response(webview: &WebView, response: &IpcResponse) {
 fn method_execution(method: &str) -> MethodExecution {
     match method {
         "window.close" | "window.minimize" | "window.maximize" | "window.setTitle"
-        | "window.current" | "window.list" | "window.open" => MethodExecution::MainThread,
-        "fs.readText" | "shell.exec" | "db.info" | "db.get" | "db.list" | "db.count"
-        | "db.insert" | "db.update" | "db.delete" => MethodExecution::Background,
+        | "window.current" | "window.list" | "window.open" | "dialog.openFile"
+        | "dialog.openFiles" | "dialog.openDirectory" | "dialog.saveText"
+        | "dialog.saveBinary" => MethodExecution::MainThread,
+        "fs.readText" | "fs.readBinary" | "fs.metadata" | "fs.listDir" | "fs.writeText"
+        | "fs.writeBinary" | "fs.copyFrom" | "shell.exec" | "db.info" | "db.get"
+        | "db.list" | "db.count" | "db.insert" | "db.update" | "db.delete" => {
+            MethodExecution::Background
+        }
         _ => MethodExecution::Unknown,
     }
 }
@@ -922,6 +1060,7 @@ enum MethodExecution {
 fn handle_main_thread_request(
     request: IpcRequest,
     window_id: WindowId,
+    fs_capability: &FsCapability,
     window_manager: &mut WindowManager,
     target: &EventLoopWindowTarget<UserEvent>,
 ) -> IpcOutcome {
@@ -950,6 +1089,58 @@ fn handle_main_thread_request(
             let params: WindowOpenParams = parse_params(&request.params)?;
             Ok(json!(window_manager.open_window(target, params, false)?))
         })(),
+        "dialog.openFile" => (|| {
+            let options: DialogFileOptions = parse_params(&request.params)?;
+            let dialog = build_file_dialog(fs_capability, &options, None)?;
+            let selected = dialog.pick_file().map(|path| external_path_record(&path)).transpose()?;
+            Ok(selected.map(|record| json!(record)).unwrap_or(Value::Null))
+        })(),
+        "dialog.openFiles" => (|| {
+            let options: DialogFileOptions = parse_params(&request.params)?;
+            let dialog = build_file_dialog(fs_capability, &options, None)?;
+            let files = dialog
+                .pick_files()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|path| external_path_record(&path))
+                .collect::<Result<Vec<_>>>()?;
+            Ok(json!(files))
+        })(),
+        "dialog.openDirectory" => (|| {
+            let options: DialogFileOptions = parse_params(&request.params)?;
+            let dialog = build_file_dialog(fs_capability, &options, None)?;
+            let selected = dialog.pick_folder().map(|path| external_path_record(&path)).transpose()?;
+            Ok(selected.map(|record| json!(record)).unwrap_or(Value::Null))
+        })(),
+        "dialog.saveText" => (|| {
+            let params: DialogSaveTextParams = parse_params(&request.params)?;
+            let dialog = build_save_dialog(fs_capability, &params.options)?;
+            let Some(path) = dialog.save_file() else {
+                return Ok(Value::Null);
+            };
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(&path, params.contents)?;
+            Ok(json!(external_path_record(&path)?))
+        })(),
+        "dialog.saveBinary" => (|| {
+            let params: DialogSaveBinaryParams = parse_params(&request.params)?;
+            let dialog = build_save_dialog(fs_capability, &params.options)?;
+            let Some(path) = dialog.save_file() else {
+                return Ok(Value::Null);
+            };
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            let bytes = BASE64_STANDARD.decode(&params.base64).map_err(|error| {
+                RuntimeError::InvalidParameter(format!(
+                    "binary payload is not valid base64: {error}"
+                ))
+            })?;
+            fs::write(&path, bytes)?;
+            Ok(json!(external_path_record(&path)?))
+        })(),
         _ => Err(RuntimeError::UnknownMethod(request.method.clone())),
     };
 
@@ -975,6 +1166,34 @@ fn execute_background_request(
             let path = required_string(&request.params, "path")?;
             let content = fs_capability.read_text(path)?;
             Ok(Value::String(content))
+        })(),
+        "fs.readBinary" => (|| {
+            let path = required_string(&request.params, "path")?;
+            Ok(json!(fs_capability.read_binary(path)?))
+        })(),
+        "fs.metadata" => (|| {
+            let path = required_string(&request.params, "path")?;
+            Ok(json!(fs_capability.metadata(path)?))
+        })(),
+        "fs.listDir" => (|| {
+            let path = request
+                .params
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or(".");
+            Ok(json!(fs_capability.list_dir(path)?))
+        })(),
+        "fs.writeText" => (|| {
+            let params: FsWriteTextParams = parse_params(&request.params)?;
+            Ok(json!(fs_capability.write_text(params.path, &params.contents)?))
+        })(),
+        "fs.writeBinary" => (|| {
+            let params: FsWriteBinaryParams = parse_params(&request.params)?;
+            Ok(json!(fs_capability.write_binary(params.path, &params.base64)?))
+        })(),
+        "fs.copyFrom" => (|| {
+            let params: FsCopyParams = parse_params(&request.params)?;
+            Ok(json!(fs_capability.copy_from(params.source_path, params.destination_path)?))
         })(),
         "shell.exec" => (|| {
             let command = required_string(&request.params, "command")?;
@@ -1060,6 +1279,120 @@ fn optional_string_vec(params: &Value, key: &str) -> Result<Vec<String>> {
             })
         })
         .collect()
+}
+
+fn build_file_dialog(
+    fs_capability: &FsCapability,
+    options: &DialogFileOptions,
+    default_name: Option<&str>,
+) -> Result<FileDialog> {
+    let mut dialog = FileDialog::new();
+
+    if let Some(title) = options.title.as_deref() {
+        dialog = dialog.set_title(title);
+    }
+
+    if let Some(directory) = options.directory.as_deref() {
+        dialog = dialog.set_directory(resolve_dialog_directory(fs_capability, directory)?);
+    }
+
+    if let Some(default_name) = default_name {
+        dialog = dialog.set_file_name(default_name);
+    }
+
+    for filter in &options.filters {
+        let extensions = filter
+            .extensions
+            .iter()
+            .map(|value| value.trim().trim_start_matches('.').to_string())
+            .filter(|value| !value.is_empty())
+            .collect::<Vec<_>>();
+        if extensions.is_empty() {
+            continue;
+        }
+        dialog = dialog.add_filter(&filter.name, &extensions);
+    }
+
+    Ok(dialog)
+}
+
+fn build_save_dialog(
+    fs_capability: &FsCapability,
+    options: &DialogSaveOptions,
+) -> Result<FileDialog> {
+    build_file_dialog(
+        fs_capability,
+        &DialogFileOptions {
+            title: options.title.clone(),
+            directory: options.directory.clone(),
+            filters: options.filters.clone(),
+        },
+        options.default_name.as_deref(),
+    )
+}
+
+fn resolve_dialog_directory(fs_capability: &FsCapability, directory: &str) -> Result<PathBuf> {
+    let path = PathBuf::from(directory);
+    if path.is_absolute() {
+        if !path.exists() {
+            return Err(RuntimeError::InvalidParameter(format!(
+                "dialog directory '{}' does not exist",
+                path.display()
+            )));
+        }
+
+        if !path.is_dir() {
+            return Err(RuntimeError::InvalidParameter(format!(
+                "dialog directory '{}' is not a directory",
+                path.display()
+            )));
+        }
+
+        return Ok(path);
+    }
+
+    let resolved = fs_capability.resolve(Path::new(directory))?;
+    if !resolved.is_dir() {
+        return Err(RuntimeError::InvalidParameter(format!(
+            "dialog directory '{}' is not a directory",
+            directory
+        )));
+    }
+    Ok(resolved)
+}
+
+fn external_path_record(path: &Path) -> Result<ExternalPathRecord> {
+    let metadata = fs::metadata(path).map_err(|error| {
+        RuntimeError::InvalidParameter(format!(
+            "unable to inspect external path '{}': {error}",
+            path.display()
+        ))
+    })?;
+
+    Ok(ExternalPathRecord {
+        path: path.to_string_lossy().to_string(),
+        name: path
+            .file_name()
+            .map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.to_string_lossy().to_string()),
+        parent: path
+            .parent()
+            .map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        is_dir: metadata.is_dir(),
+        is_file: metadata.is_file(),
+        size: metadata.len(),
+        extension: path.extension().map(|value| value.to_string_lossy().to_string()),
+        modified_at: external_modified_at(&metadata).ok(),
+    })
+}
+
+fn external_modified_at(metadata: &fs::Metadata) -> std::io::Result<String> {
+    let modified_at = metadata.modified()?;
+    let timestamp = OffsetDateTime::from(modified_at)
+        .format(&Rfc3339)
+        .map_err(std::io::Error::other)?;
+    Ok(timestamp)
 }
 
 fn normalize_window_label(value: Option<String>, next_window_index: u64) -> Result<String> {
