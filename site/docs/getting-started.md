@@ -174,6 +174,26 @@ data/migrations/002-rename-title.sql
 
 Migration files are applied in schema-version order before RustFrame runs its additive schema reconciliation.
 
+## Inspect The Resolved App Contract
+
+Use `inspect` to see the resolved paths, trust model, packaged filesystem roots, shell limits, schema diagnostics, seeds, and migrations for an app:
+
+```bash
+cargo run -p rustframe-cli -- inspect hello-rustframe
+```
+
+This is the fastest way to verify what the hidden runner will actually expose before you package the app.
+
+## Reset Local Dev Data
+
+When you want to rebuild the local SQLite file from schema, migrations, and immutable seeds:
+
+```bash
+cargo run -p rustframe-cli -- reset-data hello-rustframe
+```
+
+On the next `dev` run, RustFrame recreates the app data directory and re-applies the embedded database assets.
+
 ## Export A Release Build
 
 From the workspace root:

@@ -131,6 +131,7 @@ If the app contains `data/schema.json` and the frontend trust settings allow dat
 - `window.RustFrame.db.info()`
 - `window.RustFrame.db.get(table, id)`
 - `window.RustFrame.db.list(table, options)`
+- `window.RustFrame.db.search(table, term, options)`
 - `window.RustFrame.db.count(table, options)`
 - `window.RustFrame.db.insert(table, record)`
 - `window.RustFrame.db.update(table, id, patch)`
@@ -157,10 +158,22 @@ The runtime can expose read access to explicit directories through `allow_fs_roo
 Frontend-only apps now declare those roots through `rustframe.json`.
 
 - `window.RustFrame.fs.readText(path)` only succeeds inside the configured roots.
+- `window.RustFrame.fs.listDir(path)`, `metadata(path)`, `writeText(path, contents)`, `writeBinary(path, base64)`, and `copyFrom(sourcePath, destinationPath)` stay inside the same scoped roots.
+- `window.RustFrame.fs.openPath(path)` opens an allowed file or directory in the host default app.
+- `window.RustFrame.fs.revealPath(path)` opens the host file manager for the allowed file or its parent folder.
 - Parent escapes and absolute paths outside those roots are rejected.
 - Relative roots resolve against the source app folder in debug builds and against the executable directory in release builds.
 - `rustframe-cli export` and `rustframe-cli package` copy declared relative roots beside the executable or inside the host bundle so file-centric apps can ship local workspaces and helper tool directories.
 - `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` can be expanded inside declared values.
+
+The bridge also exposes:
+
+- `window.RustFrame.dialog.openFile(...)`
+- `window.RustFrame.dialog.openFiles(...)`
+- `window.RustFrame.dialog.openDirectory(...)`
+- `window.RustFrame.dialog.saveText(...)`
+- `window.RustFrame.dialog.saveBinary(...)`
+- `window.RustFrame.clipboard.writeText(text)`
 
 The capability demo previously wired this in Rust by hand; frontend-only apps can now do the same through the manifest.
 
@@ -169,12 +182,27 @@ The capability demo previously wired this in Rust by hand; frontend-only apps ca
 The runtime can expose hardened commands through `allow_shell_command_configured(...)`.
 Frontend-only apps declare the same controls through `rustframe.json`.
 
-- `window.RustFrame.shell.exec(name, args)` resolves to structured `stdout`, `stderr`, `exitCode`, and truncation flags.
+- `window.RustFrame.shell.exec(name, args)` resolves to structured `stdout`, `stderr`, `exitCode`, truncation flags, `timeoutMs`, and `maxOutputBytes`.
 - Unknown commands are rejected.
 - Frontend-provided extra args are denied by default and must be allowlisted per command.
 - Commands run directly through `std::process::Command`, not through a shell pipeline.
 - Each command can declare `cwd`, `env`, `clearEnv`, `timeoutMs`, and `maxOutputBytes`.
 - `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` can be used inside declared program, arg, cwd, and env values.
+- `rustframe-cli dev <name>` writes shell audit records to `apps/<name>/dist/dev-shell-audit.log`.
+
+## Trust Model
+
+RustFrame only enables the bridge surface that the frontend trust settings and the resolved runtime capabilities allow.
+
+- `local-first` is for apps that own local data and explicit machine access.
+- `networked` is for apps that behave more like a hosted web app and should not assume local filesystem, shell, or database access.
+- When a bridge is disabled, the runtime returns a permission-denied error instead of silently exposing a partial capability.
+
+Typical examples:
+
+- a `networked` frontend calling `window.RustFrame.db.list(...)` receives a database permission-denied error
+- a frontend without filesystem roots calling `window.RustFrame.fs.readText(...)` receives a filesystem permission-denied error
+- a frontend calling a shell command that was not allowlisted receives a shell permission-denied error
 
 ## Hidden Runner Generation
 

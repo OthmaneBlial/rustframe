@@ -134,11 +134,13 @@ RustFrame tries to make that path feel smaller without pretending the desktop di
 This repo already includes:
 
 - a runtime crate built on `tao` and `wry`
-- a CLI that can `new`, `dev`, `export`, `platform-check`, `package`, and `eject`
+- a CLI that can `new`, `dev`, `inspect`, `reset-data`, `export`, `platform-check`, `package`, and `eject`
 - runtime-injected `window.RustFrame` ownership instead of per-app bridge duplication
-- embedded SQLite with schema files, seeds, and versioned SQL migrations
-- scoped filesystem and hardened shell capabilities declared in `rustframe.json`
+- embedded SQLite with schema files, seeds, versioned SQL migrations, and runtime full-text search
+- scoped filesystem helpers for reads, writes, open, reveal, and save/open dialogs declared in `rustframe.json`
+- hardened shell capabilities declared in `rustframe.json`, with explicit timeout/output limits and a dev audit log
 - a frontend trust model with `local-first` and `networked` boundaries
+- clipboard writes and multi-window state persistence in the runtime bridge
 - multi-window support
 - host-native packaging flows for Linux, Windows, and macOS
 - automated tests and workflow smoke coverage
@@ -152,8 +154,9 @@ RustFrame matters when you need some combination of:
 - packaged desktop distribution
 - a native window and window management
 - embedded local SQLite controlled by the runtime
-- manifest-scoped filesystem access
+- manifest-scoped filesystem access with open or reveal helpers
 - allowlisted process execution
+- deterministic clipboard and file-handling affordances around a local workflow
 - a frontend that is trusted differently depending on the app's security model
 
 If you do not need those things, the browser is simpler.

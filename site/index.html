@@ -74,12 +74,13 @@
                 <article class="command-card">
                     <div class="card-head">
                         <p class="eyebrow">Core Commands</p>
-                        <span class="status-pill">phase 1</span>
+                        <span class="status-pill">phase 2</span>
                     </div>
-                    <h2>Run the flagship workflow now. Scaffold or package the same runtime path later.</h2>
+                    <h2>Run the flagship workflow now. Inspect, reset, package, or eject the same runtime path later.</h2>
                     <div class="command-list">
                         <button class="command-chip is-active" type="button" data-command-tab="new">New</button>
                         <button class="command-chip" type="button" data-command-tab="dev">Dev</button>
+                        <button class="command-chip" type="button" data-command-tab="inspect">Inspect</button>
                         <button class="command-chip" type="button" data-command-tab="package">Package</button>
                         <button class="command-chip" type="button" data-command-tab="export">Export</button>
                         <button class="command-chip" type="button" data-command-tab="eject">Eject</button>
@@ -91,6 +92,10 @@
                     <div class="command-panel is-hidden" data-command-panel="dev">
                         <pre><code>cargo run -p rustframe-cli -- dev research-desk</code></pre>
                         <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- dev research-desk">Copy</button>
+                    </div>
+                    <div class="command-panel is-hidden" data-command-panel="inspect">
+                        <pre><code>cargo run -p rustframe-cli -- inspect research-desk</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- inspect research-desk">Copy</button>
                     </div>
                     <div class="command-panel is-hidden" data-command-panel="package">
                         <pre><code>cargo run -p rustframe-cli -- package research-desk</code></pre>
@@ -104,6 +109,7 @@
                         <pre><code>cargo run -p rustframe-cli -- eject research-desk</code></pre>
                         <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- eject research-desk">Copy</button>
                     </div>
+                    <p class="section-copy">Phase 2 adds runtime search, inspect/reset tooling, open or reveal helpers, clipboard writes, and a dev shell audit log.</p>
                 </article>
 
                 <figure class="shot-card shot-card-large">
