@@ -1,8 +1,8 @@
 # RustFrame
 
 <p align="center">
-  <strong>Frontend-first desktop apps in Rust.</strong><br>
-  Keep the app as plain web files. Let the runtime own the native shell.
+  <strong>Local-first desktop workflow tools with mostly frontend code.</strong><br>
+  Keep the app as plain web files. Let the runtime own the native shell, embedded SQLite, and scoped machine access.
 </p>
 
 <p align="center">
@@ -16,62 +16,32 @@
 </p>
 
 <p align="center">
-  RustFrame exists for the gap between "I can build this as a frontend" and "now I have to adopt a whole desktop framework mindset."
-</p>
-
-<p align="center">
-  <img src="site/assets/screenshots/orbit-desk.png" alt="Orbit Desk screenshot" width="49%">
+  <img src="site/assets/screenshots/prism-gallery.png" alt="Prism Gallery screenshot" width="49%">
   <img src="site/assets/screenshots/atlas-crm.png" alt="Atlas CRM screenshot" width="49%">
 </p>
-<p align="center">
-  <img src="site/assets/screenshots/daybreak-notes.png" alt="Daybreak Notes screenshot" width="32%">
-  <img src="site/assets/screenshots/prism-gallery.png" alt="Prism Gallery screenshot" width="32%">
-  <img src="site/assets/screenshots/quill-studio.png" alt="Quill Studio screenshot" width="32%">
-</p>
 
-RustFrame is a stripped-down desktop application framework in Rust for local-first tools, internal software, and desktop apps that should stay mostly frontend code.
+RustFrame is a Rust workspace for building local-first desktop tools where the app should stay mostly HTML, CSS, and JavaScript.
 
-Great desktop tools already exist. But for small and simple use cases, they can still feel like too much machinery:
+It is not trying to win every desktop use case. It is aimed at a narrower slice:
 
-- too much visible native project structure around every app
-- too much framework ceremony for something that is mostly HTML, CSS, and JavaScript
-- too many layers between "I need a native window" and "I can ship this"
-- too much desktop-specific architecture for apps that should have stayed easy to read
+- personal and internal desktop tools
+- structured local data apps
+- file-centric workflow surfaces
+- apps that need a native window, embedded SQLite, and some scoped machine access
+- developers who want a frontend-first authoring model without turning every app into a visible native project
 
-RustFrame makes a narrower bet:
+## The Short Version
 
-> a desktop app can just be a frontend folder
+RustFrame exists for this gap:
 
-That means the app in `apps/<name>/` stays plain, while RustFrame handles the native window, embedded assets, IPC bridge, packaging flow, and optional local capabilities behind the scenes.
+> I can build the product as a frontend, but I still need a real desktop shell, local data, and a few native capabilities.
 
-## The Problem
+That gap is where a normal browser tab often stops being enough, but a full desktop framework can feel broader than the job.
 
-For a lot of desktop apps, the hard part is not the UI.
-
-It is everything that shows up around the UI:
-
-- the runner
-- the bridge
-- the plugin model
-- the config sprawl
-- the packaging story
-- the database and migration glue
-
-If you are building a notes app, a small CRM, an internal tool, or a local-first utility, that overhead is often larger than the app itself.
-
-RustFrame is for that exact situation.
-
-This is not an anti-framework pitch.
-
-If Tauri, Electron, Wails, or a full native stack already fits your product, use them.
-RustFrame exists for the smaller slice where those tools can feel broader, heavier, or more ceremonial than the app actually needs.
-
-## The RustFrame Bet
-
-Instead of asking you to turn every app into a visible native project, RustFrame keeps the default authoring model aggressively small:
+RustFrame keeps the default authoring model small:
 
 ```text
-apps/hello-rustframe/
+apps/<name>/
 ├── index.html
 ├── styles.css
 ├── app.js
@@ -83,31 +53,93 @@ apps/hello-rustframe/
     └── migrations/
 ```
 
-What happens around that folder is runtime-owned:
+The runtime owns the rest:
 
-- the native bridge is injected by RustFrame
-- assets are embedded into the binary
-- the hidden runner is generated under `target/rustframe/apps/<name>/runner/`
-- SQLite turns on when the app declares schema files
-- filesystem and shell access stay unavailable unless the app explicitly declares them
-- `rustframe-cli eject <name>` gives you an app-owned native runner later, without forking the runtime
+- the native window
+- the injected `window.RustFrame` bridge
+- embedded assets
+- the hidden runner
+- SQLite provisioning and migrations
+- scoped filesystem access
+- allowlisted shell execution
+- packaging and host validation
 
-This is the core design point: start small, stay readable, and only graduate to more native control when the app actually needs it.
+## What RustFrame Is For
 
-## Why It Feels Smaller
+RustFrame is strongest when you are building tools like:
 
-RustFrame is opinionated in ways that reduce overhead for small desktop products:
+- a local research desk that stores notes, tags, and imported files in SQLite
+- a media review workbench that indexes local assets and runs approved ingest commands
+- an operations runbook desktop app with structured records, offline data, and multi-window views
 
-| Area | RustFrame |
-| --- | --- |
-| App model | Frontend-first app folders with plain HTML, CSS, JS, and a typed `rustframe.json` manifest |
-| Bridge | Runtime-injected `window.RustFrame`, not a per-app localhost bridge or plugin marketplace |
-| Native data | Embedded SQLite with schema files, one-time seeds, and versioned SQL migrations |
-| Security | Explicit trust model with `local-first` and `networked` boundaries |
-| Native access | Root-scoped filesystem reads and hardened shell allowlists |
-| Windows | Route-scoped multi-window support on one runtime event loop |
-| Distribution | `export`, `platform-check`, and host-native `package` flows |
-| Escape hatch | `eject` creates an app-owned runner only when you outgrow the hidden path |
+The common pattern is the point:
+
+- frontend-heavy UI
+- local-first data
+- a native shell
+- a few carefully scoped machine capabilities
+
+## Use RustFrame When
+
+- Your app should stay mostly frontend code.
+- You want embedded SQLite without building the entire desktop stack yourself.
+- You need a native window, packaging flow, and limited native access.
+- You want filesystem or shell access to be explicit and scoped in the manifest.
+- You want an escape hatch later, not a large native project on day one.
+
+## Do Not Use RustFrame When
+
+- You already know you need deep native APIs immediately.
+- You need a large plugin ecosystem or many desktop integrations from day one.
+- You are building a browser-first product that works fine as a tab or PWA.
+- You want a mature general-purpose framework with a broad community surface today.
+- You are building a VS Code class app or anything with very deep platform coupling.
+
+If you are already happy in Tauri, Electron, Wails, or a full native stack, use the tool that fits your product.
+
+## Why It Exists
+
+For many local tools, the hard part is not the UI.
+
+It is everything that shows up around the UI:
+
+- the native project
+- the bridge setup
+- the packaging path
+- the database glue
+- the capability boundaries
+- the gradual move from "simple app" to "needs more native control"
+
+RustFrame tries to make that path feel smaller without pretending the desktop disappears.
+
+## What Already Ships
+
+This repo already includes:
+
+- a runtime crate built on `tao` and `wry`
+- a CLI that can `new`, `dev`, `export`, `platform-check`, `package`, and `eject`
+- runtime-injected `window.RustFrame` ownership instead of per-app bridge duplication
+- embedded SQLite with schema files, seeds, and versioned SQL migrations
+- scoped filesystem and hardened shell capabilities declared in `rustframe.json`
+- a frontend trust model with `local-first` and `networked` boundaries
+- multi-window support
+- host-native packaging flows for Linux, Windows, and macOS
+- automated tests and workflow smoke coverage
+
+## Why Not Just A Browser?
+
+A browser tab is still the right answer for many apps.
+
+RustFrame matters when you need some combination of:
+
+- packaged desktop distribution
+- a native window and window management
+- embedded local SQLite controlled by the runtime
+- manifest-scoped filesystem access
+- allowlisted process execution
+- a frontend that is trusted differently depending on the app's security model
+
+If you do not need those things, the browser is simpler.
 
 ## Start In Minutes
 
@@ -143,12 +175,6 @@ Export the raw binary:
 cargo run -p rustframe-cli -- export hello-rustframe
 ```
 
-Validate the host support row:
-
-```bash
-cargo run -p rustframe-cli -- platform-check hello-rustframe
-```
-
 Package a host-native bundle:
 
 ```bash
@@ -161,11 +187,9 @@ If you want frontend tooling during development, point RustFrame at a dev server
 cargo run -p rustframe-cli -- dev hello-rustframe http://127.0.0.1:5173
 ```
 
-For the full step-by-step path, read [docs/getting-started.md](docs/getting-started.md).
+## What You Configure
 
-## What You Actually Configure
-
-RustFrame uses `rustframe.json` as the primary typed app contract:
+RustFrame uses `rustframe.json` as the primary app contract:
 
 ```json
 {
@@ -182,78 +206,39 @@ RustFrame uses `rustframe.json` as the primary typed app contract:
 }
 ```
 
-That same manifest can also declare:
+That manifest can also declare:
 
-- packaging metadata for Linux, Windows, and macOS
 - filesystem roots
-- hardened shell commands
-- trust-model overrides for bridge namespaces
+- shell commands
+- security overrides
+- packaging metadata
+- per-platform icons and bundle settings
 
-HTML metadata still works as fallback, but the manifest is the long-term typed path.
+## What The Example Set Proves
 
-## What RustFrame Already Ships
+The repo ships multiple example apps plus a capability demo.
 
-This repo is not just a tiny starter and a promise.
+Today they prove that the same runtime can already support:
 
-RustFrame already includes:
+- frontend-only apps
+- SQLite-backed apps
+- multi-window workflows
+- filesystem and shell capabilities
+- different UI directions without changing the runtime contract
 
-- a runtime crate built on `tao` and `wry`
-- a CLI that can `new`, `dev`, `export`, `platform-check`, `package`, and `eject`
-- runtime-injected bridge ownership instead of per-app bridge duplication
-- multi-window support
-- SQLite with embedded schema files, seeds, and versioned migrations
-- explicit filesystem and shell capability declarations
-- a frontend trust model with `local-first` and `networked` modes
-- host-native Linux, Windows, and macOS packaging flows
-- end-to-end runtime and export smoke coverage
-
-## Example Apps In This Repo
-
-The repo ships eleven example apps plus a capability demo:
-
-- `hello-rustframe`
-- `daybreak-notes`
-- `atlas-crm`
-- `dispatch-room`
-- `ember-habits`
-- `harbor-bookings`
-- `ledger-grove`
-- `meridian-inventory`
-- `orbit-desk`
-- `prism-gallery`
-- `quill-studio`
-
-These examples matter because they prove the same runtime can already carry:
-
-- notes apps
-- CRM workflows
-- inventory surfaces
-- editorial boards
-- habits and planning tools
-- media-heavy local desktop interfaces
-
-This is not just a thesis about simplicity. It is a tested authoring model with real UI density behind it.
-
-## When RustFrame Is The Right Call
-
-RustFrame is a strong fit when you want:
-
-- a local-first desktop app that should stay mostly frontend code
-- internal software that needs a native shell without framework sprawl
-- a solo-dev or small-team desktop product that should move fast
-- a clean path from plain frontend assets to packaged native bundles
-
-If you already need a large plugin ecosystem, very deep desktop integration from day one, or a VS Code-class surface area, RustFrame is intentionally not aiming there first.
+The example set is still stronger on runtime coverage than on one must-have real-world workflow. Tightening that is part of the project's next step.
 
 ## Current Limitations
 
-RustFrame is promising, but it is still honest software:
+RustFrame is promising, but still early:
 
-- native packaging and validation now exist on Linux, Windows, and macOS hosts, but cross-host validation still needs the matching native toolchain
-- signing, notarization, first-class installers, and update channels are still early
-- Linux still has extra runtime constraints around GTK/WebKitGTK and X11 vs Wayland
+- the ecosystem is small
+- deep native integrations are not the main path yet
+- signing, notarization, update channels, and production polish are still early
+- Linux still carries heavier GTK, WebKitGTK, and display-stack constraints
+- cross-host validation still requires the matching native host toolchain
 
-That is a conscious tradeoff for simplicity today, not the end state.
+These are not footnotes. They define the shape of the project today.
 
 ## Repo Map
 
@@ -268,7 +253,7 @@ That is a conscious tradeoff for simplicity today, not the end state.
 - `docs/`
   Product and implementation docs.
 - `site/`
-  Portable static project site derived from the repo itself.
+  Portable static site derived from the repo.
 
 ## Read Next
 
@@ -277,7 +262,7 @@ That is a conscious tradeoff for simplicity today, not the end state.
 - [Frontend App Rules](FRONTEND_APP_RULES.md)
 - [Example Apps](docs/example-apps.md)
 
-If this README resonates, the best next move is still the simplest one:
+The right next move is still the simplest one:
 
 ```bash
 cargo run -p capability-demo
