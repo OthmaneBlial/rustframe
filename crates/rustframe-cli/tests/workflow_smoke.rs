@@ -168,6 +168,11 @@ fn new_creates_manifest_first_app_scaffold() {
     assert!(app_dir.join("data/seeds/001-welcome.json").exists());
     assert!(!app_dir.join("bridge.js").exists());
 
+    let schema: Value =
+        serde_json::from_str(&fs::read_to_string(app_dir.join("data/schema.json")).unwrap())
+            .unwrap();
+    let app_js = fs::read_to_string(app_dir.join("app.js")).unwrap();
+
     let manifest: Value =
         serde_json::from_str(&fs::read_to_string(app_dir.join("rustframe.json")).unwrap()).unwrap();
     assert_eq!(manifest["appId"], app_name);
@@ -181,6 +186,8 @@ fn new_creates_manifest_first_app_scaffold() {
         manifest["packaging"]["macos"]["bundleIdentifier"],
         format!("dev.rustframe.{app_name}")
     );
+    assert_eq!(schema["tables"][0]["name"], "work_items");
+    assert!(app_js.contains("window.RustFrame.db.search(\"work_items\""));
 }
 
 #[test]
@@ -254,7 +261,7 @@ fn dev_and_export_support_runtime_smoke_checks() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|value| value == "notes")
+            .any(|value| value == "work_items")
     );
 }
 

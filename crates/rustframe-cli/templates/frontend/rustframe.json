@@ -14,7 +14,7 @@
     "linux": {
       "icon": "{{app_icon_path}}",
       "categories": ["Utility"],
-      "keywords": ["desktop", "rustframe"]
+      "keywords": ["workflow", "local-first", "rustframe"]
     },
     "windows": {
       "icon": "{{app_icon_path}}"

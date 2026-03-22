@@ -14,7 +14,7 @@
     "linux": {
       "icon": "assets/icon.svg",
       "categories": ["Utility"],
-      "keywords": ["desktop", "rustframe"]
+      "keywords": ["workflow", "local-first", "rustframe"]
     },
     "windows": {
       "icon": "assets/icon.svg"

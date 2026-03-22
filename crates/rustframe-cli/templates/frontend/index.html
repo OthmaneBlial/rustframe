@@ -8,96 +8,163 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="grid"></div>
+    <div class="grain"></div>
     <main class="app-shell">
         <section class="hero panel">
             <div class="hero-copy">
-                <p class="eyebrow">RustFrame App</p>
+                <p class="eyebrow">Workflow Starter</p>
                 <h1>{{app_title}}</h1>
                 <p class="lede">
-                    Build the entire interface with HTML, CSS, and JavaScript, then export it as a desktop app.
-                    Replace this starter with your own product UI and keep the native runtime thin.
+                    Start with a local review queue instead of a generic demo. This scaffold is meant
+                    for operator desks, internal tools, and file-centric workflows that need a desktop
+                    shell plus embedded SQLite.
                 </p>
             </div>
-            <div class="hero-meta">
-                <div class="meta-card">
-                    <span>Runtime</span>
-                    <strong>RustFrame</strong>
-                </div>
-                <div class="meta-card">
+            <div class="hero-stats">
+                <div class="stat-card">
                     <span>Asset mode</span>
                     <strong id="asset-mode">Embedded</strong>
                 </div>
-                <div class="meta-card">
+                <div class="stat-card">
                     <span>Origin</span>
                     <strong id="origin-label">app://localhost</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Security model</span>
+                    <strong id="security-model">local-first</strong>
+                </div>
+                <div class="stat-card">
+                    <span>Window</span>
+                    <strong id="window-id">main</strong>
                 </div>
             </div>
         </section>
 
         <section class="workspace">
-            <article class="panel controls">
+            <article class="panel queue-panel">
                 <div class="panel-header">
-                    <p class="eyebrow">Window API</p>
-                    <h2>Wire your own controls</h2>
-                </div>
-
-                <label class="title-label" for="title-input">Window title</label>
-                <input id="title-input" type="text" value="{{app_title}}">
-
-                <div class="actions">
-                    <button id="rename-button">Set title</button>
-                    <button id="close-button" class="ghost">Close app</button>
-                </div>
-            </article>
-
-            <article class="panel notes">
-                <div class="panel-header">
-                    <p class="eyebrow">Database API</p>
-                    <h2>Seeded SQLite notes</h2>
-                </div>
-                <div class="db-meta">
-                    <div class="meta-chip">
-                        <span>Rows</span>
-                        <strong id="notes-count">0</strong>
-                    </div>
-                    <div class="meta-chip">
-                        <span>Storage</span>
-                        <strong id="db-status">Connecting…</strong>
-                    </div>
-                </div>
-
-                <label class="title-label" for="note-title">Note title</label>
-                <input id="note-title" type="text" placeholder="Design launch checklist">
-
-                <label class="title-label" for="note-body">Body</label>
-                <textarea id="note-body" rows="5" placeholder="This app ships with data/schema.json and data/seeds/... embedded into the binary."></textarea>
-
-                <div class="actions">
-                    <button id="save-note-button">Save note</button>
-                </div>
-
-                <div id="notes-list" class="notes-list"></div>
-            </article>
-
-            <article class="panel terminal">
-                <div class="panel-header terminal-header">
                     <div>
-                        <p class="eyebrow">Runtime Log</p>
-                        <h2>Bridge output</h2>
+                        <p class="eyebrow">Queue</p>
+                        <h2>Review work already stored in SQLite</h2>
                     </div>
-                    <span class="pill">starter</span>
+                    <label class="search-field">
+                        <span class="sr-only">Search queue</span>
+                        <input id="search-input" type="search" placeholder="Search title, owner, summary">
+                    </label>
                 </div>
-                <pre id="log-output">Starter app ready.</pre>
-                <ul class="checklist checklist-compact">
-                    <li><code>index.html</code> for structure and metadata</li>
-                    <li><code>styles.css</code> for styling</li>
-                    <li><code>app.js</code> for behavior</li>
-                    <li><code>window.RustFrame</code> injected by the runtime</li>
-                    <li><code>data/schema.json</code> for tables</li>
-                    <li><code>data/seeds/*.json</code> for initial rows</li>
-                </ul>
+
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span>Visible</span>
+                        <strong id="all-count">0</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>Active</span>
+                        <strong id="active-count">0</strong>
+                    </div>
+                    <div class="summary-card">
+                        <span>Done</span>
+                        <strong id="done-count">0</strong>
+                    </div>
+                </div>
+
+                <div id="queue-list" class="queue-list"></div>
             </article>
+
+            <div class="side-column">
+                <article class="panel composer-panel">
+                    <div class="panel-header">
+                        <p class="eyebrow">Add Item</p>
+                        <h2>Create the next work record</h2>
+                    </div>
+
+                    <form id="item-form" class="stack-form">
+                        <label>
+                            <span>Title</span>
+                            <input id="item-title" type="text" placeholder="Escalate dock check-in backlog" required>
+                        </label>
+
+                        <div class="form-row">
+                            <label>
+                                <span>Owner</span>
+                                <input id="item-owner" type="text" placeholder="Operations">
+                            </label>
+                            <label>
+                                <span>Lane</span>
+                                <select id="item-lane">
+                                    <option>Inbox</option>
+                                    <option>Review</option>
+                                    <option>Ready</option>
+                                    <option>Shipped</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <div class="form-row">
+                            <label>
+                                <span>Priority</span>
+                                <select id="item-priority">
+                                    <option value="high">High</option>
+                                    <option value="normal" selected>Normal</option>
+                                    <option value="low">Low</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span>Window title</span>
+                                <input id="title-input" type="text" value="{{app_title}}">
+                            </label>
+                        </div>
+
+                        <label>
+                            <span>Summary</span>
+                            <textarea id="item-summary" rows="4" placeholder="What changed, why it matters, and what should happen next?"></textarea>
+                        </label>
+
+                        <div class="actions">
+                            <button id="save-item-button" type="submit">Save item</button>
+                            <button id="rename-button" type="button" class="ghost">Set window title</button>
+                        </div>
+                    </form>
+                </article>
+
+                <article class="panel details-panel">
+                    <div class="panel-header">
+                        <p class="eyebrow">Inspector</p>
+                        <h2>Selected work item</h2>
+                    </div>
+
+                    <div class="selection-card">
+                        <h3 id="selected-title">No item selected</h3>
+                        <p id="selected-meta" class="selection-meta">Choose a row from the queue.</p>
+                        <p id="selected-summary" class="selection-summary">This panel is where you can add your own detail view, file preview, or action strip.</p>
+                    </div>
+
+                    <div class="actions">
+                        <button id="advance-button" type="button">Advance lane</button>
+                        <button id="toggle-done-button" type="button" class="ghost">Mark done</button>
+                    </div>
+
+                    <div class="runtime-card">
+                        <span>Database path</span>
+                        <strong id="db-path">Connecting…</strong>
+                        <button id="copy-db-path-button" type="button" class="ghost subtle">Copy path</button>
+                    </div>
+                </article>
+
+                <article class="panel log-panel">
+                    <div class="panel-header">
+                        <p class="eyebrow">Runtime Log</p>
+                        <h2>What this starter proves</h2>
+                    </div>
+                    <pre id="log-output">Starter app ready.</pre>
+                    <ul class="checklist">
+                        <li><code>data/schema.json</code> defines the workflow record shape</li>
+                        <li><code>data/seeds/*.json</code> preloads realistic starter items</li>
+                        <li><code>window.RustFrame.db.search(...)</code> powers the queue filter</li>
+                        <li><code>rustframe.json</code> is where you add filesystem and shell access</li>
+                    </ul>
+                </article>
+            </div>
         </section>
     </main>
 

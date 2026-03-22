@@ -1,24 +1,40 @@
 {
   "entries": [
     {
-      "table": "notes",
+      "table": "work_items",
       "rows": [
         {
-          "title": "Welcome to Hello Rustframe",
-          "body": "This note was seeded from data/seeds/001-welcome.json and persisted in the app database.",
+          "title": "Review the starter workflow",
+          "summary": "This seeded item proves the desktop shell, SQLite, and starter UI are already wired together.",
+          "owner": "You",
+          "lane": "Inbox",
+          "priority": "high",
           "pinned": true
-        }
-      ]
-    },
-    {
-      "table": "settings",
-      "rows": [
+        },
         {
-          "key": "starter",
-          "value": {
-            "appName": "hello-rustframe",
-            "ready": true
-          }
+          "title": "Replace this queue with your own job shape",
+          "summary": "Edit data/schema.json first. Then rename lanes, fields, and labels so the UI matches the workflow you actually ship.",
+          "owner": "Product",
+          "lane": "Review",
+          "priority": "normal",
+          "pinned": false
+        },
+        {
+          "title": "Add filesystem roots when the app needs real files",
+          "summary": "Declare scoped roots in rustframe.json and use window.RustFrame.fs.* helpers instead of assuming browser access.",
+          "owner": "Platform",
+          "lane": "Ready",
+          "priority": "normal",
+          "pinned": false
+        },
+        {
+          "title": "Use migrations before you ship schema changes",
+          "summary": "When version 2 needs backfills or renames, put the change in data/migrations/*.sql instead of editing old seed files.",
+          "owner": "Ops",
+          "lane": "Shipped",
+          "priority": "low",
+          "pinned": false,
+          "done": true
         }
       ]
     }

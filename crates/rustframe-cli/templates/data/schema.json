@@ -2,21 +2,19 @@
   "version": 1,
   "tables": [
     {
-      "name": "notes",
+      "name": "work_items",
       "columns": [
         { "name": "title", "type": "text", "required": true },
-        { "name": "body", "type": "text" },
-        { "name": "pinned", "type": "boolean", "default": false }
+        { "name": "summary", "type": "text" },
+        { "name": "owner", "type": "text" },
+        { "name": "lane", "type": "text", "required": true, "default": "Inbox" },
+        { "name": "priority", "type": "text", "required": true, "default": "normal" },
+        { "name": "pinned", "type": "boolean", "default": false },
+        { "name": "done", "type": "boolean", "default": false }
       ],
       "indexes": [
-        { "columns": ["pinned", "title"] }
-      ]
-    },
-    {
-      "name": "settings",
-      "columns": [
-        { "name": "key", "type": "text", "required": true, "unique": true },
-        { "name": "value", "type": "json", "required": true }
+        { "columns": ["done", "pinned", "updatedAt"] },
+        { "columns": ["lane", "updatedAt"] }
       ]
     }
   ]
