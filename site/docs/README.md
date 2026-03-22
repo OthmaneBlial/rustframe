@@ -16,6 +16,9 @@ RustFrame is a Rust workspace for local-first desktop workflow tools that should
 - [Signing And Notarization](./signing-and-notarization.md)
 - [Update Strategy](./update-strategy.md)
 - [Release Checklist](./release-checklist.md)
+- [Community Templates](./community-templates.md)
+- [Remote Sync Patterns](./remote-sync-patterns.md)
+- [Capability Extension Patterns](./capability-extension-patterns.md)
 - [Frontend App Rules](./frontend-app-rules.md)
 - [Example Apps](./example-apps.md)
 
@@ -23,7 +26,8 @@ RustFrame is a Rust workspace for local-first desktop workflow tools that should
 
 - `crates/rustframe` is the reusable runtime crate.
 - `crates/rustframe-cli` creates, validates, exports, and packages frontend-first desktop apps on the current host OS.
-- `examples/frontend-starters/*` shows how to pair RustFrame with plain Vite, React Vite, and Vue Vite frontends.
+- `examples/frontend-starters/*` shows how to pair RustFrame with plain Vite, React Vite, Vue Vite, and Svelte Vite frontends.
+- `examples/community-templates/catalog.json` is the machine-readable ecosystem catalog for workflow-shaped starting points.
 - `examples/capability-demo` proves embedded assets, native IPC, sandboxed filesystem access, and allowlisted shell execution.
 - `apps/research-desk` is the flagship local archive review workflow and the main proof app for the repo.
 - `apps/*` contains frontend-only desktop apps with root-level `index.html`, `styles.css`, `app.js`, optional `data/`, raw binaries in `dist/`, and platform bundles in `dist/<platform>/`.

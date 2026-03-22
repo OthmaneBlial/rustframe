@@ -69,6 +69,21 @@ const DOCS = {
         source: "docs/release-checklist.md",
         path: "docs/release-checklist.md",
     },
+    "community-templates": {
+        title: "Community templates",
+        source: "docs/community-templates.md",
+        path: "docs/community-templates.md",
+    },
+    "remote-sync-patterns": {
+        title: "Remote sync patterns",
+        source: "docs/remote-sync-patterns.md",
+        path: "docs/remote-sync-patterns.md",
+    },
+    "capability-extension-patterns": {
+        title: "Capability extension patterns",
+        source: "docs/capability-extension-patterns.md",
+        path: "docs/capability-extension-patterns.md",
+    },
     "frontend-app-rules": {
         title: "Frontend app rules",
         source: "docs/frontend-app-rules.md",

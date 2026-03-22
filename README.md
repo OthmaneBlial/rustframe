@@ -30,6 +30,12 @@
   ·
   <a href="docs/release-checklist.md">Release Checklist</a>
   ·
+  <a href="docs/community-templates.md">Community Templates</a>
+  ·
+  <a href="docs/remote-sync-patterns.md">Remote Sync Patterns</a>
+  ·
+  <a href="docs/capability-extension-patterns.md">Capability Extension Patterns</a>
+  ·
   <a href="FRONTEND_APP_RULES.md">Frontend App Rules</a>
   ·
   <a href="docs/example-apps.md">Example Apps</a>
@@ -158,7 +164,9 @@ This repo already includes:
 - a frontend trust model with `local-first` and `networked` boundaries
 - clipboard writes and multi-window state persistence in the runtime bridge
 - multi-window support
-- workflow-first starter templates plus Vite, React Vite, and Vue Vite frontend starters
+- workflow-first starter templates plus Vite, React Vite, Vue Vite, and Svelte Vite frontend starters
+- a machine-readable community template catalog for credible workflow-shaped starting points
+- ecosystem docs for community templates, remote sync patterns, and capability extension patterns
 - host-native packaging flows for Linux, Windows, and macOS
 - automated tests and workflow smoke coverage
 
@@ -244,7 +252,26 @@ If you want frontend tooling during development, point RustFrame at a dev server
 cargo run -p rustframe-cli -- dev hello-rustframe http://127.0.0.1:5173
 ```
 
-Starter source for Vite, React Vite, and Vue Vite lives under `examples/frontend-starters/`.
+Starter source for Vite, React Vite, Vue Vite, and Svelte Vite lives under `examples/frontend-starters/`.
+
+The current ecosystem catalog lives under `examples/community-templates/`.
+
+## Ecosystem Surface
+
+Phase 5 stays intentionally narrow. The repo now includes:
+
+- optional frontend starters for Vite, React, Vue, and Svelte
+- a community template catalog tied to real workflow apps and starters
+- remote sync guidance that keeps SQLite as the primary local UX surface
+- capability extension guidance that treats ejection as the intentional native escape hatch
+
+The point is to expand the ecosystem around the wedge that already works, not to go back to selling RustFrame as a generic wrapper.
+
+## Read Next
+
+- [Community Templates](docs/community-templates.md)
+- [Remote Sync Patterns](docs/remote-sync-patterns.md)
+- [Capability Extension Patterns](docs/capability-extension-patterns.md)
 
 ## What You Configure
 

@@ -74,6 +74,11 @@ If you want to keep the RustFrame runtime path but develop with a mainstream fro
 - `examples/frontend-starters/vite-vanilla`
 - `examples/frontend-starters/react-vite`
 - `examples/frontend-starters/vue-vite`
+- `examples/frontend-starters/svelte-vite`
+
+For the current ecosystem map of starters and workflow references, check:
+
+- `examples/community-templates/catalog.json`
 
 ## Run An App In Development
 
