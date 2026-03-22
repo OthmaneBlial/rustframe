@@ -27,6 +27,16 @@ To point the runtime at a frontend dev server instead of embedded assets:
 RUSTFRAME_DEV_URL=http://127.0.0.1:5173 cargo run -p capability-demo
 ```
 
+## Run The Flagship App
+
+If you want to inspect the strongest current workflow instead of starting from a blank template, run:
+
+```bash
+cargo run -p rustframe-cli -- dev research-desk
+```
+
+`research-desk` indexes the bundled sample workspace into SQLite, reads the real source documents through the filesystem bridge, and opens reader windows for focused review passes.
+
 ## Create A Frontend-First App
 
 Generate a new app into `apps/<name>`:
@@ -123,6 +133,8 @@ Supported path tokens:
 - `${SOURCE_ASSET_DIR}` resolves to the embedded asset folder.
 - `${EXE_DIR}` resolves to the runtime executable directory.
 
+During `export` and `package`, RustFrame copies declared relative filesystem roots beside the executable or bundle. `apps/research-desk` uses this to ship `workspace/` and `tools/` with the app while keeping the same manifest contract in development and release.
+
 Host-native packaging also reads from `rustframe.json`:
 
 ```json
@@ -190,6 +202,7 @@ apps/<name>/dist/
 ```
 
 Use `export` when you want the raw executable only.
+If the manifest declares relative filesystem roots, those directories are copied into `dist/` beside the executable.
 
 ## Validate Platform Support
 
@@ -244,6 +257,8 @@ The host-native package contains:
 - Windows: a portable app directory, PowerShell install scripts, shortcuts, and a `.zip`
 - macOS: an `.app` bundle, shell install scripts, and a `.tar.gz`
 - `rustframe-package.json` with release metadata
+
+Relative filesystem roots declared in `rustframe.json` are also copied into each host-native bundle. `research-desk` uses this for its bundled archive and indexing script.
 
 ## Eject To A Native Runner
 

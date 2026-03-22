@@ -68,6 +68,7 @@ HTML fallback still works:
 
 When both HTML metadata and `rustframe.json` set the same window fields, the manifest wins.
 The same manifest also provides Linux, Windows, and macOS packaging metadata for `rustframe-cli package`.
+`apps/research-desk/rustframe.json` is the flagship concrete example: it scopes a bundled `workspace/` and `tools/` directory plus allowlisted Python indexers without introducing an app-owned native project.
 
 ## Platform Validation
 
@@ -121,6 +122,7 @@ Secondary windows are still in-app windows:
 - New windows share the same embedded assets or dev server, the same trust model, and the same filesystem, shell, and database capabilities.
 - Each window keeps its own frontend state and its own JS heap.
 - Database access is shared because all windows talk to the same runtime-owned database capability.
+- `apps/research-desk` uses `/reader?doc=<id>` routes for focused review windows over the same local archive.
 
 ### Database
 
@@ -157,6 +159,7 @@ Frontend-only apps now declare those roots through `rustframe.json`.
 - `window.RustFrame.fs.readText(path)` only succeeds inside the configured roots.
 - Parent escapes and absolute paths outside those roots are rejected.
 - Relative roots resolve against the source app folder in debug builds and against the executable directory in release builds.
+- `rustframe-cli export` and `rustframe-cli package` copy declared relative roots beside the executable or inside the host bundle so file-centric apps can ship local workspaces and helper tool directories.
 - `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` can be expanded inside declared values.
 
 The capability demo previously wired this in Rust by hand; frontend-only apps can now do the same through the manifest.

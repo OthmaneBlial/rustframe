@@ -16,6 +16,7 @@ RustFrame is a Rust workspace for local-first desktop workflow tools that should
 - `crates/rustframe` is the reusable runtime crate.
 - `crates/rustframe-cli` creates, validates, exports, and packages frontend-first desktop apps on the current host OS.
 - `examples/capability-demo` proves embedded assets, native IPC, sandboxed filesystem access, and allowlisted shell execution.
+- `apps/research-desk` is the flagship local archive review workflow and the main proof app for the repo.
 - `apps/*` contains frontend-only desktop apps with root-level `index.html`, `styles.css`, `app.js`, optional `data/`, raw binaries in `dist/`, and platform bundles in `dist/<platform>/`.
 
 ## Repo Sources

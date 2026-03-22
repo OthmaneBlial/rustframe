@@ -74,9 +74,9 @@
                 <article class="command-card">
                     <div class="card-head">
                         <p class="eyebrow">Core Commands</p>
-                        <span class="status-pill">phase 0</span>
+                        <span class="status-pill">phase 1</span>
                     </div>
-                    <h2>Start with a small frontend app. Ship a real desktop bundle later.</h2>
+                    <h2>Run the flagship workflow now. Scaffold or package the same runtime path later.</h2>
                     <div class="command-list">
                         <button class="command-chip is-active" type="button" data-command-tab="new">New</button>
                         <button class="command-chip" type="button" data-command-tab="dev">Dev</button>
@@ -85,39 +85,39 @@
                         <button class="command-chip" type="button" data-command-tab="eject">Eject</button>
                     </div>
                     <div class="command-panel" data-command-panel="new">
-                        <pre><code>cargo run -p rustframe-cli -- new media-workbench</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- new media-workbench">Copy</button>
+                        <pre><code>cargo run -p rustframe-cli -- new archive-reviewer</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- new archive-reviewer">Copy</button>
                     </div>
                     <div class="command-panel is-hidden" data-command-panel="dev">
-                        <pre><code>cargo run -p rustframe-cli -- dev media-workbench</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- dev media-workbench">Copy</button>
+                        <pre><code>cargo run -p rustframe-cli -- dev research-desk</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- dev research-desk">Copy</button>
                     </div>
                     <div class="command-panel is-hidden" data-command-panel="package">
-                        <pre><code>cargo run -p rustframe-cli -- package media-workbench</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- package media-workbench">Copy</button>
+                        <pre><code>cargo run -p rustframe-cli -- package research-desk</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- package research-desk">Copy</button>
                     </div>
                     <div class="command-panel is-hidden" data-command-panel="export">
-                        <pre><code>cargo run -p rustframe-cli -- export media-workbench</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- export media-workbench">Copy</button>
+                        <pre><code>cargo run -p rustframe-cli -- export research-desk</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- export research-desk">Copy</button>
                     </div>
                     <div class="command-panel is-hidden" data-command-panel="eject">
-                        <pre><code>cargo run -p rustframe-cli -- eject media-workbench</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- eject media-workbench">Copy</button>
+                        <pre><code>cargo run -p rustframe-cli -- eject research-desk</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- eject research-desk">Copy</button>
                     </div>
                 </article>
 
                 <figure class="shot-card shot-card-large">
-                    <img src="assets/screenshots/prism-gallery.png" alt="Prism Gallery screenshot">
+                    <img src="assets/screenshots/research-desk.png" alt="Research Desk screenshot">
                     <figcaption>
-                        <strong>Prism Gallery</strong>
-                        <span>The closest current reference in the repo for a file-centric, asset-heavy local tool.</span>
+                        <strong>Research Desk</strong>
+                        <span>Flagship workflow: bundled archive review, SQLite queueing, scoped file reads, and reader windows.</span>
                     </figcaption>
                 </figure>
 
                 <article class="package-card">
                     <span class="tile-kicker">Packaged app path</span>
                     <h3>Host-native bundles already sit inside the workflow, not outside it.</h3>
-                    <div class="package-artifacts">
+                <div class="package-artifacts">
                         <div class="package-artifact">
                             <strong>Linux</strong>
                             <code>dist/linux/&lt;app-id&gt;-&lt;version&gt;-linux-&lt;arch&gt;/</code>
@@ -131,6 +131,7 @@
                             <code>dist/macos/&lt;app-id&gt;-&lt;version&gt;-macos-&lt;arch&gt;/</code>
                         </div>
                     </div>
+                    <p>Declared relative filesystem roots are copied into these outputs, so a workflow app can ship its local workspace and helper tools with the bundle.</p>
                 </article>
             </aside>
         </section>
@@ -172,10 +173,10 @@
         <section class="frame workflow reveal" id="workflow">
             <div class="section-heading">
                 <p class="eyebrow">Target Workflow</p>
-                <h2>One concrete job RustFrame should own: a local media review workbench.</h2>
+                <h2>One concrete job RustFrame should own: a local research desk.</h2>
                 <p class="section-note">
-                    This is the kind of workflow that is awkward in a browser tab, but still does not
-                    need a full native-first architecture on day one.
+                    <code>research-desk</code> is the current proof point: a workflow that is awkward in a browser tab,
+                    but still does not need a full native-first architecture on day one.
                 </p>
             </div>
 
@@ -183,28 +184,28 @@
                 <div class="workflow-grid">
                     <article class="workflow-step">
                         <span class="step-index">01</span>
-                        <h3>Point the app at a local folder</h3>
-                        <p>Declare a filesystem root in the manifest so the app can read from a known workspace instead of the whole machine.</p>
+                        <h3>Scope a local archive</h3>
+                        <p>Declare <code>workspace/</code> and <code>tools/</code> in the manifest so the app works against one known archive instead of the whole machine.</p>
                     </article>
                     <article class="workflow-step">
                         <span class="step-index">02</span>
-                        <h3>Catalog assets into SQLite</h3>
-                        <p>Store filenames, tags, ratings, notes, and review state in the runtime-managed local database.</p>
+                        <h3>Index source files into SQLite</h3>
+                        <p>Store document metadata, status, reviewer notes, and queue state in the runtime-managed local database.</p>
                     </article>
                     <article class="workflow-step">
                         <span class="step-index">03</span>
-                        <h3>Open focused review windows</h3>
-                        <p>Use secondary windows for detail review while keeping one runtime, one bridge contract, and one shared local dataset.</p>
+                        <h3>Open focused reader windows</h3>
+                        <p>Use secondary windows for deep reading while keeping one runtime, one bridge contract, and one shared local dataset.</p>
                     </article>
                     <article class="workflow-step">
                         <span class="step-index">04</span>
-                        <h3>Run a hardened import command</h3>
-                        <p>Allowlist a local ingest or thumbnail command and capture stdout or stderr directly in the UI.</p>
+                        <h3>Run a hardened Python indexer</h3>
+                        <p>Allowlist a local indexing command and capture stdout or stderr directly in the UI without exposing a general shell.</p>
                     </article>
                     <article class="workflow-step">
                         <span class="step-index">05</span>
-                        <h3>Package the tool for real use</h3>
-                        <p>Ship the workflow as a host-native desktop bundle once it stops being an experiment.</p>
+                        <h3>Export queues or package the tool</h3>
+                        <p>Ship the same workflow as a host-native desktop bundle once it stops being an experiment.</p>
                     </article>
                 </div>
 
@@ -212,24 +213,25 @@
                     <span class="tile-kicker">Manifest snapshot</span>
                     <h3>The workflow stays explicit in one contract.</h3>
                     <pre><code>{
-  "appId": "media-workbench",
+  "appId": "research-desk",
   "security": { "model": "local-first" },
   "filesystem": {
-    "roots": ["${EXE_DIR}/imports"]
+    "roots": ["workspace", "tools"]
   },
   "shell": {
     "commands": [
       {
-        "name": "ingestAssets",
+        "name": "indexWorkspacePy3",
         "program": "python3",
-        "args": ["scripts/ingest.py"]
+        "args": ["index_workspace.py", "../workspace"],
+        "cwd": "tools"
       }
     ]
   }
 }</code></pre>
                     <p>
-                        This is the pitch in practice: a frontend-first app with local data and a tiny,
-                        explicit native surface instead of a large always-on desktop abstraction layer.
+                        This is the pitch in practice: a frontend-first app with local data, scoped file access,
+                        and one explicit automation path. The same relative roots are copied into export and package outputs.
                     </p>
                 </aside>
             </div>
@@ -238,7 +240,7 @@
         <section class="frame runtime reveal" id="ship">
             <div class="section-heading">
                 <p class="eyebrow">Ship</p>
-                <h2>Packaging is already part of the product story.</h2>
+                <h2>Packaging is already part of the flagship app story.</h2>
                 <p class="section-note">
                     RustFrame should matter when the workflow stops being a demo and starts needing a
                     real desktop install path, even if the runtime is still intentionally small.
@@ -249,7 +251,7 @@
                 <article class="package-card">
                     <span class="tile-kicker">Package command</span>
                     <h3>Build on the native host.</h3>
-                    <pre><code>cargo run -p rustframe-cli -- package media-workbench</code></pre>
+                    <pre><code>cargo run -p rustframe-cli -- package research-desk</code></pre>
                     <p>The generated or ejected runner becomes a host-native bundle without exposing a full native project up front.</p>
                 </article>
                 <article class="package-card">
@@ -259,6 +261,7 @@
                         <li>Linux portable bundle directory, shell install scripts, and archive.</li>
                         <li>Windows portable directory, PowerShell install scripts, shortcuts, and zip.</li>
                         <li>macOS app bundle, shell install scripts, and archive.</li>
+                        <li>Declared relative filesystem roots copied with the app, so bundled workspaces survive release builds.</li>
                     </ul>
                 </article>
                 <article class="package-card">
@@ -275,21 +278,21 @@
 
         <section class="frame gallery reveal">
             <div class="section-heading">
-                <p class="eyebrow">Current References</p>
-                <h2>Reference apps in the repo today, not the final product story.</h2>
+                <p class="eyebrow">Flagship And References</p>
+                <h2>Lead with one credible workflow. Keep the rest as references.</h2>
                 <p class="section-note">
-                    These examples still help as implementation references, but the project is now
-                    being positioned around stronger workflow proof instead of the number of demos.
+                    The repo still benefits from a broad example set, but the public story should start
+                    with <code>research-desk</code> and use the rest as implementation references around it.
                 </p>
             </div>
 
             <div class="gallery-grid">
-                <article class="gallery-card">
-                    <img src="assets/screenshots/prism-gallery.png" alt="Prism Gallery screenshot">
+                <article class="gallery-card gallery-card-wide">
+                    <img src="assets/screenshots/research-desk.png" alt="Research Desk screenshot">
                     <div class="gallery-copy">
-                        <span class="gallery-kicker">Closest workflow reference</span>
-                        <h3>Prism Gallery</h3>
-                        <p>The strongest current reference for a local asset-review surface.</p>
+                        <span class="gallery-kicker">Flagship workflow</span>
+                        <h3>Research Desk</h3>
+                        <p>A local archive review app that combines SQLite, real source files, allowlisted automation, and multi-window review in one concrete tool.</p>
                     </div>
                 </article>
                 <article class="gallery-card">
@@ -301,11 +304,11 @@
                     </div>
                 </article>
                 <article class="gallery-card">
-                    <img src="assets/screenshots/daybreak-notes.png" alt="Daybreak Notes screenshot">
+                    <img src="assets/screenshots/prism-gallery.png" alt="Prism Gallery screenshot">
                     <div class="gallery-copy">
-                        <span class="gallery-kicker">Calmer CRUD reference</span>
-                        <h3>Daybreak Notes</h3>
-                        <p>A smaller example of the frontend-first data model with local persistence.</p>
+                        <span class="gallery-kicker">Earlier file-centric reference</span>
+                        <h3>Prism Gallery</h3>
+                        <p>The previous closest file-centric reference. Useful for layout ideas, but no longer the main product story.</p>
                     </div>
                 </article>
             </div>
@@ -343,7 +346,7 @@
     </main>
 
     <footer class="site-footer">
-        <p>RustFrame is being narrowed toward local-first desktop workflow tools with mostly frontend code. The project is real, but the product story now needs to be as specific as the runtime already is.</p>
+        <p>RustFrame is now being narrowed around <code>research-desk</code>: local-first desktop workflow tools with mostly frontend code, embedded SQLite, and a small explicit native surface.</p>
     </footer>
 
     <script src="app.js"></script>

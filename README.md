@@ -20,8 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="site/assets/screenshots/prism-gallery.png" alt="Prism Gallery screenshot" width="49%">
-  <img src="site/assets/screenshots/atlas-crm.png" alt="Atlas CRM screenshot" width="49%">
+  <img src="site/assets/screenshots/research-desk.png" alt="Research Desk screenshot" width="100%">
 </p>
 
 RustFrame is a Rust workspace for building local-first desktop tools where the app should stay mostly HTML, CSS, and JavaScript.
@@ -82,6 +81,20 @@ The common pattern is the point:
 - local-first data
 - a native shell
 - a few carefully scoped machine capabilities
+
+## Flagship Workflow
+
+The current flagship app is `apps/research-desk`.
+
+It is the clearest answer to "what is this useful for?":
+
+- indexes a bundled local archive into SQLite
+- reads the real source files through scoped filesystem roots
+- runs an allowlisted Python indexer from the UI
+- opens dedicated reader windows for focused review
+- exports the visible review queue
+
+If you want to evaluate RustFrame today, run `research-desk` before you judge the rest of the example set.
 
 ## Use RustFrame When
 
@@ -155,6 +168,14 @@ Prerequisites:
 - Windows uses the MSVC Rust toolchain
 - macOS uses Xcode command line tools
 
+Run the flagship workflow app:
+
+```bash
+cargo run -p rustframe-cli -- dev research-desk
+```
+
+That app is the best current proof of the wedge: a local archive review tool with SQLite, scoped filesystem access, allowlisted automation, and reader windows.
+
 Run the capability demo:
 
 ```bash
@@ -220,17 +241,18 @@ That manifest can also declare:
 
 ## What The Example Set Proves
 
-The repo ships multiple example apps plus a capability demo.
+The repo now ships one flagship workflow app, a capability demo, and a wider reference set.
 
 Today they prove that the same runtime can already support:
 
+- one credible file-centric workflow app, not just UI variety
 - frontend-only apps
 - SQLite-backed apps
 - multi-window workflows
 - filesystem and shell capabilities
 - different UI directions without changing the runtime contract
 
-The example set is still stronger on runtime coverage than on one must-have real-world workflow. Tightening that is part of the project's next step.
+The important change is that `apps/research-desk` is now the main story and the rest of the examples are references around it.
 
 ## Current Limitations
 
@@ -252,8 +274,10 @@ These are not footnotes. They define the shape of the project today.
   Scaffolding, validation, export, packaging, and ejection tooling.
 - `examples/capability-demo`
   Sample app showing the native bridge, filesystem scope, and shell execution model.
+- `apps/research-desk`
+  Flagship local archive review workflow.
 - `apps/*`
-  Frontend-first example apps.
+  Smaller reference apps and templates.
 - `docs/`
   Product and implementation docs.
 - `site/`
