@@ -1,8 +1,9 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs,
-    io::Read,
+    env, fs,
+    io::{Read, Write},
     path::{Path, PathBuf},
+    process,
     process::{Child, Command, ExitStatus, Stdio},
     thread,
     time::{Duration, Instant},
@@ -209,6 +210,24 @@ impl FsCapability {
         let resolved = self.resolve_for_write(destination.as_ref())?;
         self.prepare_write_target(&resolved)?;
         fs::copy(source, &resolved.absolute)?;
+        self.entry_for_resolved(&resolved)
+    }
+
+    pub fn open_path<P>(&self, requested: P) -> Result<FsEntry>
+    where
+        P: AsRef<Path>,
+    {
+        let resolved = self.resolve_existing(requested.as_ref())?;
+        open_in_default_app(&resolved.absolute)?;
+        self.entry_for_resolved(&resolved)
+    }
+
+    pub fn reveal_path<P>(&self, requested: P) -> Result<FsEntry>
+    where
+        P: AsRef<Path>,
+    {
+        let resolved = self.resolve_existing(requested.as_ref())?;
+        reveal_in_file_manager(&resolved.absolute)?;
         self.entry_for_resolved(&resolved)
     }
 
@@ -630,7 +649,18 @@ impl ShellCapability {
             child.envs(command.env.iter());
         }
 
-        let mut child = child.spawn()?;
+        let mut child = child.spawn().map_err(|error| {
+            audit_shell_event(
+                name,
+                command,
+                extra_args,
+                None,
+                None,
+                None,
+                Some(format!("failed to spawn process: {error}")),
+            );
+            error
+        })?;
         let stdout_reader = spawn_reader(child.stdout.take(), command.max_output_bytes);
         let stderr_reader = spawn_reader(child.stderr.take(), command.max_output_bytes);
         let status = wait_for_exit(&mut child, command.timeout)?;
@@ -640,8 +670,20 @@ impl ShellCapability {
             None => {
                 let _ = child.kill();
                 let _ = child.wait()?;
-                collect_reader(stdout_reader)?;
-                collect_reader(stderr_reader)?;
+                let stdout = collect_reader(stdout_reader)?;
+                let stderr = collect_reader(stderr_reader)?;
+                audit_shell_event(
+                    name,
+                    command,
+                    extra_args,
+                    None,
+                    Some(&stdout),
+                    Some(&stderr),
+                    Some(format!(
+                        "shell command '{name}' timed out after {} ms",
+                        command.timeout.as_millis()
+                    )),
+                );
                 return Err(RuntimeError::TimedOut(format!(
                     "shell command '{name}' timed out after {} ms",
                     command.timeout.as_millis()
@@ -651,14 +693,26 @@ impl ShellCapability {
 
         let stdout = collect_reader(stdout_reader)?;
         let stderr = collect_reader(stderr_reader)?;
-
-        Ok(ShellOutput {
+        let output = ShellOutput {
             stdout: String::from_utf8_lossy(&stdout.bytes).into_owned(),
             stderr: String::from_utf8_lossy(&stderr.bytes).into_owned(),
             exit_code: status.code().unwrap_or_default(),
             stdout_truncated: stdout.truncated,
             stderr_truncated: stderr.truncated,
-        })
+            timeout_ms: command.timeout.as_millis() as u64,
+            max_output_bytes: command.max_output_bytes,
+        };
+        audit_shell_event(
+            name,
+            command,
+            extra_args,
+            Some(output.exit_code),
+            Some(&stdout),
+            Some(&stderr),
+            None,
+        );
+
+        Ok(output)
     }
 }
 
@@ -670,6 +724,8 @@ pub struct ShellOutput {
     pub exit_code: i32,
     pub stdout_truncated: bool,
     pub stderr_truncated: bool,
+    pub timeout_ms: u64,
+    pub max_output_bytes: usize,
 }
 
 struct CapturedStream {
@@ -738,6 +794,112 @@ fn collect_reader(
             bytes: Vec::new(),
             truncated: false,
         }),
+    }
+}
+
+fn open_in_default_app(path: &Path) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        run_desktop_command("open", [path.as_os_str()])
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        run_desktop_command(
+            "cmd",
+            [
+                std::ffi::OsStr::new("/C"),
+                std::ffi::OsStr::new("start"),
+                std::ffi::OsStr::new(""),
+                path.as_os_str(),
+            ],
+        )
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        run_desktop_command("xdg-open", [path.as_os_str()])
+    }
+}
+
+fn reveal_in_file_manager(path: &Path) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        run_desktop_command("open", [std::ffi::OsStr::new("-R"), path.as_os_str()])
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let select_arg = format!("/select,{}", path.display());
+        run_desktop_command("explorer", [std::ffi::OsStr::new(select_arg.as_str())])
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let parent = path.parent().unwrap_or(path);
+        run_desktop_command("xdg-open", [parent.as_os_str()])
+    }
+}
+
+fn run_desktop_command<I, S>(program: &str, args: I) -> Result<()>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
+    let status = process::Command::new(program).args(args).status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(RuntimeError::InvalidParameter(format!(
+            "desktop helper '{}' exited with status {}",
+            program, status
+        )))
+    }
+}
+
+fn audit_shell_event(
+    name: &str,
+    command: &ShellCommand,
+    extra_args: &[String],
+    exit_code: Option<i32>,
+    stdout: Option<&CapturedStream>,
+    stderr: Option<&CapturedStream>,
+    error: Option<String>,
+) {
+    let Some(path) = env::var_os("RUSTFRAME_AUDIT_LOG") else {
+        return;
+    };
+
+    let timestamp = OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .unwrap_or_else(|_| "unknown".to_string());
+    let payload = serde_json::json!({
+        "timestamp": timestamp,
+        "name": name,
+        "program": command.program,
+        "args": command.args,
+        "extraArgs": extra_args,
+        "cwd": command.cwd.as_ref().map(|value| value.to_string_lossy().to_string()),
+        "envKeys": command.env.keys().cloned().collect::<Vec<_>>(),
+        "clearEnv": command.clear_env,
+        "timeoutMs": command.timeout.as_millis() as u64,
+        "maxOutputBytes": command.max_output_bytes,
+        "exitCode": exit_code,
+        "stdoutBytes": stdout.map(|value| value.bytes.len()).unwrap_or(0),
+        "stderrBytes": stderr.map(|value| value.bytes.len()).unwrap_or(0),
+        "stdoutTruncated": stdout.map(|value| value.truncated).unwrap_or(false),
+        "stderrTruncated": stderr.map(|value| value.truncated).unwrap_or(false),
+        "error": error,
+    });
+
+    if let Some(parent) = Path::new(&path).parent() {
+        if fs::create_dir_all(parent).is_err() {
+            return;
+        }
+    }
+
+    if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{payload}");
     }
 }
 
@@ -880,6 +1042,8 @@ mod tests {
         assert_eq!(output.exit_code, 0);
         assert!(!output.stdout_truncated);
         assert!(!output.stderr_truncated);
+        assert_eq!(output.timeout_ms, 10_000);
+        assert_eq!(output.max_output_bytes, 64 * 1024);
     }
 
     #[test]
@@ -1001,5 +1165,6 @@ mod tests {
         assert_eq!(output.stdout, "rust");
         assert!(output.stdout_truncated);
         assert!(!output.stderr_truncated);
+        assert_eq!(output.max_output_bytes, 4);
     }
 }

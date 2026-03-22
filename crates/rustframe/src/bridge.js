@@ -200,7 +200,16 @@
                 : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
             copyFrom: (sourcePath, destinationPath) => bridgeConfig.filesystem
                 ? invoke("fs.copyFrom", { sourcePath, destinationPath })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            openPath: (path) => bridgeConfig.filesystem
+                ? invoke("fs.openPath", { path })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            revealPath: (path) => bridgeConfig.filesystem
+                ? invoke("fs.revealPath", { path })
                 : rejectRestrictedBridge("filesystem bridge is disabled for this frontend")
+        }),
+        clipboard: Object.freeze({
+            writeText: (text) => invoke("clipboard.writeText", { text })
         }),
         dialog: Object.freeze({
             openFile: (options = {}) => bridgeConfig.filesystem

@@ -650,6 +650,37 @@ async function handleClick(event) {
             return;
         }
 
+        if (action === "open-source") {
+            const documentRecord = documentById(Number(button.dataset.id)) || selectedDocument();
+            if (!documentRecord) {
+                return;
+            }
+            await window.RustFrame.fs.openPath(documentRecord.path);
+            writeLog(`Opened source file for "${documentRecord.title}".`);
+            return;
+        }
+
+        if (action === "reveal-source") {
+            const documentRecord = documentById(Number(button.dataset.id)) || selectedDocument();
+            if (!documentRecord) {
+                return;
+            }
+            await window.RustFrame.fs.revealPath(documentRecord.path);
+            writeLog(`Revealed source file for "${documentRecord.title}" in the file manager.`);
+            return;
+        }
+
+        if (action === "copy-source-path") {
+            const documentRecord = documentById(Number(button.dataset.id)) || selectedDocument();
+            if (!documentRecord) {
+                return;
+            }
+            const absolutePath = state.selectedFileMeta?.absolutePath || documentRecord.path;
+            await window.RustFrame.clipboard.writeText(absolutePath);
+            writeLog(`Copied source path for "${documentRecord.title}".`);
+            return;
+        }
+
         if (action === "reader-set-status" && state.readerDocument) {
             await patchReaderDocument(
                 { status: button.dataset.status },
@@ -687,6 +718,25 @@ async function handleClick(event) {
             await loadReaderDocument();
             renderReader();
             writeLog(`Reloaded source file for "${state.readerDocument.title}".`);
+            return;
+        }
+
+        if (action === "reader-open-source" && state.readerDocument) {
+            await window.RustFrame.fs.openPath(state.readerDocument.path);
+            writeLog(`Opened source file for "${state.readerDocument.title}".`);
+            return;
+        }
+
+        if (action === "reader-reveal-source" && state.readerDocument) {
+            await window.RustFrame.fs.revealPath(state.readerDocument.path);
+            writeLog(`Revealed source file for "${state.readerDocument.title}" in the file manager.`);
+            return;
+        }
+
+        if (action === "reader-copy-source-path" && state.readerDocument) {
+            const absolutePath = state.readerFileMeta?.absolutePath || state.readerDocument.path;
+            await window.RustFrame.clipboard.writeText(absolutePath);
+            writeLog(`Copied source path for "${state.readerDocument.title}".`);
         }
     } catch (error) {
         writeLog(formatError(error));
@@ -912,6 +962,9 @@ function renderReader() {
             <div class="reader-toolbar">
                 <button class="button button-primary" type="button" data-action="reader-refresh">Reload source</button>
                 <button class="button" type="button" data-action="open-reader" data-id="${state.readerDocument.id}">Open another reader</button>
+                <button class="button" type="button" data-action="reader-open-source">Open source</button>
+                <button class="button" type="button" data-action="reader-reveal-source">Reveal in folder</button>
+                <button class="ghost-button" type="button" data-action="reader-copy-source-path">Copy path</button>
                 <button class="ghost-button" type="button" data-action="close-window">Close</button>
             </div>
         </section>
@@ -1017,6 +1070,9 @@ function renderPreview(documentRecord) {
 
             <div class="document-actions">
                 <button class="button button-primary" type="button" data-action="open-reader" data-id="${documentRecord.id}">Open reader window</button>
+                <button class="button" type="button" data-action="open-source" data-id="${documentRecord.id}">Open source</button>
+                <button class="button" type="button" data-action="reveal-source" data-id="${documentRecord.id}">Reveal in folder</button>
+                <button class="ghost-button" type="button" data-action="copy-source-path" data-id="${documentRecord.id}">Copy path</button>
                 <button class="button" type="button" data-action="toggle-pin" data-id="${documentRecord.id}">
                     ${documentRecord.pinned ? "Unpin" : "Pin"}
                 </button>

@@ -516,7 +516,17 @@ fn command_new(name: &str) -> CliResult<()> {
 
 fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResult<()> {
     let app = load_app_project(workspace, name)?;
+    print_capability_warnings(&app);
     let runner = resolve_runner_project(workspace, &app)?;
+    let audit_log_path = app.app_dir.join("dist/dev-shell-audit.log");
+    if let Some(parent) = audit_log_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            format!(
+                "failed to create dev audit directory '{}': {error}",
+                parent.display()
+            )
+        })?;
+    }
 
     let mut command = Command::new("cargo");
     command
@@ -527,12 +537,20 @@ fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResu
         .arg(name)
         .current_dir(workspace)
         .env("CARGO_TARGET_DIR", &runner.target_dir)
+        .env("RUSTFRAME_AUDIT_LOG", &audit_log_path)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
     if let Some(url) = dev_url {
         command.env("RUSTFRAME_DEV_URL", url);
+    }
+
+    if !app.config.shell_commands.is_empty() {
+        eprintln!(
+            "warning: shell audit log will be written to {}",
+            audit_log_path.display()
+        );
     }
 
     let status = command
@@ -548,6 +566,7 @@ fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResu
 
 fn command_export(workspace: &Path, name: &str) -> CliResult<()> {
     let app = load_app_project(workspace, name)?;
+    print_capability_warnings(&app);
     let runner = resolve_runner_project(workspace, &app)?;
     let source = build_release_binary(workspace, name, &runner)?;
     let binary_name = executable_name(name);
@@ -584,6 +603,7 @@ fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
     #[cfg(target_os = "linux")]
     {
         let app = load_app_project(workspace, name)?;
+        print_capability_warnings(&app);
         let runner = resolve_runner_project(workspace, &app)?;
         let source_binary = build_release_binary(workspace, name, &runner)?;
         let output = build_linux_package(&app, &source_binary)?;
@@ -599,6 +619,7 @@ fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
     #[cfg(target_os = "windows")]
     {
         let app = load_app_project(workspace, name)?;
+        print_capability_warnings(&app);
         let runner = resolve_runner_project(workspace, &app)?;
         let source_binary = build_release_binary(workspace, name, &runner)?;
         let output = build_windows_package(&app, &source_binary)?;
@@ -614,6 +635,7 @@ fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
     #[cfg(target_os = "macos")]
     {
         let app = load_app_project(workspace, name)?;
+        print_capability_warnings(&app);
         let runner = resolve_runner_project(workspace, &app)?;
         let source_binary = build_release_binary(workspace, name, &runner)?;
         let output = build_macos_package(&app, &source_binary)?;
@@ -629,6 +651,7 @@ fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
 
 fn command_platform_check(workspace: &Path, request: &PlatformCheckRequest) -> CliResult<()> {
     let app = load_app_project(workspace, &request.name)?;
+    print_capability_warnings(&app);
     let runner = resolve_runner_project(workspace, &app)?;
     let sysroot = rust_sysroot()?;
     let outcomes = request
@@ -705,6 +728,7 @@ fn command_platform_check(workspace: &Path, request: &PlatformCheckRequest) -> C
 
 fn command_inspect(workspace: &Path, name: &str) -> CliResult<()> {
     let app = load_app_project(workspace, name)?;
+    print_capability_warnings(&app);
     let inspection = build_app_inspection(&app)?;
     let rendered = serde_json::to_string_pretty(&inspection)
         .map_err(|error| format!("failed to render inspection output: {error}"))?;
@@ -714,6 +738,7 @@ fn command_inspect(workspace: &Path, name: &str) -> CliResult<()> {
 
 fn command_reset_data(workspace: &Path, name: &str) -> CliResult<()> {
     let app = load_app_project(workspace, name)?;
+    print_capability_warnings(&app);
     let data_dir = default_app_data_dir(&app.config.app_id)?;
 
     if data_dir.exists() {
@@ -737,6 +762,7 @@ fn command_reset_data(workspace: &Path, name: &str) -> CliResult<()> {
 
 fn command_eject(workspace: &Path, name: &str) -> CliResult<()> {
     let app = load_app_project(workspace, name)?;
+    print_capability_warnings(&app);
     let runner_dir = ejected_runner_dir(&app);
     if runner_dir.join("Cargo.toml").exists() {
         return Err(format!(
@@ -1838,6 +1864,15 @@ fn validate_packaging_icon(path: &Path, allowed_extensions: &[&str], field: &str
         ));
     }
 
+    let metadata = fs::metadata(path)
+        .map_err(|error| format!("failed to inspect '{}': {error}", path.display()))?;
+    if !metadata.is_file() {
+        return Err(format!("{field} must point to a file: {}", path.display()));
+    }
+    if metadata.len() == 0 {
+        return Err(format!("{field} must not be empty: {}", path.display()));
+    }
+
     let extension = path
         .extension()
         .and_then(|value| value.to_str())
@@ -2585,6 +2620,12 @@ fn capability_warnings(app: &AppProject) -> Vec<String> {
     }
 
     warnings
+}
+
+fn print_capability_warnings(app: &AppProject) {
+    for warning in capability_warnings(app) {
+        eprintln!("warning: {warning}");
+    }
 }
 
 fn security_model_label(model: AppSecurityModel) -> &'static str {
@@ -3604,7 +3645,7 @@ fn print_help() {
     );
     println!();
     println!(
-        "Run `dev`, `export`, `platform-check`, and `package` from inside apps/<name>/ to omit the app name."
+        "Run `dev`, `inspect`, `reset-data`, `export`, `platform-check`, and `package` from inside apps/<name>/ to omit the app name."
     );
     println!("Primary app config lives in apps/<name>/rustframe.json:");
     println!("  \"window\": {{ \"title\": \"My App\", \"width\": 1280, \"height\": 820 }}");

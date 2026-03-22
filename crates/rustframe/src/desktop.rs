@@ -7,6 +7,7 @@ use std::{
     thread,
 };
 
+use arboard::Clipboard;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use mime_guess::MimeGuess;
 use rfd::FileDialog;
@@ -33,6 +34,7 @@ const APP_URL: &str = "app://localhost/";
 const RUSTFRAME_BRIDGE_SCRIPT: &str = include_str!("bridge.js");
 const PRIMARY_WINDOW_ID: &str = "main";
 const MAX_OPEN_WINDOWS: usize = 16;
+const WINDOW_STATE_FILE_NAME: &str = "window-state.json";
 
 pub trait EmbeddedAssets {
     fn get(path: &str) -> Option<Cow<'static, [u8]>>;
@@ -213,6 +215,73 @@ struct WindowRecord {
     is_primary: bool,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedWindowState {
+    title: String,
+    route: String,
+    width: f64,
+    height: f64,
+    is_primary: bool,
+}
+
+#[derive(Default)]
+struct WindowStateStore {
+    path: Option<PathBuf>,
+    windows: BTreeMap<String, PersistedWindowState>,
+}
+
+impl WindowStateStore {
+    fn load(path: Option<PathBuf>) -> Self {
+        let Some(path) = path else {
+            return Self::default();
+        };
+
+        let windows = fs::read_to_string(&path)
+            .ok()
+            .and_then(|contents| {
+                serde_json::from_str::<BTreeMap<String, PersistedWindowState>>(&contents).ok()
+            })
+            .unwrap_or_default();
+
+        Self {
+            path: Some(path),
+            windows,
+        }
+    }
+
+    fn get(&self, id: &str) -> Option<&PersistedWindowState> {
+        self.windows.get(id)
+    }
+
+    fn update(&mut self, record: &WindowRecord) -> Result<()> {
+        self.windows.insert(
+            record.id.clone(),
+            PersistedWindowState {
+                title: record.title.clone(),
+                route: record.route.clone(),
+                width: record.width,
+                height: record.height,
+                is_primary: record.is_primary,
+            },
+        );
+        self.save()
+    }
+
+    fn save(&self) -> Result<()> {
+        let Some(path) = &self.path else {
+            return Ok(());
+        };
+
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        fs::write(path, serde_json::to_vec_pretty(&self.windows)?)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WindowOpenParams {
@@ -242,6 +311,7 @@ struct WindowManager {
     default_window: WindowOptions,
     dev_url: Option<String>,
     next_window_index: u64,
+    state_store: WindowStateStore,
 }
 
 impl WindowManager {
@@ -251,6 +321,7 @@ impl WindowManager {
         ipc_proxy: EventLoopProxy<UserEvent>,
         default_window: WindowOptions,
         dev_url: Option<String>,
+        state_store: WindowStateStore,
     ) -> Self {
         Self {
             assets,
@@ -260,6 +331,7 @@ impl WindowManager {
             default_window,
             dev_url,
             next_window_index: 2,
+            state_store,
         }
     }
 
@@ -269,9 +341,9 @@ impl WindowManager {
             WindowOpenParams {
                 id: Some(PRIMARY_WINDOW_ID.to_string()),
                 route: Some("/".into()),
-                title: Some(self.default_window.title.clone()),
-                width: Some(self.default_window.width),
-                height: Some(self.default_window.height),
+                title: None,
+                width: None,
+                height: None,
             },
             true,
         )
@@ -303,19 +375,29 @@ impl WindowManager {
             )));
         }
 
-        let route = normalize_window_route(params.route.as_deref().unwrap_or("/"))?;
+        let persisted = self.state_store.get(&id).cloned();
+        let route = normalize_window_route(
+            params
+                .route
+                .as_deref()
+                .or_else(|| persisted.as_ref().map(|state| state.route.as_str()))
+                .unwrap_or("/"),
+        )?;
         let title = params
             .title
+            .or_else(|| persisted.as_ref().map(|state| state.title.clone()))
             .map(|value| validate_window_title(&value))
             .transpose()?
             .unwrap_or_else(|| self.default_window.title.clone());
         let width = params
             .width
+            .or_else(|| persisted.as_ref().map(|state| state.width))
             .map(validate_window_dimension)
             .transpose()?
             .unwrap_or(self.default_window.width);
         let height = params
             .height
+            .or_else(|| persisted.as_ref().map(|state| state.height))
             .map(validate_window_dimension)
             .transpose()?
             .unwrap_or(self.default_window.height);
@@ -340,6 +422,7 @@ impl WindowManager {
         let url = window_url(self.dev_url.as_deref(), &route);
         let builder = WebViewBuilder::new()
             .with_background_color((6, 9, 18, 255))
+            .with_clipboard(true)
             .with_initialization_script(&bridge_config_script)
             .with_initialization_script(RUSTFRAME_BRIDGE_SCRIPT)
             .with_custom_protocol("app".into(), move |_id, request| {
@@ -363,6 +446,7 @@ impl WindowManager {
                 webview,
             },
         );
+        self.persist_window_state(native_window_id);
 
         Ok(record)
     }
@@ -403,6 +487,7 @@ impl WindowManager {
         })?;
         managed.window.set_title(&title);
         managed.record.title = title;
+        let _ = self.state_store.update(&managed.record);
         Ok(())
     }
 
@@ -434,6 +519,7 @@ impl WindowManager {
     }
 
     fn close_window(&mut self, window_id: WindowId) -> bool {
+        self.persist_window_state(window_id);
         self.windows.remove(&window_id);
         self.windows.is_empty()
     }
@@ -443,6 +529,16 @@ impl WindowManager {
             .get(&window_id)
             .map(|managed| &managed.window)
             .ok_or_else(|| RuntimeError::InvalidParameter("window is no longer available".into()))
+    }
+
+    fn persist_window_state(&mut self, window_id: WindowId) {
+        let Some(managed) = self.windows.get_mut(&window_id) else {
+            return;
+        };
+        let size = managed.window.inner_size();
+        managed.record.width = f64::from(size.width);
+        managed.record.height = f64::from(size.height);
+        let _ = self.state_store.update(&managed.record);
     }
 }
 
@@ -591,7 +687,7 @@ impl RustFrameBuilder {
         let fs_capability = FsCapability::new(fs_roots)?;
         let shell_capability = ShellCapability::try_new(shell_commands)?;
         let database_capability =
-            load_database_capability(assets, app_id.clone(), database_data_dir, database)?;
+            load_database_capability(assets, app_id.clone(), database_data_dir.clone(), database)?;
         let dev_url = active_dev_url(dev_url);
         let security = security.resolve(
             &fs_capability,
@@ -623,8 +719,17 @@ impl RustFrameBuilder {
             shell_capability,
             database_capability,
         )?;
-        let mut window_manager =
-            WindowManager::new(assets, security.clone(), ipc_proxy, window.clone(), dev_url);
+        let mut window_manager = WindowManager::new(
+            assets,
+            security.clone(),
+            ipc_proxy,
+            window.clone(),
+            dev_url,
+            WindowStateStore::load(resolve_window_state_path(
+                app_id.as_deref(),
+                database_data_dir.as_deref(),
+            )),
+        );
         window_manager.open_primary(&event_loop)?;
 
         event_loop.run(move |event, target, control_flow| {
@@ -639,6 +744,13 @@ impl RustFrameBuilder {
                     if security.filesystem {
                         window_manager.emit_file_drop(window_id, &[path]);
                     }
+                }
+                Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::Resized(_),
+                    ..
+                } => {
+                    window_manager.persist_window_state(window_id);
                 }
                 Event::WindowEvent {
                     window_id,
@@ -1008,6 +1120,8 @@ fn authorize_method(method: &str, security: &ResolvedFrontendSecurity) -> Result
         | "fs.writeText"
         | "fs.writeBinary"
         | "fs.copyFrom"
+        | "fs.openPath"
+        | "fs.revealPath"
         | "dialog.openFile"
         | "dialog.openFiles"
         | "dialog.openDirectory"
@@ -1057,11 +1171,25 @@ fn method_execution(method: &str) -> MethodExecution {
         | "dialog.openDirectory"
         | "dialog.saveText"
         | "dialog.saveBinary" => MethodExecution::MainThread,
-        "fs.readText" | "fs.readBinary" | "fs.metadata" | "fs.listDir" | "fs.writeText"
-        | "fs.writeBinary" | "fs.copyFrom" | "shell.exec" | "db.info" | "db.get" | "db.list"
-        | "db.search" | "db.count" | "db.insert" | "db.update" | "db.delete" => {
-            MethodExecution::Background
-        }
+        "fs.readText"
+        | "fs.readBinary"
+        | "fs.metadata"
+        | "fs.listDir"
+        | "fs.writeText"
+        | "fs.writeBinary"
+        | "fs.copyFrom"
+        | "fs.openPath"
+        | "fs.revealPath"
+        | "clipboard.writeText"
+        | "shell.exec"
+        | "db.info"
+        | "db.get"
+        | "db.list"
+        | "db.search"
+        | "db.count"
+        | "db.insert"
+        | "db.update"
+        | "db.delete" => MethodExecution::Background,
         _ => MethodExecution::Unknown,
     }
 }
@@ -1223,6 +1351,20 @@ fn execute_background_request(
                 fs_capability.copy_from(params.source_path, params.destination_path)?
             ))
         })(),
+        "fs.openPath" => (|| {
+            let path = required_string(&request.params, "path")?;
+            Ok(json!(fs_capability.open_path(path)?))
+        })(),
+        "fs.revealPath" => (|| {
+            let path = required_string(&request.params, "path")?;
+            Ok(json!(fs_capability.reveal_path(path)?))
+        })(),
+        "clipboard.writeText" => (|| {
+            let text = required_string(&request.params, "text")?;
+            let mut clipboard = Clipboard::new().map_err(clipboard_error)?;
+            clipboard.set_text(text).map_err(clipboard_error)?;
+            Ok(Value::Null)
+        })(),
         "shell.exec" => (|| {
             let command = required_string(&request.params, "command")?;
             let args = optional_string_vec(&request.params, "args")?;
@@ -1273,6 +1415,10 @@ fn execute_background_request(
 
 fn database(database: Option<&DatabaseCapability>) -> Result<&DatabaseCapability> {
     database.ok_or(RuntimeError::DatabaseUnavailable)
+}
+
+fn clipboard_error(error: arboard::Error) -> RuntimeError {
+    RuntimeError::InvalidParameter(format!("clipboard access failed: {error}"))
 }
 
 fn parse_params<T>(params: &Value) -> Result<T>
@@ -1591,6 +1737,19 @@ fn active_dev_url(configured: Option<String>) -> Option<String> {
     std::env::var("RUSTFRAME_DEV_URL").ok().or(configured)
 }
 
+fn resolve_window_state_path(app_id: Option<&str>, data_dir: Option<&Path>) -> Option<PathBuf> {
+    data_dir
+        .map(Path::to_path_buf)
+        .or_else(|| {
+            app_id.and_then(|id| {
+                dirs::data_local_dir()
+                    .or_else(dirs::data_dir)
+                    .map(|base| base.join(id))
+            })
+        })
+        .map(|directory| directory.join(WINDOW_STATE_FILE_NAME))
+}
+
 fn asset_response(
     assets: EmbeddedAssetRouter,
     request: Request<Vec<u8>>,
@@ -1768,6 +1927,11 @@ mod tests {
         assert_eq!(method_execution("window.list"), MethodExecution::MainThread);
         assert_eq!(method_execution("window.open"), MethodExecution::MainThread);
         assert_eq!(method_execution("db.list"), MethodExecution::Background);
+        assert_eq!(method_execution("fs.openPath"), MethodExecution::Background);
+        assert_eq!(
+            method_execution("clipboard.writeText"),
+            MethodExecution::Background
+        );
         assert_eq!(method_execution("shell.exec"), MethodExecution::Background);
         assert_eq!(method_execution("missing.method"), MethodExecution::Unknown);
     }
@@ -1830,7 +1994,7 @@ mod tests {
                 .contains("database bridge is disabled for this frontend")
         );
 
-        let fs_error = authorize_method("fs.readText", &security).unwrap_err();
+        let fs_error = authorize_method("fs.openPath", &security).unwrap_err();
         assert!(
             fs_error
                 .to_string()
