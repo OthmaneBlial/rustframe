@@ -31,7 +31,7 @@ Frontend-only apps can add `apps/<name>/rustframe.json` for typed configuration:
     "linux": {
       "icon": "assets/icon.svg",
       "categories": ["Utility"],
-      "keywords": ["desktop", "rustframe"]
+      "keywords": ["workflow", "local-first", "rustframe"]
     },
     "windows": {
       "icon": "assets/icon.ico"
@@ -74,9 +74,10 @@ The same manifest also provides Linux, Windows, and macOS packaging metadata for
 
 RustFrame now treats platform coverage as an explicit contract instead of a distant note.
 
+- `rustframe-cli doctor` checks Cargo, Rust, and the host desktop dependencies before you build or package.
 - `rustframe-cli platform-check <name>` validates the generated or ejected runner against the current host row in the Linux/Windows/macOS support matrix.
 - Default matrix rows that require another native host are reported as such instead of being silently ignored or falsely marked as validated.
-- `rustframe-cli package <name>` builds a host-native bundle on Linux, Windows, or macOS.
+- `rustframe-cli package <name> --verify` builds a host-native bundle and validates the emitted metadata, scripts, and archive layout.
 
 ## Frontend Trust Model
 

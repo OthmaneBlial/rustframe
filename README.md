@@ -14,6 +14,14 @@
   ·
   <a href="docs/runtime-and-capabilities.md">Runtime And Capabilities</a>
   ·
+  <a href="docs/build-in-20-minutes.md">Build In 20 Minutes</a>
+  ·
+  <a href="docs/cookbook.md">Cookbook</a>
+  ·
+  <a href="docs/threat-model.md">Threat Model</a>
+  ·
+  <a href="docs/migrations-and-versioning.md">Migrations And Versioning</a>
+  ·
   <a href="FRONTEND_APP_RULES.md">Frontend App Rules</a>
   ·
   <a href="docs/example-apps.md">Example Apps</a>
@@ -134,7 +142,7 @@ RustFrame tries to make that path feel smaller without pretending the desktop di
 This repo already includes:
 
 - a runtime crate built on `tao` and `wry`
-- a CLI that can `new`, `dev`, `inspect`, `reset-data`, `export`, `platform-check`, `package`, and `eject`
+- a CLI that can `new`, `doctor`, `dev`, `inspect`, `reset-data`, `export`, `platform-check`, `package --verify`, and `eject`
 - runtime-injected `window.RustFrame` ownership instead of per-app bridge duplication
 - embedded SQLite with schema files, seeds, versioned SQL migrations, and runtime full-text search
 - scoped filesystem helpers for reads, writes, open, reveal, and save/open dialogs declared in `rustframe.json`
@@ -142,6 +150,7 @@ This repo already includes:
 - a frontend trust model with `local-first` and `networked` boundaries
 - clipboard writes and multi-window state persistence in the runtime bridge
 - multi-window support
+- workflow-first starter templates plus Vite, React Vite, and Vue Vite frontend starters
 - host-native packaging flows for Linux, Windows, and macOS
 - automated tests and workflow smoke coverage
 
@@ -170,6 +179,12 @@ Prerequisites:
 - Linux uses the GTK and WebKitGTK stack required by `wry`
 - Windows uses the MSVC Rust toolchain
 - macOS uses Xcode command line tools
+
+Check the host first:
+
+```bash
+cargo run -p rustframe-cli -- doctor
+```
 
 Run the flagship workflow app:
 
@@ -209,11 +224,19 @@ Package a host-native bundle:
 cargo run -p rustframe-cli -- package hello-rustframe
 ```
 
+Verify the produced bundle layout:
+
+```bash
+cargo run -p rustframe-cli -- package hello-rustframe --verify
+```
+
 If you want frontend tooling during development, point RustFrame at a dev server:
 
 ```bash
 cargo run -p rustframe-cli -- dev hello-rustframe http://127.0.0.1:5173
 ```
+
+Starter source for Vite, React Vite, and Vue Vite lives under `examples/frontend-starters/`.
 
 ## What You Configure
 

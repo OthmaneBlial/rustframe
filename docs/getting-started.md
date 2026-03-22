@@ -15,6 +15,12 @@ RustFrame is a Rust workspace with two main moving parts:
   Windows uses the MSVC Rust toolchain
   macOS uses Xcode command line tools
 
+Check the host before you build anything:
+
+```bash
+cargo run -p rustframe-cli -- doctor
+```
+
 ## Run The Capability Demo
 
 ```bash
@@ -46,6 +52,7 @@ cargo run -p rustframe-cli -- new hello-rustframe
 ```
 
 RustFrame writes a plain frontend folder. The generated app does not contain a visible `Cargo.toml`, `src/`, or runner files.
+The starter is now a small workflow queue, not a generic notes demo.
 
 Edit these files directly:
 
@@ -61,6 +68,12 @@ Edit these files directly:
 Use `rustframe.json` as the primary typed config for window settings, dev URLs, capabilities, and packaging. `<title>` plus `rustframe:*` meta tags still work as fallback.
 
 The native bridge is injected by the runtime, so frontend-only apps do not need to ship a `bridge.js` file.
+
+If you want to keep the RustFrame runtime path but develop with a mainstream frontend toolchain, start from:
+
+- `examples/frontend-starters/vite-vanilla`
+- `examples/frontend-starters/react-vite`
+- `examples/frontend-starters/vue-vite`
 
 ## Run An App In Development
 
@@ -145,7 +158,7 @@ Host-native packaging also reads from `rustframe.json`:
     "linux": {
       "icon": "assets/icon.svg",
       "categories": ["Utility"],
-      "keywords": ["desktop", "rustframe"]
+      "keywords": ["workflow", "local-first", "rustframe"]
     },
     "windows": {
       "icon": "assets/icon.ico"
@@ -224,6 +237,38 @@ apps/<name>/dist/
 Use `export` when you want the raw executable only.
 If the manifest declares relative filesystem roots, those directories are copied into `dist/` beside the executable.
 
+## Package And Verify
+
+From the workspace root:
+
+```bash
+cargo run -p rustframe-cli -- package hello-rustframe
+```
+
+From inside the app directory:
+
+```bash
+cd apps/hello-rustframe
+cargo run -p rustframe-cli -- package
+```
+
+Validate the emitted metadata, scripts, and bundle layout:
+
+```bash
+cargo run -p rustframe-cli -- package hello-rustframe --verify
+```
+
+RustFrame writes:
+
+```text
+apps/<name>/dist/linux/<app-id>-<version>-linux-<arch>/
+apps/<name>/dist/linux/<app-id>-<version>-linux-<arch>.tar.gz
+apps/<name>/dist/windows/<app-id>-<version>-windows-<arch>/
+apps/<name>/dist/windows/<app-id>-<version>-windows-<arch>.zip
+apps/<name>/dist/macos/<app-id>-<version>-macos-<arch>/
+apps/<name>/dist/macos/<app-id>-<version>-macos-<arch>.tar.gz
+```
+
 ## Validate Platform Support
 
 Run the support matrix check before you treat another host OS as shipped:
@@ -245,31 +290,6 @@ You can narrow the check to a custom Rust target when needed:
 cargo run -p rustframe-cli -- platform-check hello-rustframe --target x86_64-pc-windows-msvc
 ```
 
-## Package A Host-Native Bundle
-
-From the workspace root:
-
-```bash
-cargo run -p rustframe-cli -- package hello-rustframe
-```
-
-From inside the app directory:
-
-```bash
-cd apps/hello-rustframe
-cargo run -p rustframe-cli -- package
-```
-
-RustFrame writes:
-
-```text
-apps/<name>/dist/linux/<app-id>-<version>-linux-<arch>/
-apps/<name>/dist/linux/<app-id>-<version>-linux-<arch>.tar.gz
-apps/<name>/dist/windows/<app-id>-<version>-windows-<arch>/
-apps/<name>/dist/windows/<app-id>-<version>-windows-<arch>.zip
-apps/<name>/dist/macos/<app-id>-<version>-macos-<arch>/
-apps/<name>/dist/macos/<app-id>-<version>-macos-<arch>.tar.gz
-```
 
 The host-native package contains:
 

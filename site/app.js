@@ -29,6 +29,26 @@ const DOCS = {
         source: "docs/runtime-and-capabilities.md",
         path: "docs/runtime-and-capabilities.md",
     },
+    "build-in-20-minutes": {
+        title: "Build in 20 minutes",
+        source: "docs/build-in-20-minutes.md",
+        path: "docs/build-in-20-minutes.md",
+    },
+    cookbook: {
+        title: "Cookbook",
+        source: "docs/cookbook.md",
+        path: "docs/cookbook.md",
+    },
+    "threat-model": {
+        title: "Threat model",
+        source: "docs/threat-model.md",
+        path: "docs/threat-model.md",
+    },
+    "migrations-and-versioning": {
+        title: "Migrations and versioning",
+        source: "docs/migrations-and-versioning.md",
+        path: "docs/migrations-and-versioning.md",
+    },
     "frontend-app-rules": {
         title: "Frontend app rules",
         source: "docs/frontend-app-rules.md",

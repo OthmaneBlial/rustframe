@@ -18,8 +18,15 @@ RustFrame ships one flagship workflow app, one runtime capability demo, a starte
 ## Starter App
 
 - `apps/hello-rustframe`
-- Minimal note app used by the CLI template
-- Shows window title updates and embedded SQLite through `notes` and `settings`
+- Workflow queue starter used by the CLI template
+- Shows runtime search, embedded SQLite, clipboard path copy, and a product-shaped local queue
+
+## Frontend Stack Starters
+
+- `examples/frontend-starters/vite-vanilla`
+- `examples/frontend-starters/react-vite`
+- `examples/frontend-starters/vue-vite`
+- These are copyable dev-server frontends for teams that want Vite or a mainstream component stack without changing the RustFrame runtime path
 
 ## Reference Apps
 
@@ -57,7 +64,8 @@ RustFrame ships one flagship workflow app, one runtime capability demo, a starte
 Use these examples when you need a starting point:
 
 - `apps/research-desk` for the end-to-end local workflow and native capability mix
-- `apps/hello-rustframe` for the smallest end-to-end app
+- `apps/hello-rustframe` for the default workflow starter
+- `examples/frontend-starters/*` when the team wants Vite, React, or Vue from the first day
 - `apps/daybreak-notes` for a clean CRUD surface
 - `apps/atlas-crm` for a dense board layout
 - `apps/prism-gallery` for a media-forward card grid
