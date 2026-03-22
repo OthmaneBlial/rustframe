@@ -151,6 +151,14 @@ fn host_target() -> String {
         .unwrap()
 }
 
+fn executable_name(name: &str) -> String {
+    if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    }
+}
+
 #[test]
 fn new_creates_manifest_first_app_scaffold() {
     let _guard = workflow_lock();
@@ -235,7 +243,7 @@ fn dev_and_export_support_runtime_smoke_checks() {
         .join("apps")
         .join(&app_name)
         .join("dist")
-        .join(&app_name);
+        .join(executable_name(&app_name));
     assert!(exported_binary.exists());
 
     let export_report_path = smoke_dir.join("export-report.json");

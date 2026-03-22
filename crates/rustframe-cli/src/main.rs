@@ -1249,18 +1249,89 @@ fn probe_windows_compiler() -> CheckLine {
             "MSVC compiler",
             summarize_success_output(&output).unwrap_or_else(|| "available".into()),
         ),
-        Ok(output) => failed_check(
-            "MSVC compiler",
-            format!(
-                "Visual Studio Build Tools were not found:\n{}",
-                indent_block(&summarize_command_output(&output), "  ")
+        Ok(output) => match probe_windows_build_tools_installation() {
+            Some(detail) => warning_check(
+                "MSVC compiler",
+                format!(
+                    "{detail}. `cl.exe` is not on PATH in this shell; if Cargo builds fail, open a Developer PowerShell or run `vcvars64.bat` first."
+                ),
             ),
-        ),
-        Err(error) => failed_check(
-            "MSVC compiler",
-            format!("failed to launch `where`: {error}"),
-        ),
+            None => failed_check(
+                "MSVC compiler",
+                format!(
+                    "Visual Studio Build Tools were not found:\n{}",
+                    indent_block(&summarize_command_output(&output), "  ")
+                ),
+            ),
+        },
+        Err(error) => match probe_windows_build_tools_installation() {
+            Some(detail) => warning_check(
+                "MSVC compiler",
+                format!(
+                    "{detail}. `cl.exe` is not on PATH in this shell; if Cargo builds fail, open a Developer PowerShell or run `vcvars64.bat` first."
+                ),
+            ),
+            None => failed_check(
+                "MSVC compiler",
+                format!("failed to launch `where`: {error}"),
+            ),
+        },
     }
+}
+
+#[cfg(target_os = "windows")]
+fn probe_windows_build_tools_installation() -> Option<String> {
+    let mut candidates = Vec::new();
+
+    if let Some(program_files_x86) = env::var_os("ProgramFiles(x86)") {
+        candidates.push(
+            PathBuf::from(program_files_x86)
+                .join("Microsoft Visual Studio")
+                .join("Installer")
+                .join("vswhere.exe"),
+        );
+    }
+
+    if let Some(program_files) = env::var_os("ProgramFiles") {
+        let candidate = PathBuf::from(program_files)
+            .join("Microsoft Visual Studio")
+            .join("Installer")
+            .join("vswhere.exe");
+        if !candidates.iter().any(|existing| existing == &candidate) {
+            candidates.push(candidate);
+        }
+    }
+
+    candidates.push(PathBuf::from("vswhere"));
+
+    for candidate in candidates {
+        let output = Command::new(&candidate)
+            .args([
+                "-latest",
+                "-products",
+                "*",
+                "-requires",
+                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                "-property",
+                "installationPath",
+            ])
+            .output();
+
+        let Ok(output) = output else {
+            continue;
+        };
+
+        if !output.status.success() {
+            continue;
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if let Some(install_path) = stdout.lines().map(str::trim).find(|line| !line.is_empty()) {
+            return Some(format!("Visual Studio Build Tools detected at {install_path}"));
+        }
+    }
+
+    None
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
