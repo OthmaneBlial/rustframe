@@ -6,6 +6,7 @@ use std::{
 };
 
 use flate2::{Compression, write::GzEncoder};
+use rustframe::{DatabaseMigrationFile, DatabaseSchema, DatabaseSeedFile};
 use serde::Deserialize;
 use serde_json::json;
 use tar::Builder as TarBuilder;
@@ -27,6 +28,7 @@ const TEMPLATE_STYLES_CSS: &str = include_str!("../templates/frontend/styles.css
 const TEMPLATE_APP_JS: &str = include_str!("../templates/frontend/app.js");
 const TEMPLATE_MANIFEST_JSON: &str = include_str!("../templates/frontend/rustframe.json");
 const TEMPLATE_APP_ICON_SVG: &str = include_str!("../templates/frontend/assets/icon.svg");
+const DATABASE_FILE_NAME: &str = "app.db";
 
 #[derive(Debug)]
 struct AppProject {
@@ -400,6 +402,16 @@ fn run() -> CliResult<()> {
             let request = parse_platform_check_args(&workspace, &args[1..])?;
             command_platform_check(&workspace, &request)
         }
+        Some("inspect") => {
+            let workspace = find_workspace_root()?;
+            let name = parse_inspect_args(&workspace, &args[1..])?;
+            command_inspect(&workspace, &name)
+        }
+        Some("reset-data") => {
+            let workspace = find_workspace_root()?;
+            let name = parse_reset_data_args(&workspace, &args[1..])?;
+            command_reset_data(&workspace, &name)
+        }
         Some("eject") => {
             let workspace = find_workspace_root()?;
             let name = parse_eject_args(&workspace, &args[1..])?;
@@ -691,6 +703,38 @@ fn command_platform_check(workspace: &Path, request: &PlatformCheckRequest) -> C
     }
 }
 
+fn command_inspect(workspace: &Path, name: &str) -> CliResult<()> {
+    let app = load_app_project(workspace, name)?;
+    let inspection = build_app_inspection(&app)?;
+    let rendered = serde_json::to_string_pretty(&inspection)
+        .map_err(|error| format!("failed to render inspection output: {error}"))?;
+    println!("{rendered}");
+    Ok(())
+}
+
+fn command_reset_data(workspace: &Path, name: &str) -> CliResult<()> {
+    let app = load_app_project(workspace, name)?;
+    let data_dir = default_app_data_dir(&app.config.app_id)?;
+
+    if data_dir.exists() {
+        fs::remove_dir_all(&data_dir).map_err(|error| {
+            format!(
+                "failed to remove app data directory '{}': {error}",
+                data_dir.display()
+            )
+        })?;
+        println!("Removed {}", data_dir.display());
+    } else {
+        println!("No app data directory exists at {}", data_dir.display());
+    }
+
+    println!(
+        "Next `rustframe-cli dev {}` run will recreate the database, migrations, and seed data.",
+        app.name
+    );
+    Ok(())
+}
+
 fn command_eject(workspace: &Path, name: &str) -> CliResult<()> {
     let app = load_app_project(workspace, name)?;
     let runner_dir = ejected_runner_dir(&app);
@@ -730,6 +774,20 @@ fn parse_export_args(workspace: &Path, args: &[String]) -> CliResult<String> {
 }
 
 fn parse_package_args(workspace: &Path, args: &[String]) -> CliResult<String> {
+    match args {
+        [] => resolve_current_app_name(workspace),
+        [name, ..] => Ok(name.clone()),
+    }
+}
+
+fn parse_inspect_args(workspace: &Path, args: &[String]) -> CliResult<String> {
+    match args {
+        [] => resolve_current_app_name(workspace),
+        [name, ..] => Ok(name.clone()),
+    }
+}
+
+fn parse_reset_data_args(workspace: &Path, args: &[String]) -> CliResult<String> {
     match args {
         [] => resolve_current_app_name(workspace),
         [name, ..] => Ok(name.clone()),
@@ -2241,12 +2299,14 @@ fn copy_dir_recursive(source: &Path, destination: &Path) -> CliResult<()> {
     for entry in fs::read_dir(source)
         .map_err(|error| format!("failed to read directory '{}': {error}", source.display()))?
     {
-        let entry =
-            entry.map_err(|error| format!("failed to read directory entry: {error}"))?;
+        let entry = entry.map_err(|error| format!("failed to read directory entry: {error}"))?;
         let source_path = entry.path();
         let destination_path = destination.join(entry.file_name());
         let metadata = entry.metadata().map_err(|error| {
-            format!("failed to read metadata for '{}': {error}", source_path.display())
+            format!(
+                "failed to read metadata for '{}': {error}",
+                source_path.display()
+            )
         })?;
 
         if metadata.is_dir() {
@@ -2298,6 +2358,284 @@ fn sync_declared_fs_roots(app: &AppProject, executable_dir: &Path) -> CliResult<
     }
 
     Ok(())
+}
+
+fn build_app_inspection(app: &AppProject) -> CliResult<serde_json::Value> {
+    let data_dir = default_app_data_dir(&app.config.app_id)?;
+    let database_path = data_dir.join(DATABASE_FILE_NAME);
+    let packaged_roots = packaged_fs_roots(app)
+        .into_iter()
+        .map(|(source, relative)| {
+            json!({
+                "sourcePath": slash_path(&source),
+                "bundledRelativePath": slash_path(&relative)
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Ok(json!({
+        "name": app.name,
+        "appId": app.config.app_id,
+        "title": app.config.title,
+        "devUrl": app.config.dev_url,
+        "paths": {
+            "appDir": slash_path(&app.app_dir),
+            "assetDir": slash_path(&app.asset_dir),
+            "distDir": slash_path(&app.app_dir.join("dist")),
+            "dataDir": slash_path(&data_dir),
+            "databasePath": slash_path(&database_path),
+            "databaseExists": database_path.exists()
+        },
+        "security": {
+            "model": security_model_label(app.config.security.model),
+            "database": app.config.security.database,
+            "filesystem": app.config.security.filesystem,
+            "shell": app.config.security.shell
+        },
+        "filesystem": {
+            "declaredRoots": app.config.fs_roots,
+            "packagedRoots": packaged_roots
+        },
+        "shell": {
+            "commands": app.config.shell_commands.iter().map(|command| {
+                json!({
+                    "name": command.name,
+                    "program": command.program,
+                    "args": command.args,
+                    "allowedArgs": command.allowed_args,
+                    "cwd": command.cwd,
+                    "env": command.env.keys().collect::<Vec<_>>(),
+                    "clearEnv": command.clear_env,
+                    "timeoutMs": command.timeout_ms.unwrap_or(10_000),
+                    "maxOutputBytes": command.max_output_bytes.unwrap_or(64 * 1024)
+                })
+            }).collect::<Vec<_>>()
+        },
+        "database": inspect_database_assets(app, &data_dir)?,
+        "warnings": capability_warnings(app)
+    }))
+}
+
+fn inspect_database_assets(app: &AppProject, data_dir: &Path) -> CliResult<serde_json::Value> {
+    let data_root = app.asset_dir.join("data");
+    let schema_path = data_root.join("schema.json");
+    let seed_dir = data_root.join("seeds");
+    let migration_dir = data_root.join("migrations");
+
+    if !schema_path.exists() {
+        let has_seed_files = seed_dir.exists() && !list_child_files(&seed_dir)?.is_empty();
+        let has_migrations =
+            migration_dir.exists() && !list_child_files(&migration_dir)?.is_empty();
+        if has_seed_files || has_migrations {
+            return Ok(json!({
+                "schemaPath": slash_path(&schema_path),
+                "dataDir": slash_path(data_dir),
+                "databasePath": slash_path(&data_dir.join(DATABASE_FILE_NAME)),
+                "seedFiles": [],
+                "migrationFiles": [],
+                "diagnostics": {
+                    "errors": ["data/schema.json is missing while seed or migration files are present"],
+                    "warnings": []
+                }
+            }));
+        }
+
+        return Ok(serde_json::Value::Null);
+    }
+
+    let schema_source = fs::read_to_string(&schema_path)
+        .map_err(|error| format!("failed to read '{}': {error}", schema_path.display()))?;
+    let seed_paths = list_files_with_extension(&seed_dir, "json")?;
+    let migration_paths = list_files_with_extension(&migration_dir, "sql")?;
+    let mut errors = Vec::new();
+    let mut warnings = Vec::new();
+
+    let schema = match DatabaseSchema::from_json(&schema_source) {
+        Ok(schema) => Some(schema),
+        Err(error) => {
+            errors.push(format!("schema.json is invalid: {error}"));
+            None
+        }
+    };
+
+    let seed_files = seed_paths
+        .iter()
+        .map(|path| {
+            let source = fs::read_to_string(path)
+                .map_err(|error| format!("failed to read '{}': {error}", path.display()))?;
+            let relative = slash_path(path.strip_prefix(&app.asset_dir).unwrap_or(path));
+            match DatabaseSeedFile::from_json(relative.clone(), &source) {
+                Ok(seed) => Ok(json!({
+                    "path": relative,
+                    "entries": seed.entries.len(),
+                    "checksum": seed.checksum
+                })),
+                Err(error) => {
+                    errors.push(format!("seed '{}' is invalid: {error}", relative));
+                    Ok(json!({ "path": relative }))
+                }
+            }
+        })
+        .collect::<CliResult<Vec<_>>>()?;
+
+    let migration_files = migration_paths
+        .iter()
+        .map(|path| {
+            let source = fs::read_to_string(path)
+                .map_err(|error| format!("failed to read '{}': {error}", path.display()))?;
+            let relative = slash_path(path.strip_prefix(&app.asset_dir).unwrap_or(path));
+            match DatabaseMigrationFile::from_sql(relative.clone(), &source) {
+                Ok(migration) => Ok(json!({
+                    "path": relative,
+                    "version": migration.version,
+                    "checksum": migration.checksum
+                })),
+                Err(error) => {
+                    errors.push(format!("migration '{}' is invalid: {error}", relative));
+                    Ok(json!({ "path": relative }))
+                }
+            }
+        })
+        .collect::<CliResult<Vec<_>>>()?;
+
+    let tables = schema
+        .as_ref()
+        .map(|schema| {
+            schema
+                .tables
+                .iter()
+                .map(|table| {
+                    let searchable_columns = table
+                        .columns
+                        .iter()
+                        .filter(|column| {
+                            matches!(
+                                column.kind,
+                                rustframe::DatabaseColumnType::Text
+                                    | rustframe::DatabaseColumnType::Json
+                            )
+                        })
+                        .map(|column| column.name.clone())
+                        .collect::<Vec<_>>();
+                    if searchable_columns.is_empty() {
+                        warnings.push(format!(
+                            "table '{}' has no text/json columns for runtime full-text search",
+                            table.name
+                        ));
+                    }
+
+                    json!({
+                        "name": table.name,
+                        "columnCount": table.columns.len(),
+                        "indexCount": table.indexes.len(),
+                        "searchableColumns": searchable_columns
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    if let Some(schema) = &schema {
+        if schema.version > 1 && migration_files.is_empty() {
+            warnings.push(format!(
+                "schema version {} is greater than 1 but no SQL migrations were found",
+                schema.version
+            ));
+        }
+    }
+
+    Ok(json!({
+        "schemaPath": slash_path(&schema_path),
+        "schemaVersion": schema.as_ref().map(|value| value.version),
+        "tableCount": tables.len(),
+        "tables": tables,
+        "seedFiles": seed_files,
+        "migrationFiles": migration_files,
+        "dataDir": slash_path(data_dir),
+        "databasePath": slash_path(&data_dir.join(DATABASE_FILE_NAME)),
+        "databaseExists": data_dir.join(DATABASE_FILE_NAME).exists(),
+        "diagnostics": {
+            "errors": errors,
+            "warnings": warnings
+        }
+    }))
+}
+
+fn capability_warnings(app: &AppProject) -> Vec<String> {
+    let mut warnings = Vec::new();
+
+    if app.config.security.model == AppSecurityModel::Networked {
+        warnings.push(
+            "frontend is declared as networked; local bridges should stay disabled unless the app has a clear trust boundary".into(),
+        );
+    }
+
+    if app.config.security.filesystem && !app.config.fs_roots.is_empty() {
+        warnings.push(format!(
+            "filesystem bridge is enabled for {} scoped root(s); keep roots narrow and workflow-specific",
+            app.config.fs_roots.len()
+        ));
+    }
+
+    if app.config.security.shell && !app.config.shell_commands.is_empty() {
+        warnings.push(format!(
+            "shell bridge is enabled with {} allowlisted command(s); review timeouts, cwd, and max output limits before shipping",
+            app.config.shell_commands.len()
+        ));
+    }
+
+    warnings
+}
+
+fn security_model_label(model: AppSecurityModel) -> &'static str {
+    match model {
+        AppSecurityModel::LocalFirst => "local-first",
+        AppSecurityModel::Networked => "networked",
+    }
+}
+
+fn default_app_data_dir(app_id: &str) -> CliResult<PathBuf> {
+    let base = dirs::data_local_dir()
+        .or_else(dirs::data_dir)
+        .ok_or_else(|| "the current platform does not expose a user data directory".to_string())?;
+    Ok(base.join(app_id))
+}
+
+fn list_child_files(directory: &Path) -> CliResult<Vec<PathBuf>> {
+    if !directory.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut paths = fs::read_dir(directory)
+        .map_err(|error| {
+            format!(
+                "failed to read directory '{}': {error}",
+                directory.display()
+            )
+        })?
+        .map(|entry| {
+            entry
+                .map(|entry| entry.path())
+                .map_err(|error| format!("failed to read directory entry: {error}"))
+        })
+        .collect::<CliResult<Vec<_>>>()?;
+    paths.sort();
+    Ok(paths)
+}
+
+fn list_files_with_extension(directory: &Path, extension: &str) -> CliResult<Vec<PathBuf>> {
+    let mut paths = list_child_files(directory)?
+        .into_iter()
+        .filter(|path| {
+            path.is_file()
+                && path
+                    .extension()
+                    .and_then(|value| value.to_str())
+                    .is_some_and(|value| value.eq_ignore_ascii_case(extension))
+        })
+        .collect::<Vec<_>>();
+    paths.sort();
+    Ok(paths)
 }
 
 fn write_binary_file(path: &Path, bytes: &[u8]) -> CliResult<()> {
@@ -3256,6 +3594,12 @@ fn print_help() {
         "  rustframe-cli package [name]          Build a host-native bundle into apps/<name>/dist/<platform>/"
     );
     println!(
+        "  rustframe-cli inspect [name]          Show resolved paths, capabilities, schema, seeds, and migrations"
+    );
+    println!(
+        "  rustframe-cli reset-data [name]       Remove the local app data directory so schema and seeds are recreated"
+    );
+    println!(
         "  rustframe-cli eject [name]            Materialize an app-owned Rust runner in apps/<name>/native/"
     );
     println!();
@@ -3280,13 +3624,12 @@ mod tests {
     use super::{
         AppConfig, AppPackagingConfig, AppProject, AppSecurityConfig, AppSecurityModel,
         AppShellCommand, DEFAULT_PLATFORM_TARGETS, LinuxPackagingConfig, MacOsPackagingConfig,
-        WindowsPackagingConfig, build_linux_package, build_macos_package, build_windows_package,
-        collect_embedded_assets, find_workspace_root_from, load_app_project,
+        WindowsPackagingConfig, build_app_inspection, build_linux_package, build_macos_package,
+        build_windows_package, collect_embedded_assets, find_workspace_root_from, load_app_project,
         parse_platform_check_args, platform_target_spec, prepare_ejected_runner,
         prepare_generated_runner, read_app_config, relative_path, render_asset_match_arms,
         render_database_chain, render_template, resolve_current_app_name_from,
-        resolve_runner_project,
-        sync_declared_fs_roots,
+        resolve_runner_project, sync_declared_fs_roots,
     };
 
     fn write_workspace_manifest(root: &Path) {
@@ -3847,6 +4190,66 @@ mod tests {
         let assets = collect_embedded_assets(temp.path()).unwrap();
 
         assert!(render_database_chain(&assets).is_empty());
+    }
+
+    #[test]
+    fn build_app_inspection_reports_database_diagnostics() {
+        let temp = tempdir().unwrap();
+        write_workspace_manifest(temp.path());
+        let app_dir = temp.path().join("apps/inspect-demo");
+        fs::create_dir_all(app_dir.join("data/migrations")).unwrap();
+        fs::create_dir_all(app_dir.join("data/seeds")).unwrap();
+        fs::write(app_dir.join("index.html"), "<title>Inspect Demo</title>").unwrap();
+        fs::write(app_dir.join("app.js"), "console.log('ok')").unwrap();
+        fs::write(app_dir.join("styles.css"), "body {}").unwrap();
+        fs::write(
+            app_dir.join("data/schema.json"),
+            r#"
+            {
+              "version": 2,
+              "tables": [
+                {
+                  "name": "settings",
+                  "columns": [
+                    { "name": "enabled", "type": "boolean", "required": true, "default": true }
+                  ]
+                }
+              ]
+            }
+            "#,
+        )
+        .unwrap();
+        fs::write(
+            app_dir.join("data/seeds/001-defaults.json"),
+            r#"{"entries":[{"table":"settings","rows":[{"enabled":true}]}]}"#,
+        )
+        .unwrap();
+
+        let app = load_app_project(temp.path(), "inspect-demo").unwrap();
+        let inspection = build_app_inspection(&app).unwrap();
+
+        assert_eq!(inspection["appId"], "inspect-demo");
+        assert_eq!(inspection["database"]["schemaVersion"], 2);
+        assert_eq!(
+            inspection["database"]["seedFiles"][0]["path"],
+            "data/seeds/001-defaults.json"
+        );
+        assert!(
+            inspection["database"]["diagnostics"]["warnings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value
+                    == "table 'settings' has no text/json columns for runtime full-text search")
+        );
+        assert!(
+            inspection["database"]["diagnostics"]["warnings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value
+                    == "schema version 2 is greater than 1 but no SQL migrations were found")
+        );
     }
 
     #[test]

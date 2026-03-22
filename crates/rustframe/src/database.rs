@@ -22,6 +22,7 @@ const APPLIED_MIGRATIONS_TABLE: &str = "__rustframe_applied_migrations";
 const SCHEMA_VERSION_KEY: &str = "schema_version";
 const SCHEMA_CHECKSUM_KEY: &str = "schema_checksum";
 const DATABASE_FILE_NAME: &str = "app.db";
+const SEARCH_TABLE_PREFIX: &str = "__rustframe_fts_";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DatabaseSchema {
@@ -322,6 +323,19 @@ pub struct DatabaseListQuery {
     pub offset: Option<u32>,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseSearchQuery {
+    pub table: String,
+    pub term: String,
+    #[serde(default)]
+    pub filters: Vec<DatabaseFilter>,
+    #[serde(default)]
+    pub order_by: Vec<DatabaseOrder>,
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseFilter {
@@ -398,6 +412,7 @@ impl DatabaseCapability {
             &config.migration_files,
         )?;
         apply_seed_files(&connection, &tables, &config.seed_files)?;
+        rebuild_search_indexes(&connection, &tables)?;
 
         let info = DatabaseInfo {
             app_id: config.app_id,
@@ -440,8 +455,8 @@ impl DatabaseCapability {
     pub fn list(&self, query: &DatabaseListQuery) -> Result<Vec<Value>> {
         let table = self.table(&query.table)?;
         let mut values = Vec::new();
-        let where_sql = build_where_clause(table, &query.filters, &mut values)?;
-        let order_sql = build_order_clause(table, &query.order_by)?;
+        let where_sql = build_where_clause(table, &query.filters, &mut values, None)?;
+        let order_sql = build_order_clause(table, &query.order_by, None)?;
         let limit_sql = build_limit_clause(query.limit, query.offset, &mut values)?;
         let select = select_columns_sql(table);
         let sql = format!(
@@ -464,7 +479,7 @@ impl DatabaseCapability {
     pub fn count(&self, query: &DatabaseListQuery) -> Result<u64> {
         let table = self.table(&query.table)?;
         let mut values = Vec::new();
-        let where_sql = build_where_clause(table, &query.filters, &mut values)?;
+        let where_sql = build_where_clause(table, &query.filters, &mut values, None)?;
         let sql = format!(
             "SELECT COUNT(*) FROM {}{where_sql}",
             quote_identifier(&table.name)
@@ -476,6 +491,61 @@ impl DatabaseCapability {
                 row.get::<_, u64>(0)
             })
             .map_err(Into::into)
+    }
+
+    pub fn search(&self, query: &DatabaseSearchQuery) -> Result<Vec<Value>> {
+        let table = self.table(&query.table)?;
+        let Some(search_expression) = build_search_expression(&query.term) else {
+            return self.list(&DatabaseListQuery {
+                table: query.table.clone(),
+                filters: query.filters.clone(),
+                order_by: query.order_by.clone(),
+                limit: query.limit,
+                offset: query.offset,
+            });
+        };
+
+        if table.search_columns.is_empty() {
+            return Err(RuntimeError::InvalidParameter(format!(
+                "table '{}' does not expose searchable text columns",
+                table.name
+            )));
+        }
+
+        let mut values = vec![SqlValue::Text(search_expression)];
+        let where_sql = build_where_clause(table, &query.filters, &mut values, Some("records"))?;
+        let additional_filters = where_sql
+            .strip_prefix(" WHERE ")
+            .map(|clause| {
+                if clause.is_empty() {
+                    String::new()
+                } else {
+                    format!(" AND {clause}")
+                }
+            })
+            .unwrap_or(where_sql);
+        let table_name = quote_identifier(&table.name);
+        let fts_table = quote_identifier(&search_table_name(&table.name));
+        let order_sql = build_search_order_clause(table, &query.order_by, &fts_table)?;
+        let limit_sql = build_limit_clause(query.limit, query.offset, &mut values)?;
+        let select = select_columns_sql_with_alias(table, "records");
+        let sql = format!(
+            "SELECT {select} FROM {table_name} AS records \
+             JOIN {fts_table} AS search_index ON search_index.rowid = records.{id_column} \
+             WHERE {fts_table} MATCH ?1{additional_filters}{order_sql}{limit_sql}",
+            id_column = quote_identifier("id"),
+        );
+
+        let connection = self.connection.borrow();
+        let mut statement = connection.prepare(&sql)?;
+        let mut rows = statement.query(rusqlite::params_from_iter(values))?;
+        let mut records = Vec::new();
+
+        while let Some(row) = rows.next()? {
+            records.push(decode_row(row, table)?);
+        }
+
+        Ok(records)
     }
 
     pub fn insert(&self, table: &str, record: Value) -> Result<Value> {
@@ -514,9 +584,11 @@ impl DatabaseCapability {
         let id = connection.last_insert_rowid();
         drop(connection);
 
-        self.get(&table.name, id)?.ok_or_else(|| {
+        let inserted = self.get(&table.name, id)?.ok_or_else(|| {
             RuntimeError::RecordNotFound(format!("inserted row '{}' was not found", id))
-        })
+        })?;
+        self.sync_search_record(table, &inserted)?;
+        Ok(inserted)
     }
 
     pub fn update(&self, table: &str, id: i64, patch: Value) -> Result<Value> {
@@ -592,12 +664,14 @@ impl DatabaseCapability {
             )));
         }
 
-        self.get(&table.name, id)?.ok_or_else(|| {
+        let updated = self.get(&table.name, id)?.ok_or_else(|| {
             RuntimeError::RecordNotFound(format!(
                 "table '{}' has no record with id {}",
                 table.name, id
             ))
-        })
+        })?;
+        self.sync_search_record(table, &updated)?;
+        Ok(updated)
     }
 
     pub fn delete(&self, table: &str, id: i64) -> Result<bool> {
@@ -610,6 +684,9 @@ impl DatabaseCapability {
 
         let connection = self.connection.borrow_mut();
         let changed = connection.execute(&sql, params![id])?;
+        if changed > 0 {
+            delete_search_record(&connection, table, id)?;
+        }
         Ok(changed > 0)
     }
 
@@ -621,6 +698,23 @@ impl DatabaseCapability {
             ))
         })
     }
+
+    fn sync_search_record(&self, table: &TablePlan, record: &Value) -> Result<()> {
+        if table.search_columns.is_empty() {
+            return Ok(());
+        }
+
+        let id = record.get("id").and_then(Value::as_i64).ok_or_else(|| {
+            RuntimeError::InvalidConfiguration(format!(
+                "table '{}' returned a record without an integer id",
+                table.name
+            ))
+        })?;
+
+        let content = search_document_for_record(table, record)?;
+        let connection = self.connection.borrow_mut();
+        upsert_search_record(&connection, table, id, &content)
+    }
 }
 
 #[derive(Debug)]
@@ -628,6 +722,7 @@ struct TablePlan {
     name: String,
     columns: Vec<ColumnPlan>,
     columns_by_name: BTreeMap<String, usize>,
+    search_columns: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -653,6 +748,17 @@ fn build_table_plans(schema: &DatabaseSchema) -> Result<BTreeMap<String, TablePl
                 default: column.default.clone(),
             });
         }
+        let search_columns = table
+            .columns
+            .iter()
+            .filter(|column| {
+                matches!(
+                    column.kind,
+                    DatabaseColumnType::Text | DatabaseColumnType::Json
+                )
+            })
+            .map(|column| column.name.clone())
+            .collect::<Vec<_>>();
 
         tables.insert(
             table.name.clone(),
@@ -660,6 +766,7 @@ fn build_table_plans(schema: &DatabaseSchema) -> Result<BTreeMap<String, TablePl
                 name: table.name.clone(),
                 columns,
                 columns_by_name,
+                search_columns,
             },
         );
     }
@@ -1066,6 +1173,7 @@ fn build_where_clause(
     table: &TablePlan,
     filters: &[DatabaseFilter],
     values: &mut Vec<SqlValue>,
+    alias: Option<&str>,
 ) -> Result<String> {
     if filters.is_empty() {
         return Ok(String::new());
@@ -1073,7 +1181,7 @@ fn build_where_clause(
 
     let mut clauses = Vec::new();
     for filter in filters {
-        let column = filter_column_sql(table, &filter.field)?;
+        let column = filter_column_sql(table, &filter.field, alias)?;
         match filter.op {
             DatabaseFilterOp::Eq => {
                 clauses.push(format!("{column} = {}", sql_placeholder(values.len())));
@@ -1141,14 +1249,48 @@ fn build_where_clause(
     Ok(format!(" WHERE {}", clauses.join(" AND ")))
 }
 
-fn build_order_clause(table: &TablePlan, order_by: &[DatabaseOrder]) -> Result<String> {
+fn build_order_clause(
+    table: &TablePlan,
+    order_by: &[DatabaseOrder],
+    alias: Option<&str>,
+) -> Result<String> {
     if order_by.is_empty() {
-        return Ok(format!(" ORDER BY {} DESC", quote_identifier("updated_at")));
+        return Ok(format!(
+            " ORDER BY {} DESC",
+            qualified_identifier(alias, "updated_at")
+        ));
     }
 
     let mut segments = Vec::new();
     for order in order_by {
-        let column = filter_column_sql(table, &order.field)?;
+        let column = filter_column_sql(table, &order.field, alias)?;
+        let direction = match order.direction {
+            DatabaseOrderDirection::Asc => "ASC",
+            DatabaseOrderDirection::Desc => "DESC",
+        };
+        segments.push(format!("{column} {direction}"));
+    }
+
+    Ok(format!(" ORDER BY {}", segments.join(", ")))
+}
+
+fn build_search_order_clause(
+    table: &TablePlan,
+    order_by: &[DatabaseOrder],
+    search_table: &str,
+) -> Result<String> {
+    let mut segments = vec![format!("bm25({search_table}) ASC")];
+
+    if order_by.is_empty() {
+        segments.push(format!(
+            "{} DESC",
+            qualified_identifier(Some("records"), "updated_at")
+        ));
+        return Ok(format!(" ORDER BY {}", segments.join(", ")));
+    }
+
+    for order in order_by {
+        let column = filter_column_sql(table, &order.field, Some("records"))?;
         let direction = match order.direction {
             DatabaseOrderDirection::Asc => "ASC",
             DatabaseOrderDirection::Desc => "DESC",
@@ -1206,14 +1348,14 @@ fn filter_value(table: &TablePlan, field: &str, value: &Value) -> Result<SqlValu
     sql_value_from_json(value, &column.kind, !column.required)
 }
 
-fn filter_column_sql(table: &TablePlan, field: &str) -> Result<String> {
+fn filter_column_sql(table: &TablePlan, field: &str, alias: Option<&str>) -> Result<String> {
     match field {
-        "id" => Ok(quote_identifier("id")),
-        "createdAt" => Ok(quote_identifier("created_at")),
-        "updatedAt" => Ok(quote_identifier("updated_at")),
+        "id" => Ok(qualified_identifier(alias, "id")),
+        "createdAt" => Ok(qualified_identifier(alias, "created_at")),
+        "updatedAt" => Ok(qualified_identifier(alias, "updated_at")),
         _ => {
             if table.columns_by_name.contains_key(field) {
-                Ok(quote_identifier(field))
+                Ok(qualified_identifier(alias, field))
             } else {
                 Err(RuntimeError::InvalidParameter(format!(
                     "table '{}' has no column named '{}'",
@@ -1221,6 +1363,13 @@ fn filter_column_sql(table: &TablePlan, field: &str) -> Result<String> {
                 )))
             }
         }
+    }
+}
+
+fn qualified_identifier(alias: Option<&str>, value: &str) -> String {
+    match alias {
+        Some(alias) => format!("{}.{}", quote_identifier(alias), quote_identifier(value)),
+        None => quote_identifier(value),
     }
 }
 
@@ -1564,16 +1713,21 @@ fn sql_default_literal(value: &Value, kind: &DatabaseColumnType) -> String {
 }
 
 fn select_columns_sql(table: &TablePlan) -> String {
+    select_columns_sql_with_alias(table, "")
+}
+
+fn select_columns_sql_with_alias(table: &TablePlan, alias: &str) -> String {
+    let alias = (!alias.is_empty()).then_some(alias);
     let mut columns = vec![
-        quote_identifier("id"),
-        quote_identifier("created_at"),
-        quote_identifier("updated_at"),
+        qualified_identifier(alias, "id"),
+        qualified_identifier(alias, "created_at"),
+        qualified_identifier(alias, "updated_at"),
     ];
     columns.extend(
         table
             .columns
             .iter()
-            .map(|column| quote_identifier(&column.name)),
+            .map(|column| qualified_identifier(alias, &column.name)),
     );
     columns.join(", ")
 }
@@ -1595,13 +1749,156 @@ fn hex_sha256(bytes: &[u8]) -> String {
     output
 }
 
+fn search_table_name(table_name: &str) -> String {
+    format!("{SEARCH_TABLE_PREFIX}{table_name}")
+}
+
+fn rebuild_search_indexes(
+    connection: &Connection,
+    tables: &BTreeMap<String, TablePlan>,
+) -> Result<()> {
+    for table in tables.values() {
+        rebuild_search_index(connection, table)?;
+    }
+
+    Ok(())
+}
+
+fn rebuild_search_index(connection: &Connection, table: &TablePlan) -> Result<()> {
+    let search_table = quote_identifier(&search_table_name(&table.name));
+    connection.execute_batch(&format!("DROP TABLE IF EXISTS {search_table}"))?;
+
+    if table.search_columns.is_empty() {
+        return Ok(());
+    }
+
+    connection.execute_batch(&format!(
+        "CREATE VIRTUAL TABLE {search_table} USING fts5(content)"
+    ))?;
+
+    let select = select_columns_sql(table);
+    let select_sql = format!("SELECT {select} FROM {}", quote_identifier(&table.name));
+    let mut statement = connection.prepare(&select_sql)?;
+    let mut rows = statement.query([])?;
+    let insert_sql = format!("INSERT INTO {search_table} (rowid, content) VALUES (?1, ?2)");
+    let mut search_rows = Vec::new();
+
+    while let Some(row) = rows.next()? {
+        let record = decode_row(row, table)?;
+        let id = record.get("id").and_then(Value::as_i64).ok_or_else(|| {
+            RuntimeError::InvalidConfiguration(format!(
+                "table '{}' returned a record without an integer id",
+                table.name
+            ))
+        })?;
+        search_rows.push((id, search_document_for_record(table, &record)?));
+    }
+
+    drop(rows);
+    drop(statement);
+
+    for (id, content) in search_rows {
+        connection.execute(&insert_sql, params![id, content])?;
+    }
+
+    Ok(())
+}
+
+fn upsert_search_record(
+    connection: &Connection,
+    table: &TablePlan,
+    id: i64,
+    content: &str,
+) -> Result<()> {
+    if table.search_columns.is_empty() {
+        return Ok(());
+    }
+
+    let search_table = quote_identifier(&search_table_name(&table.name));
+    let delete_sql = format!("DELETE FROM {search_table} WHERE rowid = ?1");
+    let insert_sql = format!("INSERT INTO {search_table} (rowid, content) VALUES (?1, ?2)");
+    connection.execute(&delete_sql, params![id])?;
+    connection.execute(&insert_sql, params![id, content])?;
+    Ok(())
+}
+
+fn delete_search_record(connection: &Connection, table: &TablePlan, id: i64) -> Result<()> {
+    if table.search_columns.is_empty() {
+        return Ok(());
+    }
+
+    let search_table = quote_identifier(&search_table_name(&table.name));
+    let sql = format!("DELETE FROM {search_table} WHERE rowid = ?1");
+    connection.execute(&sql, params![id])?;
+    Ok(())
+}
+
+fn search_document_for_record(table: &TablePlan, record: &Value) -> Result<String> {
+    let object = record.as_object().ok_or_else(|| {
+        RuntimeError::InvalidParameter("search indexing requires a JSON object record".into())
+    })?;
+    let mut segments = Vec::new();
+
+    for column_name in &table.search_columns {
+        let Some(value) = object.get(column_name) else {
+            continue;
+        };
+        append_search_value(&mut segments, value);
+    }
+
+    Ok(segments.join("\n"))
+}
+
+fn append_search_value(output: &mut Vec<String>, value: &Value) {
+    match value {
+        Value::Null => {}
+        Value::Bool(flag) => output.push(if *flag { "true".into() } else { "false".into() }),
+        Value::Number(number) => output.push(number.to_string()),
+        Value::String(text) => {
+            let trimmed = text.trim();
+            if !trimmed.is_empty() {
+                output.push(trimmed.to_string());
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                append_search_value(output, item);
+            }
+        }
+        Value::Object(map) => {
+            for (key, entry) in map {
+                let trimmed = key.trim();
+                if !trimmed.is_empty() {
+                    output.push(trimmed.to_string());
+                }
+                append_search_value(output, entry);
+            }
+        }
+    }
+}
+
+fn build_search_expression(term: &str) -> Option<String> {
+    let tokens = term
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(|token| format!("\"{}\"*", token.replace('"', "\"\"")))
+        .collect::<Vec<_>>();
+
+    if tokens.is_empty() {
+        None
+    } else {
+        Some(tokens.join(" AND "))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         APPLIED_MIGRATIONS_TABLE, APPLIED_SEEDS_TABLE, DatabaseCapability, DatabaseColumnType,
         DatabaseFilter, DatabaseFilterOp, DatabaseListQuery, DatabaseMigrationFile,
         DatabaseOpenConfig, DatabaseOrder, DatabaseOrderDirection, DatabaseSchema,
-        DatabaseSeedFile, META_TABLE,
+        DatabaseSearchQuery, DatabaseSeedFile, META_TABLE,
     };
     use rusqlite::Connection;
     use serde_json::json;
@@ -1727,7 +2024,11 @@ mod tests {
             .flatten()
             .collect::<Vec<_>>();
 
-        assert!(index_sql.iter().any(|sql| sql.contains("\"status\", \"updated_at\"")));
+        assert!(
+            index_sql
+                .iter()
+                .any(|sql| sql.contains("\"status\", \"updated_at\""))
+        );
         assert!(index_sql.iter().any(|sql| sql.contains("(\"created_at\")")));
     }
 
@@ -1922,6 +2223,81 @@ mod tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0]["title"], "Alpha");
         assert_eq!(rows[1]["title"], "Halo");
+    }
+
+    #[test]
+    fn searches_text_and_json_columns_with_filters() {
+        let capability = open_database(sample_schema(), Vec::new());
+        capability
+            .insert(
+                "tasks",
+                json!({
+                    "title": "Northwind launch memo",
+                    "priority": "high",
+                    "done": false,
+                    "metadata": {
+                        "tags": ["launch", "customer"],
+                        "owner": "maria"
+                    }
+                }),
+            )
+            .unwrap();
+        capability
+            .insert(
+                "tasks",
+                json!({
+                    "title": "Archive checklist",
+                    "priority": "low",
+                    "done": true,
+                    "metadata": {
+                        "tags": ["archive"],
+                        "owner": "ops"
+                    }
+                }),
+            )
+            .unwrap();
+
+        let launch_results = capability
+            .search(&DatabaseSearchQuery {
+                table: "tasks".into(),
+                term: "launch mar".into(),
+                filters: vec![DatabaseFilter {
+                    field: "done".into(),
+                    op: DatabaseFilterOp::Eq,
+                    value: json!(false),
+                }],
+                order_by: vec![DatabaseOrder {
+                    field: "updatedAt".into(),
+                    direction: DatabaseOrderDirection::Desc,
+                }],
+                limit: Some(10),
+                offset: None,
+            })
+            .unwrap();
+
+        assert_eq!(launch_results.len(), 1);
+        assert_eq!(launch_results[0]["title"], "Northwind launch memo");
+
+        let fallback_results = capability
+            .search(&DatabaseSearchQuery {
+                table: "tasks".into(),
+                term: "***".into(),
+                filters: vec![DatabaseFilter {
+                    field: "done".into(),
+                    op: DatabaseFilterOp::Eq,
+                    value: json!(true),
+                }],
+                order_by: vec![DatabaseOrder {
+                    field: "updatedAt".into(),
+                    direction: DatabaseOrderDirection::Desc,
+                }],
+                limit: Some(10),
+                offset: None,
+            })
+            .unwrap();
+
+        assert_eq!(fallback_results.len(), 1);
+        assert_eq!(fallback_results[0]["title"], "Archive checklist");
     }
 
     #[test]

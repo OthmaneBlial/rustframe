@@ -250,6 +250,9 @@
             list: (table, options = {}) => bridgeConfig.database
                 ? invoke("db.list", { table, ...options })
                 : rejectRestrictedBridge("database bridge is disabled for this frontend"),
+            search: (table, term, options = {}) => bridgeConfig.database
+                ? invoke("db.search", { table, term, ...options })
+                : rejectRestrictedBridge("database bridge is disabled for this frontend"),
             count: (table, options = {}) => bridgeConfig.database
                 ? invoke("db.count", { table, ...options })
                 : rejectRestrictedBridge("database bridge is disabled for this frontend"),

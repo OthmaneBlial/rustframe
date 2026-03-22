@@ -305,7 +305,11 @@ impl FsCapability {
     }
 
     fn ensure_allowed(&self, canonical: PathBuf, requested: &Path) -> Result<ResolvedFsPath> {
-        if let Some(root) = self.roots.iter().find(|root| canonical.starts_with(root.as_path())) {
+        if let Some(root) = self
+            .roots
+            .iter()
+            .find(|root| canonical.starts_with(root.as_path()))
+        {
             return Ok(ResolvedFsPath {
                 root: root.clone(),
                 relative: canonical
@@ -377,13 +381,15 @@ fn resolve_candidate_for_write(root: &Path, candidate: &Path) -> Result<Resolved
             ))
         })?;
         missing_segments.push(segment.to_os_string());
-        existing_ancestor = existing_ancestor.parent().ok_or_else(|| {
-            RuntimeError::InvalidParameter(format!(
-                "unable to resolve '{}' for writing",
-                candidate.display()
-            ))
-        })?
-        .to_path_buf();
+        existing_ancestor = existing_ancestor
+            .parent()
+            .ok_or_else(|| {
+                RuntimeError::InvalidParameter(format!(
+                    "unable to resolve '{}' for writing",
+                    candidate.display()
+                ))
+            })?
+            .to_path_buf();
     }
 
     let canonical_ancestor = existing_ancestor.canonicalize().map_err(|error| {
@@ -405,12 +411,15 @@ fn resolve_candidate_for_write(root: &Path, candidate: &Path) -> Result<Resolved
         absolute.push(segment);
     }
 
-    let relative = absolute.strip_prefix(root).map(PathBuf::from).map_err(|_| {
-        RuntimeError::PermissionDenied(format!(
-            "path '{}' is outside the configured filesystem roots",
-            candidate.display()
-        ))
-    })?;
+    let relative = absolute
+        .strip_prefix(root)
+        .map(PathBuf::from)
+        .map_err(|_| {
+            RuntimeError::PermissionDenied(format!(
+                "path '{}' is outside the configured filesystem roots",
+                candidate.display()
+            ))
+        })?;
 
     Ok(ResolvedFsPath {
         root: root.to_path_buf(),
@@ -800,10 +809,15 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
 
         let capability = FsCapability::new([root.clone()]).unwrap();
-        let written = capability.write_text("imports/brief.md", "# Imported").unwrap();
+        let written = capability
+            .write_text("imports/brief.md", "# Imported")
+            .unwrap();
 
         assert_eq!(written.path, "imports/brief.md");
-        assert_eq!(fs::read_to_string(root.join("imports/brief.md")).unwrap(), "# Imported");
+        assert_eq!(
+            fs::read_to_string(root.join("imports/brief.md")).unwrap(),
+            "# Imported"
+        );
     }
 
     #[test]
@@ -821,7 +835,10 @@ mod tests {
 
         assert_eq!(binary.byte_length, 4);
         assert_eq!(binary.base64, BASE64_STANDARD.encode([0_u8, 1, 2, 3]));
-        assert_eq!(fs::read(root.join("assets/icon.bin")).unwrap(), vec![0_u8, 1, 2, 3]);
+        assert_eq!(
+            fs::read(root.join("assets/icon.bin")).unwrap(),
+            vec![0_u8, 1, 2, 3]
+        );
     }
 
     #[test]
@@ -833,7 +850,9 @@ mod tests {
         fs::write(&external, "# External").unwrap();
 
         let capability = FsCapability::new([root.clone()]).unwrap();
-        let copied = capability.copy_from(&external, "imports/source.md").unwrap();
+        let copied = capability
+            .copy_from(&external, "imports/source.md")
+            .unwrap();
 
         assert_eq!(copied.path, "imports/source.md");
         assert_eq!(

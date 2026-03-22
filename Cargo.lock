@@ -2231,7 +2231,9 @@ dependencies = [
 name = "rustframe-cli"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "flate2",
+ "rustframe",
  "serde",
  "serde_json",
  "tar",

@@ -17,16 +17,16 @@ use tao::{
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget},
     window::{Window, WindowBuilder, WindowId},
 };
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use wry::{
     NewWindowResponse, WebView, WebViewBuilder,
     http::{Request, Response, header::CONTENT_TYPE},
 };
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{
     DatabaseCapability, DatabaseListQuery, DatabaseMigrationFile, DatabaseOpenConfig,
-    DatabaseSchema, DatabaseSeedFile, FsCapability, IpcRequest, IpcResponse, Result, RuntimeError,
-    ShellCapability, ShellCommand,
+    DatabaseSchema, DatabaseSearchQuery, DatabaseSeedFile, FsCapability, IpcRequest, IpcResponse,
+    Result, RuntimeError, ShellCapability, ShellCommand,
 };
 
 const APP_URL: &str = "app://localhost/";
@@ -939,17 +939,15 @@ fn dispatch_ipc_message(
     target: &EventLoopWindowTarget<UserEvent>,
 ) -> Option<IpcOutcome> {
     match serde_json::from_str::<IpcRequest>(body) {
-        Ok(request) => {
-            dispatch_request(
-                request,
-                window_id,
-                worker,
-                security,
-                fs_capability,
-                window_manager,
-                target,
-            )
-        }
+        Ok(request) => dispatch_request(
+            request,
+            window_id,
+            worker,
+            security,
+            fs_capability,
+            window_manager,
+            target,
+        ),
         Err(error) => Some(IpcOutcome {
             response: IpcResponse::failure(0, &RuntimeError::Json(error)),
             close_window: None,
@@ -1003,9 +1001,18 @@ fn dispatch_request(
 
 fn authorize_method(method: &str, security: &ResolvedFrontendSecurity) -> Result<()> {
     match method {
-        "fs.readText" | "fs.readBinary" | "fs.metadata" | "fs.listDir" | "fs.writeText"
-        | "fs.writeBinary" | "fs.copyFrom" | "dialog.openFile" | "dialog.openFiles"
-        | "dialog.openDirectory" | "dialog.saveText" | "dialog.saveBinary"
+        "fs.readText"
+        | "fs.readBinary"
+        | "fs.metadata"
+        | "fs.listDir"
+        | "fs.writeText"
+        | "fs.writeBinary"
+        | "fs.copyFrom"
+        | "dialog.openFile"
+        | "dialog.openFiles"
+        | "dialog.openDirectory"
+        | "dialog.saveText"
+        | "dialog.saveBinary"
             if !security.filesystem =>
         {
             Err(RuntimeError::PermissionDenied(
@@ -1015,7 +1022,8 @@ fn authorize_method(method: &str, security: &ResolvedFrontendSecurity) -> Result
         "shell.exec" if !security.shell => Err(RuntimeError::PermissionDenied(
             "shell bridge is disabled for this frontend".into(),
         )),
-        "db.info" | "db.get" | "db.list" | "db.count" | "db.insert" | "db.update" | "db.delete"
+        "db.info" | "db.get" | "db.list" | "db.search" | "db.count" | "db.insert" | "db.update"
+        | "db.delete"
             if !security.database =>
         {
             Err(RuntimeError::PermissionDenied(
@@ -1037,13 +1045,21 @@ fn resolve_ipc_response(webview: &WebView, response: &IpcResponse) {
 
 fn method_execution(method: &str) -> MethodExecution {
     match method {
-        "window.close" | "window.minimize" | "window.maximize" | "window.setTitle"
-        | "window.current" | "window.list" | "window.open" | "dialog.openFile"
-        | "dialog.openFiles" | "dialog.openDirectory" | "dialog.saveText"
+        "window.close"
+        | "window.minimize"
+        | "window.maximize"
+        | "window.setTitle"
+        | "window.current"
+        | "window.list"
+        | "window.open"
+        | "dialog.openFile"
+        | "dialog.openFiles"
+        | "dialog.openDirectory"
+        | "dialog.saveText"
         | "dialog.saveBinary" => MethodExecution::MainThread,
         "fs.readText" | "fs.readBinary" | "fs.metadata" | "fs.listDir" | "fs.writeText"
-        | "fs.writeBinary" | "fs.copyFrom" | "shell.exec" | "db.info" | "db.get"
-        | "db.list" | "db.count" | "db.insert" | "db.update" | "db.delete" => {
+        | "fs.writeBinary" | "fs.copyFrom" | "shell.exec" | "db.info" | "db.get" | "db.list"
+        | "db.search" | "db.count" | "db.insert" | "db.update" | "db.delete" => {
             MethodExecution::Background
         }
         _ => MethodExecution::Unknown,
@@ -1092,7 +1108,10 @@ fn handle_main_thread_request(
         "dialog.openFile" => (|| {
             let options: DialogFileOptions = parse_params(&request.params)?;
             let dialog = build_file_dialog(fs_capability, &options, None)?;
-            let selected = dialog.pick_file().map(|path| external_path_record(&path)).transpose()?;
+            let selected = dialog
+                .pick_file()
+                .map(|path| external_path_record(&path))
+                .transpose()?;
             Ok(selected.map(|record| json!(record)).unwrap_or(Value::Null))
         })(),
         "dialog.openFiles" => (|| {
@@ -1109,7 +1128,10 @@ fn handle_main_thread_request(
         "dialog.openDirectory" => (|| {
             let options: DialogFileOptions = parse_params(&request.params)?;
             let dialog = build_file_dialog(fs_capability, &options, None)?;
-            let selected = dialog.pick_folder().map(|path| external_path_record(&path)).transpose()?;
+            let selected = dialog
+                .pick_folder()
+                .map(|path| external_path_record(&path))
+                .transpose()?;
             Ok(selected.map(|record| json!(record)).unwrap_or(Value::Null))
         })(),
         "dialog.saveText" => (|| {
@@ -1185,15 +1207,21 @@ fn execute_background_request(
         })(),
         "fs.writeText" => (|| {
             let params: FsWriteTextParams = parse_params(&request.params)?;
-            Ok(json!(fs_capability.write_text(params.path, &params.contents)?))
+            Ok(json!(
+                fs_capability.write_text(params.path, &params.contents)?
+            ))
         })(),
         "fs.writeBinary" => (|| {
             let params: FsWriteBinaryParams = parse_params(&request.params)?;
-            Ok(json!(fs_capability.write_binary(params.path, &params.base64)?))
+            Ok(json!(
+                fs_capability.write_binary(params.path, &params.base64)?
+            ))
         })(),
         "fs.copyFrom" => (|| {
             let params: FsCopyParams = parse_params(&request.params)?;
-            Ok(json!(fs_capability.copy_from(params.source_path, params.destination_path)?))
+            Ok(json!(
+                fs_capability.copy_from(params.source_path, params.destination_path)?
+            ))
         })(),
         "shell.exec" => (|| {
             let command = required_string(&request.params, "command")?;
@@ -1211,6 +1239,10 @@ fn execute_background_request(
         "db.list" => (|| {
             let query: DatabaseListQuery = parse_params(&request.params)?;
             Ok(Value::Array(database(database_capability)?.list(&query)?))
+        })(),
+        "db.search" => (|| {
+            let query: DatabaseSearchQuery = parse_params(&request.params)?;
+            Ok(Value::Array(database(database_capability)?.search(&query)?))
         })(),
         "db.count" => (|| {
             let query: DatabaseListQuery = parse_params(&request.params)?;
@@ -1382,7 +1414,9 @@ fn external_path_record(path: &Path) -> Result<ExternalPathRecord> {
         is_dir: metadata.is_dir(),
         is_file: metadata.is_file(),
         size: metadata.len(),
-        extension: path.extension().map(|value| value.to_string_lossy().to_string()),
+        extension: path
+            .extension()
+            .map(|value| value.to_string_lossy().to_string()),
         modified_at: external_modified_at(&metadata).ok(),
     })
 }

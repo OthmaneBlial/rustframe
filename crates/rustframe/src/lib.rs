@@ -10,9 +10,9 @@ pub use capability::{
     FsBinaryContents, FsCapability, FsEntry, ShellCapability, ShellCommand, ShellOutput,
 };
 pub use database::{
-    DatabaseCapability, DatabaseFilter, DatabaseFilterOp, DatabaseInfo, DatabaseListQuery,
-    DatabaseMigrationFile, DatabaseOpenConfig, DatabaseOrder, DatabaseOrderDirection,
-    DatabaseSchema, DatabaseSeedFile,
+    DatabaseCapability, DatabaseColumnType, DatabaseFilter, DatabaseFilterOp, DatabaseInfo,
+    DatabaseListQuery, DatabaseMigrationFile, DatabaseOpenConfig, DatabaseOrder,
+    DatabaseOrderDirection, DatabaseSchema, DatabaseSearchQuery, DatabaseSeedFile,
 };
 #[cfg(feature = "desktop")]
 pub use desktop::{

@@ -9,11 +9,13 @@ const INDEX_COMMANDS = [
 ];
 const STATUS_ORDER = ["queued", "reviewing", "ready", "archived"];
 const PRIORITY_ORDER = ["critical", "watch", "reference"];
+let latestSearchRequestId = 0;
 
 const state = {
     mode: ROUTE_PATH === "/reader" ? "reader" : "main",
     dbInfo: null,
     documents: [],
+    visibleDocuments: [],
     settingsByKey: new Map(),
     workspaceEntries: [],
     windows: [],
@@ -113,6 +115,7 @@ async function refreshDocuments() {
             { field: "updatedAt", direction: "desc" }
         ]
     });
+    await refreshVisibleDocuments();
 }
 
 async function refreshWindows() {
@@ -137,6 +140,30 @@ function selectDefaultDocument() {
 
     if (!state.selectedId || !state.documents.some((entry) => entry.id === state.selectedId)) {
         state.selectedId = visible[0].id;
+    }
+}
+
+async function refreshVisibleDocuments() {
+    const requestId = ++latestSearchRequestId;
+    const filters = buildActiveFilters();
+
+    if (!state.search) {
+        state.visibleDocuments = filterDocumentsLocally(filters);
+        return;
+    }
+
+    const results = await window.RustFrame.db.search("documents", state.search, {
+        filters,
+        orderBy: [
+            { field: "pinned", direction: "desc" },
+            { field: "collection", direction: "asc" },
+            { field: "updatedAt", direction: "desc" }
+        ],
+        limit: 250
+    });
+
+    if (requestId === latestSearchRequestId) {
+        state.visibleDocuments = results;
     }
 }
 
@@ -320,25 +347,52 @@ async function patchReaderDocument(patch, message) {
     writeLog(message);
 }
 
-async function exportVisibleDocuments() {
+function buildActiveFilters() {
+    const filters = [];
+    if (state.collection !== "all") {
+        filters.push({ field: "collection", value: state.collection });
+    }
+    if (state.status !== "all") {
+        filters.push({ field: "status", value: state.status });
+    }
+    return filters;
+}
+
+function filterDocumentsLocally(filters) {
+    return state.documents.filter((documentRecord) => filters.every((filter) => {
+        if (filter.field === "collection") {
+            return documentRecord.collection === filter.value;
+        }
+        if (filter.field === "status") {
+            return documentRecord.status === filter.value;
+        }
+        return true;
+    }));
+}
+
+function visibleExportRecords() {
+    return visibleDocuments().map((documentRecord) => ({
+        path: documentRecord.path,
+        title: documentRecord.title,
+        collection: documentRecord.collection,
+        kind: documentRecord.kind,
+        status: documentRecord.status,
+        priority: documentRecord.priority,
+        tags: normalizeTags(documentRecord.tags),
+        reviewer: documentRecord.reviewer,
+        note: documentRecord.note,
+        summary: documentRecord.summary,
+        sourceModifiedAt: documentRecord.sourceModifiedAt
+    }));
+}
+
+async function exportVisibleDocumentsAsJson() {
     const payload = {
         exportedAt: new Date().toISOString(),
         source: "research-desk",
         count: visibleDocuments().length,
         workspace: workspaceProfile(),
-        documents: visibleDocuments().map((documentRecord) => ({
-            path: documentRecord.path,
-            title: documentRecord.title,
-            collection: documentRecord.collection,
-            kind: documentRecord.kind,
-            status: documentRecord.status,
-            priority: documentRecord.priority,
-            tags: normalizeTags(documentRecord.tags),
-            reviewer: documentRecord.reviewer,
-            note: documentRecord.note,
-            summary: documentRecord.summary,
-            sourceModifiedAt: documentRecord.sourceModifiedAt
-        }))
+        documents: visibleExportRecords()
     };
 
     const text = `${JSON.stringify(payload, null, 2)}\n`;
@@ -352,6 +406,49 @@ async function exportVisibleDocuments() {
 
     if (saved) {
         writeLog(`Exported ${payload.count} visible documents to ${saved.path}.`);
+    } else {
+        writeLog("Export canceled.");
+    }
+}
+
+async function exportVisibleDocumentsAsCsv() {
+    const rows = visibleExportRecords().map((documentRecord) => ({
+        path: documentRecord.path,
+        title: documentRecord.title,
+        collection: documentRecord.collection,
+        kind: documentRecord.kind,
+        status: documentRecord.status,
+        priority: documentRecord.priority,
+        reviewer: documentRecord.reviewer || "",
+        tags: documentRecord.tags.join(" | "),
+        summary: documentRecord.summary || "",
+        note: documentRecord.note || "",
+        sourceModifiedAt: documentRecord.sourceModifiedAt || ""
+    }));
+    const header = [
+        "path",
+        "title",
+        "collection",
+        "kind",
+        "status",
+        "priority",
+        "reviewer",
+        "tags",
+        "summary",
+        "note",
+        "sourceModifiedAt"
+    ];
+    const csv = serializeCsv(header, rows);
+    const dateLabel = new Date().toISOString().slice(0, 10);
+    const saved = await window.RustFrame.dialog.saveText({
+        title: "Export visible research queue as CSV",
+        defaultName: `research-desk-export-${dateLabel}.csv`,
+        filters: [{ name: "CSV", extensions: ["csv"] }],
+        contents: csv
+    });
+
+    if (saved) {
+        writeLog(`Exported ${rows.length} visible documents to ${saved.path}.`);
     } else {
         writeLog("Export canceled.");
     }
@@ -410,10 +507,18 @@ function normalizeExtension(value) {
     return String(value || "").trim().replace(/^\./u, "").toLowerCase();
 }
 
-function handleInput(event) {
+async function handleInput(event) {
     if (event.target.id === "search-input") {
-        state.search = event.target.value.trim().toLowerCase();
-        render();
+        try {
+            state.search = event.target.value.trim();
+            await refreshVisibleDocuments();
+            selectDefaultDocument();
+            await refreshSelectedContent();
+            render();
+        } catch (error) {
+            writeLog(formatError(error));
+            render();
+        }
     }
 }
 
@@ -442,8 +547,13 @@ async function handleClick(event) {
             return;
         }
 
-        if (action === "export") {
-            await exportVisibleDocuments();
+        if (action === "export-json") {
+            await exportVisibleDocumentsAsJson();
+            return;
+        }
+
+        if (action === "export-csv") {
+            await exportVisibleDocumentsAsCsv();
             return;
         }
 
@@ -462,12 +572,18 @@ async function handleClick(event) {
 
         if (action === "filter-status") {
             state.status = button.dataset.status || "all";
+            await refreshVisibleDocuments();
+            selectDefaultDocument();
+            await refreshSelectedContent();
             render();
             return;
         }
 
         if (action === "filter-collection") {
             state.collection = button.dataset.collection || "all";
+            await refreshVisibleDocuments();
+            selectDefaultDocument();
+            await refreshSelectedContent();
             render();
             return;
         }
@@ -613,7 +729,8 @@ function renderMain() {
                         ${state.importBusy ? "Indexing archive…" : "Index workspace"}
                     </button>
                     <button class="button" type="button" data-action="import-files" ${state.importBusy ? "disabled" : ""}>Import files</button>
-                    <button class="button" type="button" data-action="export">Export visible queue</button>
+                    <button class="button" type="button" data-action="export-json">Export JSON</button>
+                    <button class="button" type="button" data-action="export-csv">Export CSV</button>
                     <button class="ghost-button" type="button" data-action="sync-title">Sync title</button>
                     <button class="ghost-button" type="button" data-action="close-window">Close</button>
                 </div>
@@ -661,7 +778,7 @@ function renderMain() {
 
                 <label class="label" for="search-input">Search</label>
                 <div class="search-field">
-                    <input id="search-input" type="search" value="${escapeHtml(state.search)}" placeholder="Search title, summary, tags, reviewer">
+                    <input id="search-input" type="search" value="${escapeHtml(state.search)}" placeholder="Full-text search title, summary, note, tags, reviewer">
                 </div>
 
                 <div class="filter-stack">
@@ -1013,20 +1130,7 @@ function documentById(id) {
 }
 
 function visibleDocuments() {
-    return state.documents.filter((documentRecord) => {
-        const matchesCollection = state.collection === "all" || documentRecord.collection === state.collection;
-        const matchesStatus = state.status === "all" || documentRecord.status === state.status;
-        const haystack = [
-            documentRecord.title,
-            documentRecord.collection,
-            documentRecord.kind,
-            documentRecord.summary,
-            documentRecord.reviewer,
-            normalizeTags(documentRecord.tags).join(" ")
-        ].join("\n").toLowerCase();
-        const matchesSearch = !state.search || haystack.includes(state.search);
-        return matchesCollection && matchesStatus && matchesSearch;
-    });
+    return state.visibleDocuments;
 }
 
 function workspaceProfile() {
@@ -1132,6 +1236,22 @@ function renderRichText(source) {
 
 function renderTag(value, className) {
     return `<span class="tag ${className}">${escapeHtml(value)}</span>`;
+}
+
+function serializeCsv(header, rows) {
+    const escapeCell = (value) => {
+        const text = String(value ?? "");
+        if (/[",\n]/u.test(text)) {
+            return `"${text.replace(/"/gu, "\"\"")}"`;
+        }
+        return text;
+    };
+
+    const lines = [
+        header.join(","),
+        ...rows.map((row) => header.map((key) => escapeCell(row[key])).join(","))
+    ];
+    return `${lines.join("\n")}\n`;
 }
 
 function renderFatal() {
