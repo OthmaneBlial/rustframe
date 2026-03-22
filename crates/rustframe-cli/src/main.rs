@@ -550,6 +550,7 @@ fn command_export(workspace: &Path, name: &str) -> CliResult<()> {
 
     let destination = dist_dir.join(&binary_name);
     copy_with_permissions(&source, &destination)?;
+    sync_declared_fs_roots(&app, &dist_dir)?;
 
     let size = fs::metadata(&destination)
         .map_err(|error| format!("failed to stat '{}': {error}", destination.display()))?
@@ -2229,6 +2230,76 @@ fn copy_with_permissions(source: &Path, destination: &Path) -> CliResult<()> {
     })
 }
 
+fn copy_dir_recursive(source: &Path, destination: &Path) -> CliResult<()> {
+    fs::create_dir_all(destination).map_err(|error| {
+        format!(
+            "failed to create directory '{}': {error}",
+            destination.display()
+        )
+    })?;
+
+    for entry in fs::read_dir(source)
+        .map_err(|error| format!("failed to read directory '{}': {error}", source.display()))?
+    {
+        let entry =
+            entry.map_err(|error| format!("failed to read directory entry: {error}"))?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let metadata = entry.metadata().map_err(|error| {
+            format!("failed to read metadata for '{}': {error}", source_path.display())
+        })?;
+
+        if metadata.is_dir() {
+            copy_dir_recursive(&source_path, &destination_path)?;
+        } else if metadata.is_file() {
+            copy_with_permissions(&source_path, &destination_path)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn packaged_fs_roots(app: &AppProject) -> Vec<(PathBuf, PathBuf)> {
+    app.config
+        .fs_roots
+        .iter()
+        .filter_map(|root| {
+            let relative = root
+                .strip_prefix("${EXE_DIR}/")
+                .map(PathBuf::from)
+                .or_else(|| Path::new(root).is_relative().then(|| PathBuf::from(root)))?;
+
+            Some((app.app_dir.join(&relative), relative))
+        })
+        .collect()
+}
+
+fn sync_declared_fs_roots(app: &AppProject, executable_dir: &Path) -> CliResult<()> {
+    for (source, relative) in packaged_fs_roots(app) {
+        if !source.exists() {
+            return Err(format!(
+                "declared filesystem root '{}' does not exist at '{}'",
+                relative.display(),
+                source.display()
+            ));
+        }
+
+        let destination = executable_dir.join(&relative);
+        if destination.exists() {
+            fs::remove_dir_all(&destination).map_err(|error| {
+                format!(
+                    "failed to replace bundled filesystem root '{}': {error}",
+                    destination.display()
+                )
+            })?;
+        }
+
+        copy_dir_recursive(&source, &destination)?;
+    }
+
+    Ok(())
+}
+
 fn write_binary_file(path: &Path, bytes: &[u8]) -> CliResult<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
@@ -2282,6 +2353,7 @@ fn build_linux_package(app: &AppProject, source_binary: &Path) -> CliResult<Linu
     let binary_name = package_executable_name(&app.name, "linux");
     let installed_binary = usr_bin.join(&binary_name);
     copy_with_permissions(source_binary, &installed_binary)?;
+    sync_declared_fs_roots(app, &usr_bin)?;
 
     let app_run_path = app_dir.join("AppRun");
     write_text_file(&app_run_path, &render_app_run_script(&binary_name))?;
@@ -2432,6 +2504,7 @@ fn build_windows_package(
     let binary_name = package_executable_name(&app.name, "windows");
     let installed_binary = portable_dir.join(&binary_name);
     copy_with_permissions(source_binary, &installed_binary)?;
+    sync_declared_fs_roots(app, &portable_dir)?;
 
     let icon = load_packaging_icon(
         app,
@@ -2568,6 +2641,7 @@ fn build_macos_package(app: &AppProject, source_binary: &Path) -> CliResult<MacO
     let binary_name = package_executable_name(&app.name, "macos");
     let installed_binary = macos_dir.join(&binary_name);
     copy_with_permissions(source_binary, &installed_binary)?;
+    sync_declared_fs_roots(app, &macos_dir)?;
 
     let icon = load_packaging_icon(
         app,
@@ -3212,6 +3286,7 @@ mod tests {
         prepare_generated_runner, read_app_config, relative_path, render_asset_match_arms,
         render_database_chain, render_template, resolve_current_app_name_from,
         resolve_runner_project,
+        sync_declared_fs_roots,
     };
 
     fn write_workspace_manifest(root: &Path) {
@@ -4184,6 +4259,8 @@ mod tests {
         fs::create_dir_all(&app_dir).unwrap();
         fs::write(app_dir.join("index.html"), "<title>Package Demo</title>").unwrap();
         fs::write(app_dir.join("icon.svg"), "<svg/>").unwrap();
+        fs::create_dir_all(app_dir.join("workspace")).unwrap();
+        fs::write(app_dir.join("workspace/notes.md"), "# packaged\n").unwrap();
         let binary_dir = temp.path().join("target/release");
         fs::create_dir_all(&binary_dir).unwrap();
         let binary_path = binary_dir.join("package-demo");
@@ -4200,7 +4277,7 @@ mod tests {
                 height: 820.0,
                 dev_url: None,
                 security: AppSecurityConfig::local_first(),
-                fs_roots: Vec::new(),
+                fs_roots: vec!["workspace".into()],
                 shell_commands: Vec::new(),
                 packaging: AppPackagingConfig {
                     version: "2.4.0".into(),
@@ -4230,6 +4307,7 @@ mod tests {
         assert!(output.bundle_dir.join("rustframe-package.json").exists());
         assert!(output.app_dir.join("AppRun").exists());
         assert!(output.app_dir.join("usr/bin/package-demo").exists());
+        assert!(output.app_dir.join("usr/bin/workspace/notes.md").exists());
         assert!(
             output
                 .app_dir
@@ -4245,6 +4323,60 @@ mod tests {
         assert!(output.archive_path.exists());
         assert!(install_script.contains("Icon=$install_root/${appdir_name}/usr/share/icons"));
         assert!(install_script.contains("Keywords=package;demo;"));
+    }
+
+    #[test]
+    fn sync_declared_fs_roots_copies_relative_and_exe_dir_roots() {
+        let temp = tempdir().unwrap();
+        let app_dir = temp.path().join("apps/research-desk");
+        fs::create_dir_all(app_dir.join("workspace/reports")).unwrap();
+        fs::create_dir_all(app_dir.join("exports")).unwrap();
+        fs::write(app_dir.join("workspace/reports/day-01.md"), "alpha").unwrap();
+        fs::write(app_dir.join("exports/layout.json"), "{\"ok\":true}").unwrap();
+
+        let app = AppProject {
+            name: "research-desk".into(),
+            app_dir: app_dir.clone(),
+            asset_dir: app_dir.clone(),
+            config: AppConfig {
+                app_id: "research-desk".into(),
+                title: "Research Desk".into(),
+                width: 1280.0,
+                height: 820.0,
+                dev_url: None,
+                security: AppSecurityConfig::local_first(),
+                fs_roots: vec!["workspace".into(), "${EXE_DIR}/exports".into()],
+                shell_commands: Vec::new(),
+                packaging: AppPackagingConfig {
+                    version: "0.1.0".into(),
+                    description: "Research desk".into(),
+                    publisher: None,
+                    homepage: None,
+                    linux: LinuxPackagingConfig {
+                        categories: vec!["Utility".into()],
+                        keywords: Vec::new(),
+                        icon_path: None,
+                    },
+                    windows: WindowsPackagingConfig { icon_path: None },
+                    macos: MacOsPackagingConfig {
+                        bundle_identifier: "dev.rustframe.research-desk".into(),
+                        icon_path: None,
+                    },
+                },
+            },
+        };
+
+        let executable_dir = temp.path().join("dist");
+        sync_declared_fs_roots(&app, &executable_dir).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(executable_dir.join("workspace/reports/day-01.md")).unwrap(),
+            "alpha"
+        );
+        assert_eq!(
+            fs::read_to_string(executable_dir.join("exports/layout.json")).unwrap(),
+            "{\"ok\":true}"
+        );
     }
 
     #[test]
