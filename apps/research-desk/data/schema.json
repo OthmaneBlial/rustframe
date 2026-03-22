@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "documents",
+      "columns": [
+        { "name": "path", "type": "text", "required": true, "unique": true },
+        { "name": "title", "type": "text", "required": true },
+        { "name": "collection", "type": "text", "required": true },
+        { "name": "kind", "type": "text", "required": true },
+        { "name": "summary", "type": "text" },
+        { "name": "reviewer", "type": "text" },
+        { "name": "status", "type": "text", "required": true, "default": "queued" },
+        { "name": "priority", "type": "text", "required": true, "default": "watch" },
+        { "name": "tags", "type": "json", "required": true, "default": [] },
+        { "name": "readingMinutes", "type": "integer", "required": true, "default": 3 },
+        { "name": "lineCount", "type": "integer", "required": true, "default": 0 },
+        { "name": "fileSize", "type": "integer", "required": true, "default": 0 },
+        { "name": "sourceModifiedAt", "type": "text" },
+        { "name": "note", "type": "text" },
+        { "name": "pinned", "type": "boolean", "required": true, "default": false }
+      ],
+      "indexes": [
+        { "columns": ["collection", "status"] },
+        { "columns": ["pinned", "updatedAt"] },
+        { "columns": ["priority"] }
+      ]
+    },
+    {
+      "name": "settings",
+      "columns": [
+        { "name": "key", "type": "text", "required": true, "unique": true },
+        { "name": "value", "type": "json", "required": true }
+      ]
+    }
+  ]
+}

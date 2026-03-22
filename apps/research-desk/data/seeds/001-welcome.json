@@ -1,0 +1,19 @@
+{
+  "entries": [
+    {
+      "table": "settings",
+      "rows": [
+        {
+          "key": "workspaceProfile",
+          "value": {
+            "label": "Bundled Sample Archive",
+            "root": "workspace",
+            "command": "pending",
+            "fileCount": 0,
+            "lastIndexedAt": null
+          }
+        }
+      ]
+    }
+  ]
+}
