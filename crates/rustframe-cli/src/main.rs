@@ -1290,6 +1290,8 @@ fn resolve_current_app_name(workspace: &Path) -> CliResult<String> {
 fn resolve_current_app_name_from(workspace: &Path, current_dir: &Path) -> CliResult<String> {
     let apps_dir = fs::canonicalize(workspace.join("apps"))
         .map_err(|error| format!("failed to resolve apps directory: {error}"))?;
+    let current_dir = fs::canonicalize(current_dir)
+        .map_err(|error| format!("failed to resolve current directory: {error}"))?;
 
     current_dir
         .ancestors()
@@ -4320,7 +4322,7 @@ mod tests {
         build_macos_package, build_windows_package, collect_embedded_assets,
         find_workspace_root_from, load_app_project, parse_package_args, parse_platform_check_args,
         platform_target_spec, prepare_ejected_runner, prepare_generated_runner, read_app_config,
-        relative_path, render_asset_match_arms, render_database_chain, render_template,
+        relative_path, render_asset_match_arms, render_database_chain, render_template, slash_path,
         resolve_current_app_name_from, resolve_runner_project, sync_declared_fs_roots,
         verify_linux_package, verify_macos_package, verify_windows_package,
     };
@@ -5048,7 +5050,7 @@ mod tests {
         let arms = render_asset_match_arms(&assets);
 
         assert!(arms.contains("index.html"));
-        assert!(arms.contains(temp.path().to_string_lossy().as_ref()));
+        assert!(arms.contains(slash_path(temp.path()).as_str()));
     }
 
     #[test]
