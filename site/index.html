@@ -261,18 +261,18 @@
             <div class="package-grid">
                 <article class="package-card">
                     <span class="tile-kicker">Package command</span>
-                    <h3>Build on the native host.</h3>
-                    <pre><code>cargo run -p rustframe-cli -- package research-desk</code></pre>
-                    <p>The generated or ejected runner becomes a host-native bundle without exposing a full native project up front.</p>
+                    <h3>Build and verify on the native host.</h3>
+                    <pre><code>cargo run -p rustframe-cli -- package research-desk --verify</code></pre>
+                    <p>The generated or ejected runner becomes a host-native bundle, and the CLI now validates the emitted metadata, scripts, and archive layout as part of the path.</p>
                 </article>
                 <article class="package-card">
-                    <span class="tile-kicker">Bundle outputs</span>
-                    <h3>What the packaging path already produces.</h3>
+                    <span class="tile-kicker">Support contract</span>
+                    <h3>Production credibility now has an explicit boundary.</h3>
                     <ul class="card-list">
-                        <li>Linux portable bundle directory, shell install scripts, and archive.</li>
-                        <li>Windows portable directory, PowerShell install scripts, shortcuts, and zip.</li>
-                        <li>macOS app bundle, shell install scripts, and archive.</li>
-                        <li>Declared relative filesystem roots copied with the app, so bundled workspaces survive release builds.</li>
+                        <li>Repo CI verifies packaged bundles on Linux, Windows, and macOS hosts.</li>
+                        <li>Platform promises and non-promises are now documented instead of implied.</li>
+                        <li>Signing, notarization, updates, and release prep have dedicated operator guides.</li>
+                        <li>Declared relative filesystem roots are still copied with the app, so bundled workspaces survive release builds.</li>
                     </ul>
                 </article>
                 <article class="package-card">
@@ -280,7 +280,7 @@
                     <h3>Be honest about what is still early.</h3>
                     <ul class="card-list">
                         <li>Cross-host validation still needs the matching native host toolchain.</li>
-                        <li>Signing, notarization, and update channels still need more production polish.</li>
+                        <li>Signing and updates are documented, but they are still release-layer responsibilities outside the runtime.</li>
                         <li>Linux still has the heaviest GTK, WebKitGTK, and display-stack constraints.</li>
                     </ul>
                 </article>

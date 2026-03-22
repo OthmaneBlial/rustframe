@@ -49,6 +49,26 @@ const DOCS = {
         source: "docs/migrations-and-versioning.md",
         path: "docs/migrations-and-versioning.md",
     },
+    "platform-support": {
+        title: "Platform support",
+        source: "docs/platform-support.md",
+        path: "docs/platform-support.md",
+    },
+    "signing-and-notarization": {
+        title: "Signing and notarization",
+        source: "docs/signing-and-notarization.md",
+        path: "docs/signing-and-notarization.md",
+    },
+    "update-strategy": {
+        title: "Update strategy",
+        source: "docs/update-strategy.md",
+        path: "docs/update-strategy.md",
+    },
+    "release-checklist": {
+        title: "Release checklist",
+        source: "docs/release-checklist.md",
+        path: "docs/release-checklist.md",
+    },
     "frontend-app-rules": {
         title: "Frontend app rules",
         source: "docs/frontend-app-rules.md",

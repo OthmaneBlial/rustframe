@@ -22,6 +22,14 @@
   ·
   <a href="docs/migrations-and-versioning.md">Migrations And Versioning</a>
   ·
+  <a href="docs/platform-support.md">Platform Support</a>
+  ·
+  <a href="docs/signing-and-notarization.md">Signing And Notarization</a>
+  ·
+  <a href="docs/update-strategy.md">Update Strategy</a>
+  ·
+  <a href="docs/release-checklist.md">Release Checklist</a>
+  ·
   <a href="FRONTEND_APP_RULES.md">Frontend App Rules</a>
   ·
   <a href="docs/example-apps.md">Example Apps</a>
@@ -286,11 +294,21 @@ RustFrame is promising, but still early:
 
 - the ecosystem is small
 - deep native integrations are not the main path yet
-- signing, notarization, update channels, and production polish are still early
+- signing and updates are now documented, but they still live at the release-pipeline layer rather than inside the runtime
 - Linux still carries heavier GTK, WebKitGTK, and display-stack constraints
 - cross-host validation still requires the matching native host toolchain
 
 These are not footnotes. They define the shape of the project today.
+
+## Production Surface
+
+RustFrame now has a clearer shipping contract for small production tools:
+
+- supported hosts are documented in [Platform Support](docs/platform-support.md)
+- signing and notarization expectations are documented in [Signing And Notarization](docs/signing-and-notarization.md)
+- the current manual or host-assisted update path is documented in [Update Strategy](docs/update-strategy.md)
+- release preparation is documented in [Release Checklist](docs/release-checklist.md)
+- repo CI verifies packaged bundles on supported hosts
 
 ## Repo Map
 
@@ -315,6 +333,10 @@ These are not footnotes. They define the shape of the project today.
 - [Choosing RustFrame](docs/choosing-rustframe.md)
 - [Architecture Overview](docs/architecture-overview.md)
 - [Runtime And Capabilities](docs/runtime-and-capabilities.md)
+- [Platform Support](docs/platform-support.md)
+- [Signing And Notarization](docs/signing-and-notarization.md)
+- [Update Strategy](docs/update-strategy.md)
+- [Release Checklist](docs/release-checklist.md)
 - [Frontend App Rules](FRONTEND_APP_RULES.md)
 - [Example Apps](docs/example-apps.md)
 

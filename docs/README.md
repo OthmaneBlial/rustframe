@@ -12,6 +12,10 @@ RustFrame is a Rust workspace for local-first desktop workflow tools that should
 - [Cookbook](./cookbook.md)
 - [Threat Model](./threat-model.md)
 - [Migrations And Versioning](./migrations-and-versioning.md)
+- [Platform Support](./platform-support.md)
+- [Signing And Notarization](./signing-and-notarization.md)
+- [Update Strategy](./update-strategy.md)
+- [Release Checklist](./release-checklist.md)
 - [Frontend App Rules](./frontend-app-rules.md)
 - [Example Apps](./example-apps.md)
 
