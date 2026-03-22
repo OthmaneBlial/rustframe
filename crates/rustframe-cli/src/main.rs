@@ -106,6 +106,12 @@ struct PlatformCheckRequest {
     uses_default_matrix: bool,
 }
 
+#[derive(Debug, Clone)]
+struct PackageRequest {
+    name: String,
+    verify: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PlatformTargetSpec {
     label: &'static str,
@@ -150,6 +156,20 @@ enum PlatformCheckResult {
     NeedsNativeHost(String),
     MissingTarget,
     Failed(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CheckStatus {
+    Ok,
+    Warning,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CheckLine {
+    label: String,
+    status: CheckStatus,
+    detail: String,
 }
 
 #[derive(Debug)]
@@ -382,6 +402,7 @@ fn run() -> CliResult<()> {
                 .ok_or_else(|| "missing app name: rustframe-cli new <name>".to_string())?;
             command_new(name)
         }
+        Some("doctor") => command_doctor(&args[1..]),
         Some("dev") => {
             let workspace = find_workspace_root()?;
             let (name, dev_url) = parse_dev_args(&workspace, &args[1..])?;
@@ -394,8 +415,8 @@ fn run() -> CliResult<()> {
         }
         Some("package") => {
             let workspace = find_workspace_root()?;
-            let name = parse_package_args(&workspace, &args[1..])?;
-            command_package(&workspace, &name)
+            let request = parse_package_args(&workspace, &args[1..])?;
+            command_package(&workspace, &request)
         }
         Some("platform-check") => {
             let workspace = find_workspace_root()?;
@@ -514,7 +535,36 @@ fn command_new(name: &str) -> CliResult<()> {
     Ok(())
 }
 
+fn command_doctor(args: &[String]) -> CliResult<()> {
+    if let Some(argument) = args.first() {
+        return Err(format!("doctor does not accept arguments: '{argument}'"));
+    }
+
+    let checks = collect_host_checks();
+
+    println!("RustFrame doctor");
+    println!();
+    println!("Host:");
+    print_checks(&checks);
+
+    let failures = checks
+        .iter()
+        .filter(|check| check.status == CheckStatus::Failed)
+        .count();
+
+    if failures == 0 {
+        println!();
+        println!(
+            "Host looks ready. Use `rustframe-cli inspect <app>` for app state and `rustframe-cli package --verify <app>` to validate a built bundle."
+        );
+        Ok(())
+    } else {
+        Err(format!("doctor found {failures} failing host check(s)"))
+    }
+}
+
 fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResult<()> {
+    ensure_host_requirements("dev")?;
     let app = load_app_project(workspace, name)?;
     print_capability_warnings(&app);
     let runner = resolve_runner_project(workspace, &app)?;
@@ -565,6 +615,7 @@ fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResu
 }
 
 fn command_export(workspace: &Path, name: &str) -> CliResult<()> {
+    ensure_host_requirements("export")?;
     let app = load_app_project(workspace, name)?;
     print_capability_warnings(&app);
     let runner = resolve_runner_project(workspace, &app)?;
@@ -592,20 +643,22 @@ fn command_export(workspace: &Path, name: &str) -> CliResult<()> {
     Ok(())
 }
 
-fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
+fn command_package(workspace: &Path, request: &PackageRequest) -> CliResult<()> {
+    ensure_host_requirements("package")?;
+
     #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     {
         let _ = workspace;
-        let _ = name;
+        let _ = request;
         return Err("`package` currently supports Linux, Windows, and macOS hosts only".into());
     }
 
     #[cfg(target_os = "linux")]
     {
-        let app = load_app_project(workspace, name)?;
+        let app = load_app_project(workspace, &request.name)?;
         print_capability_warnings(&app);
         let runner = resolve_runner_project(workspace, &app)?;
-        let source_binary = build_release_binary(workspace, name, &runner)?;
+        let source_binary = build_release_binary(workspace, &request.name, &runner)?;
         let output = build_linux_package(&app, &source_binary)?;
 
         println!("Packaged {}", app.name);
@@ -613,15 +666,30 @@ fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
         println!("AppDir: {}", output.app_dir.display());
         println!("Archive: {}", output.archive_path.display());
         println!("Install: {}/install.sh", output.bundle_dir.display());
+        if request.verify {
+            println!();
+            println!("Verification:");
+            let checks = verify_linux_package(&app, &output)?;
+            print_checks(&checks);
+            let failures = checks
+                .iter()
+                .filter(|check| check.status == CheckStatus::Failed)
+                .count();
+            if failures != 0 {
+                return Err(format!(
+                    "package verification failed for {failures} item(s)"
+                ));
+            }
+        }
         Ok(())
     }
 
     #[cfg(target_os = "windows")]
     {
-        let app = load_app_project(workspace, name)?;
+        let app = load_app_project(workspace, &request.name)?;
         print_capability_warnings(&app);
         let runner = resolve_runner_project(workspace, &app)?;
-        let source_binary = build_release_binary(workspace, name, &runner)?;
+        let source_binary = build_release_binary(workspace, &request.name, &runner)?;
         let output = build_windows_package(&app, &source_binary)?;
 
         println!("Packaged {}", app.name);
@@ -629,15 +697,30 @@ fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
         println!("Portable app: {}", output.portable_dir.display());
         println!("Archive: {}", output.archive_path.display());
         println!("Install: {}\\install.ps1", output.bundle_dir.display());
+        if request.verify {
+            println!();
+            println!("Verification:");
+            let checks = verify_windows_package(&app, &output)?;
+            print_checks(&checks);
+            let failures = checks
+                .iter()
+                .filter(|check| check.status == CheckStatus::Failed)
+                .count();
+            if failures != 0 {
+                return Err(format!(
+                    "package verification failed for {failures} item(s)"
+                ));
+            }
+        }
         Ok(())
     }
 
     #[cfg(target_os = "macos")]
     {
-        let app = load_app_project(workspace, name)?;
+        let app = load_app_project(workspace, &request.name)?;
         print_capability_warnings(&app);
         let runner = resolve_runner_project(workspace, &app)?;
-        let source_binary = build_release_binary(workspace, name, &runner)?;
+        let source_binary = build_release_binary(workspace, &request.name, &runner)?;
         let output = build_macos_package(&app, &source_binary)?;
 
         println!("Packaged {}", app.name);
@@ -645,6 +728,21 @@ fn command_package(workspace: &Path, name: &str) -> CliResult<()> {
         println!("App: {}", output.app_bundle.display());
         println!("Archive: {}", output.archive_path.display());
         println!("Install: {}/install.sh", output.bundle_dir.display());
+        if request.verify {
+            println!();
+            println!("Verification:");
+            let checks = verify_macos_package(&app, &output)?;
+            print_checks(&checks);
+            let failures = checks
+                .iter()
+                .filter(|check| check.status == CheckStatus::Failed)
+                .count();
+            if failures != 0 {
+                return Err(format!(
+                    "package verification failed for {failures} item(s)"
+                ));
+            }
+        }
         Ok(())
     }
 }
@@ -799,11 +897,34 @@ fn parse_export_args(workspace: &Path, args: &[String]) -> CliResult<String> {
     }
 }
 
-fn parse_package_args(workspace: &Path, args: &[String]) -> CliResult<String> {
-    match args {
-        [] => resolve_current_app_name(workspace),
-        [name, ..] => Ok(name.clone()),
+fn parse_package_args(workspace: &Path, args: &[String]) -> CliResult<PackageRequest> {
+    let mut name = None;
+    let mut verify = false;
+
+    for argument in args {
+        if argument == "--verify" {
+            verify = true;
+            continue;
+        }
+
+        if argument.starts_with("--") {
+            return Err(format!("unknown package flag '{argument}'"));
+        }
+
+        if name.is_some() {
+            return Err("package accepts one app name and optional --verify".to_string());
+        }
+
+        name = Some(argument.clone());
     }
+
+    Ok(PackageRequest {
+        name: match name {
+            Some(name) => name,
+            None => resolve_current_app_name(workspace)?,
+        },
+        verify,
+    })
 }
 
 fn parse_inspect_args(workspace: &Path, args: &[String]) -> CliResult<String> {
@@ -901,6 +1022,253 @@ fn extend_targets(targets: &mut Vec<String>, raw: &str) -> CliResult<()> {
     } else {
         Err("platform-check target triples must not be empty".into())
     }
+}
+
+fn print_checks(checks: &[CheckLine]) {
+    for check in checks {
+        let status = match check.status {
+            CheckStatus::Ok => "[ok]  ",
+            CheckStatus::Warning => "[warn]",
+            CheckStatus::Failed => "[fail]",
+        };
+        println!("{status} {}  {}", check.label, check.detail);
+    }
+}
+
+fn ok_check(label: impl Into<String>, detail: impl Into<String>) -> CheckLine {
+    CheckLine {
+        label: label.into(),
+        status: CheckStatus::Ok,
+        detail: detail.into(),
+    }
+}
+
+fn warning_check(label: impl Into<String>, detail: impl Into<String>) -> CheckLine {
+    CheckLine {
+        label: label.into(),
+        status: CheckStatus::Warning,
+        detail: detail.into(),
+    }
+}
+
+fn failed_check(label: impl Into<String>, detail: impl Into<String>) -> CheckLine {
+    CheckLine {
+        label: label.into(),
+        status: CheckStatus::Failed,
+        detail: detail.into(),
+    }
+}
+
+fn ensure_host_requirements(action: &str) -> CliResult<()> {
+    let failures = collect_host_checks()
+        .into_iter()
+        .filter(|check| check.status == CheckStatus::Failed)
+        .collect::<Vec<_>>();
+
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        let summary = failures
+            .iter()
+            .map(|check| format!("- {}: {}", check.label, check.detail))
+            .collect::<Vec<_>>()
+            .join("\n");
+        Err(format!(
+            "host dependencies are not ready for `{action}`:\n{summary}\nRun `rustframe-cli doctor` for the full checklist."
+        ))
+    }
+}
+
+fn collect_host_checks() -> Vec<CheckLine> {
+    let mut checks = vec![
+        probe_command("Cargo", "cargo", &["--version"]),
+        probe_command("Rust toolchain", "rustc", &["--version"]),
+        probe_rust_host_triple(),
+    ];
+    checks.extend(platform_host_checks());
+    checks
+}
+
+fn probe_command(label: &str, program: &str, args: &[&str]) -> CheckLine {
+    match Command::new(program).args(args).output() {
+        Ok(output) if output.status.success() => ok_check(
+            label,
+            summarize_success_output(&output).unwrap_or_else(|| "available".into()),
+        ),
+        Ok(output) => failed_check(
+            label,
+            format!(
+                "{} exited unsuccessfully:\n{}",
+                program,
+                indent_block(&summarize_command_output(&output), "  ")
+            ),
+        ),
+        Err(error) => failed_check(label, format!("failed to launch {program}: {error}")),
+    }
+}
+
+fn probe_rust_host_triple() -> CheckLine {
+    match Command::new("rustc").arg("-vV").output() {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            match stdout
+                .lines()
+                .find_map(|line| line.strip_prefix("host: ").map(str::trim))
+            {
+                Some(host) if !host.is_empty() => ok_check("Host triple", host),
+                _ => warning_check("Host triple", "could not parse `rustc -vV` output"),
+            }
+        }
+        Ok(output) => failed_check(
+            "Host triple",
+            format!(
+                "rustc -vV exited unsuccessfully:\n{}",
+                indent_block(&summarize_command_output(&output), "  ")
+            ),
+        ),
+        Err(error) => failed_check("Host triple", format!("failed to launch rustc: {error}")),
+    }
+}
+
+fn summarize_success_output(output: &Output) -> Option<String> {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    tail_nonempty_lines(&stdout, 1).or_else(|| {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tail_nonempty_lines(&stderr, 1)
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn platform_host_checks() -> Vec<CheckLine> {
+    vec![
+        probe_command("pkg-config", "pkg-config", &["--version"]),
+        probe_pkg_config_module(
+            "GTK 3 dev files",
+            &["gtk+-3.0"],
+            "Install the GTK 3 development package for your distro (for example `libgtk-3-dev` on Debian/Ubuntu).",
+        ),
+        probe_pkg_config_module(
+            "WebKitGTK dev files",
+            &["webkit2gtk-4.1", "webkit2gtk-4.0"],
+            "Install the WebKitGTK development package for your distro (for example `libwebkit2gtk-4.1-dev` on Debian/Ubuntu).",
+        ),
+    ]
+}
+
+#[cfg(target_os = "linux")]
+fn probe_pkg_config_module(label: &str, packages: &[&str], hint: &str) -> CheckLine {
+    for package in packages {
+        match Command::new("pkg-config")
+            .arg("--modversion")
+            .arg(package)
+            .output()
+        {
+            Ok(output) if output.status.success() => {
+                let version =
+                    summarize_success_output(&output).unwrap_or_else(|| "available".into());
+                return ok_check(label, format!("{package} {version}"));
+            }
+            Ok(_) => continue,
+            Err(error) => {
+                return failed_check(label, format!("failed to launch pkg-config: {error}"));
+            }
+        }
+    }
+
+    failed_check(label, hint)
+}
+
+#[cfg(target_os = "macos")]
+fn platform_host_checks() -> Vec<CheckLine> {
+    vec![probe_xcode_tools()]
+}
+
+#[cfg(target_os = "macos")]
+fn probe_xcode_tools() -> CheckLine {
+    match Command::new("xcode-select").arg("-p").output() {
+        Ok(output) if output.status.success() => ok_check(
+            "Xcode command line tools",
+            summarize_success_output(&output).unwrap_or_else(|| "available".into()),
+        ),
+        Ok(output) => failed_check(
+            "Xcode command line tools",
+            format!(
+                "run `xcode-select --install`:\n{}",
+                indent_block(&summarize_command_output(&output), "  ")
+            ),
+        ),
+        Err(error) => failed_check(
+            "Xcode command line tools",
+            format!("failed to launch xcode-select: {error}"),
+        ),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn platform_host_checks() -> Vec<CheckLine> {
+    vec![probe_windows_toolchain(), probe_windows_compiler()]
+}
+
+#[cfg(target_os = "windows")]
+fn probe_windows_toolchain() -> CheckLine {
+    match Command::new("rustup")
+        .args(["show", "active-toolchain"])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let detail = summarize_success_output(&output).unwrap_or_else(|| "available".into());
+            if detail.contains("msvc") {
+                ok_check("Rustup active toolchain", detail)
+            } else {
+                failed_check(
+                    "Rustup active toolchain",
+                    format!(
+                        "{detail}. Switch to an MSVC toolchain such as `stable-x86_64-pc-windows-msvc`."
+                    ),
+                )
+            }
+        }
+        Ok(output) => failed_check(
+            "Rustup active toolchain",
+            format!(
+                "rustup show active-toolchain failed:\n{}",
+                indent_block(&summarize_command_output(&output), "  ")
+            ),
+        ),
+        Err(error) => failed_check(
+            "Rustup active toolchain",
+            format!("failed to launch rustup: {error}"),
+        ),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn probe_windows_compiler() -> CheckLine {
+    match Command::new("where").arg("cl").output() {
+        Ok(output) if output.status.success() => ok_check(
+            "MSVC compiler",
+            summarize_success_output(&output).unwrap_or_else(|| "available".into()),
+        ),
+        Ok(output) => failed_check(
+            "MSVC compiler",
+            format!(
+                "Visual Studio Build Tools were not found:\n{}",
+                indent_block(&summarize_command_output(&output), "  ")
+            ),
+        ),
+        Err(error) => failed_check(
+            "MSVC compiler",
+            format!("failed to launch `where`: {error}"),
+        ),
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+fn platform_host_checks() -> Vec<CheckLine> {
+    vec![warning_check(
+        "Host support",
+        "RustFrame currently documents Linux, Windows, and macOS hosts only.",
+    )]
 }
 
 fn dedupe_preserving_order(values: &mut Vec<String>) {
@@ -3127,6 +3495,283 @@ fn build_macos_package(app: &AppProject, source_binary: &Path) -> CliResult<MacO
     })
 }
 
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn verify_linux_package(
+    app: &AppProject,
+    output: &LinuxPackageOutput,
+) -> CliResult<Vec<CheckLine>> {
+    let bundle_dir_name = file_name_string(&output.bundle_dir);
+    let app_dir_name = file_name_string(&output.app_dir);
+    let archive_name = file_name_string(&output.archive_path);
+    let icon = load_linux_icon(app)?;
+    let icon_file_name = format!("{}.{}", app.config.app_id, icon.extension);
+    let icon_relative_path = match icon.extension.as_str() {
+        "svg" => PathBuf::from("usr/share/icons/hicolor/scalable/apps").join(&icon_file_name),
+        "png" => PathBuf::from("usr/share/icons/hicolor/256x256/apps").join(&icon_file_name),
+        _ => unreachable!(),
+    };
+
+    Ok(vec![
+        verify_directory("Bundle directory", &output.bundle_dir),
+        verify_package_metadata(
+            &output.bundle_dir.join("rustframe-package.json"),
+            &app.config.app_id,
+            &app.config.packaging.version,
+            "linux",
+            "appdir-tarball",
+            &[
+                ("bundleDir", bundle_dir_name.as_str()),
+                ("appDir", app_dir_name.as_str()),
+                ("archive", archive_name.as_str()),
+            ],
+        ),
+        verify_file("Install script", &output.bundle_dir.join("install.sh")),
+        verify_file("Uninstall script", &output.bundle_dir.join("uninstall.sh")),
+        verify_file("Package README", &output.bundle_dir.join("README.txt")),
+        verify_file("AppRun launcher", &output.app_dir.join("AppRun")),
+        verify_file(
+            "Packaged binary",
+            &output
+                .app_dir
+                .join("usr/bin")
+                .join(package_executable_name(&app.name, "linux")),
+        ),
+        verify_file(
+            "Desktop entry",
+            &output
+                .app_dir
+                .join("usr/share/applications")
+                .join(format!("{}.desktop", app.config.app_id)),
+        ),
+        verify_file("Bundle icon", &output.app_dir.join(icon_relative_path)),
+        verify_nonempty_file("Archive", &output.archive_path),
+    ])
+}
+
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn verify_windows_package(
+    app: &AppProject,
+    output: &WindowsPackageOutput,
+) -> CliResult<Vec<CheckLine>> {
+    let bundle_dir_name = file_name_string(&output.bundle_dir);
+    let portable_dir_name = file_name_string(&output.portable_dir);
+    let archive_name = file_name_string(&output.archive_path);
+    let icon = load_packaging_icon(
+        app,
+        app.config.packaging.windows.icon_path.as_deref(),
+        app.config.packaging.linux.icon_path.as_deref(),
+    )?;
+    let icon_check = match icon {
+        Some(icon) => verify_file(
+            "Bundle icon",
+            &output
+                .portable_dir
+                .join(format!("{}.{}", app.config.app_id, icon.extension)),
+        ),
+        None => warning_check("Bundle icon", "no package icon was emitted"),
+    };
+
+    Ok(vec![
+        verify_directory("Bundle directory", &output.bundle_dir),
+        verify_package_metadata(
+            &output.bundle_dir.join("rustframe-package.json"),
+            &app.config.app_id,
+            &app.config.packaging.version,
+            "windows",
+            "portable-zip",
+            &[
+                ("bundleDir", bundle_dir_name.as_str()),
+                ("portableDir", portable_dir_name.as_str()),
+                ("archive", archive_name.as_str()),
+            ],
+        ),
+        verify_file("Install script", &output.bundle_dir.join("install.ps1")),
+        verify_file("Uninstall script", &output.bundle_dir.join("uninstall.ps1")),
+        verify_file("Package README", &output.bundle_dir.join("README.txt")),
+        verify_file(
+            "Packaged binary",
+            &output
+                .portable_dir
+                .join(package_executable_name(&app.name, "windows")),
+        ),
+        icon_check,
+        verify_nonempty_file("Archive", &output.archive_path),
+    ])
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn verify_macos_package(
+    app: &AppProject,
+    output: &MacOsPackageOutput,
+) -> CliResult<Vec<CheckLine>> {
+    let bundle_dir_name = file_name_string(&output.bundle_dir);
+    let app_bundle_name = file_name_string(&output.app_bundle);
+    let archive_name = file_name_string(&output.archive_path);
+    let info_plist_path = output.app_bundle.join("Contents/Info.plist");
+    let icon = load_packaging_icon(
+        app,
+        app.config.packaging.macos.icon_path.as_deref(),
+        app.config.packaging.linux.icon_path.as_deref(),
+    )?;
+    let mut checks = vec![
+        verify_directory("Bundle directory", &output.bundle_dir),
+        verify_package_metadata(
+            &output.bundle_dir.join("rustframe-package.json"),
+            &app.config.app_id,
+            &app.config.packaging.version,
+            "macos",
+            "app-bundle-tarball",
+            &[
+                ("bundleDir", bundle_dir_name.as_str()),
+                ("appBundle", app_bundle_name.as_str()),
+                ("archive", archive_name.as_str()),
+            ],
+        ),
+        verify_file("Install script", &output.bundle_dir.join("install.sh")),
+        verify_file("Uninstall script", &output.bundle_dir.join("uninstall.sh")),
+        verify_file("Package README", &output.bundle_dir.join("README.txt")),
+        verify_file("Info.plist", &info_plist_path),
+        verify_text_contains(
+            "Bundle identifier",
+            &info_plist_path,
+            &app.config.packaging.macos.bundle_identifier,
+        ),
+        verify_file(
+            "Packaged binary",
+            &output
+                .app_bundle
+                .join("Contents/MacOS")
+                .join(package_executable_name(&app.name, "macos")),
+        ),
+        verify_nonempty_file("Archive", &output.archive_path),
+    ];
+
+    if let Some(icon) = icon {
+        checks.push(verify_file(
+            "Bundle icon",
+            &output
+                .app_bundle
+                .join("Contents/Resources")
+                .join(format!("{}.{}", app.config.app_id, icon.extension)),
+        ));
+    }
+
+    Ok(checks)
+}
+
+fn file_name_string(path: &Path) -> String {
+    path.file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.display().to_string())
+}
+
+fn verify_directory(label: &str, path: &Path) -> CheckLine {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_dir() => {
+            ok_check(label, format!("present at {}", path.display()))
+        }
+        Ok(_) => failed_check(label, format!("expected directory at {}", path.display())),
+        Err(error) => failed_check(label, format!("missing {}: {error}", path.display())),
+    }
+}
+
+fn verify_file(label: &str, path: &Path) -> CheckLine {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => {
+            ok_check(label, format!("present at {}", path.display()))
+        }
+        Ok(_) => failed_check(label, format!("expected file at {}", path.display())),
+        Err(error) => failed_check(label, format!("missing {}: {error}", path.display())),
+    }
+}
+
+fn verify_nonempty_file(label: &str, path: &Path) -> CheckLine {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() && metadata.len() > 0 => ok_check(
+            label,
+            format!("{} ({})", path.display(), format_size(metadata.len())),
+        ),
+        Ok(metadata) if metadata.is_file() => {
+            failed_check(label, format!("file is empty: {}", path.display()))
+        }
+        Ok(_) => failed_check(label, format!("expected file at {}", path.display())),
+        Err(error) => failed_check(label, format!("missing {}: {error}", path.display())),
+    }
+}
+
+fn verify_text_contains(label: &str, path: &Path, needle: &str) -> CheckLine {
+    match fs::read_to_string(path) {
+        Ok(contents) if contents.contains(needle) => {
+            ok_check(label, format!("found `{needle}` in {}", path.display()))
+        }
+        Ok(_) => failed_check(
+            label,
+            format!("`{needle}` was not found in {}", path.display()),
+        ),
+        Err(error) => failed_check(label, format!("failed to read {}: {error}", path.display())),
+    }
+}
+
+fn verify_package_metadata(
+    path: &Path,
+    expected_app_id: &str,
+    expected_version: &str,
+    expected_target_os: &str,
+    expected_format: &str,
+    expected_artifacts: &[(&str, &str)],
+) -> CheckLine {
+    let source = match fs::read_to_string(path) {
+        Ok(source) => source,
+        Err(error) => {
+            return failed_check(
+                "Package metadata",
+                format!("failed to read {}: {error}", path.display()),
+            );
+        }
+    };
+    let metadata = match serde_json::from_str::<serde_json::Value>(&source) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            return failed_check(
+                "Package metadata",
+                format!("failed to parse {}: {error}", path.display()),
+            );
+        }
+    };
+
+    let mut mismatches = Vec::new();
+    if metadata["appId"].as_str() != Some(expected_app_id) {
+        mismatches.push(format!("appId should be `{expected_app_id}`"));
+    }
+    if metadata["version"].as_str() != Some(expected_version) {
+        mismatches.push(format!("version should be `{expected_version}`"));
+    }
+    if metadata["target"]["os"].as_str() != Some(expected_target_os) {
+        mismatches.push(format!("target.os should be `{expected_target_os}`"));
+    }
+    if metadata["target"]["format"].as_str() != Some(expected_format) {
+        mismatches.push(format!("target.format should be `{expected_format}`"));
+    }
+    for (key, expected) in expected_artifacts {
+        if metadata["artifacts"][*key].as_str() != Some(*expected) {
+            mismatches.push(format!("artifacts.{key} should be `{expected}`"));
+        }
+    }
+
+    if mismatches.is_empty() {
+        ok_check(
+            "Package metadata",
+            format!(
+                "{} matches the produced {} bundle",
+                path.display(),
+                expected_target_os
+            ),
+        )
+    } else {
+        failed_check("Package metadata", mismatches.join("; "))
+    }
+}
+
 fn render_app_run_script(binary_name: &str) -> String {
     format!(
         "#!/usr/bin/env bash\nset -euo pipefail\nbundle_dir=\"$(cd \"$(dirname \"${{BASH_SOURCE[0]}}\")\" && pwd)\"\nexec \"$bundle_dir/usr/bin/{binary_name}\" \"$@\"\n"
@@ -3623,6 +4268,9 @@ fn print_help() {
     println!("Commands:");
     println!("  rustframe-cli new <name>              Create a frontend-only app in apps/<name>");
     println!(
+        "  rustframe-cli doctor                  Check Cargo, Rust, and host desktop dependencies"
+    );
+    println!(
         "  rustframe-cli dev [name] [dev-url]    Run an app from a hidden generated Rust runner"
     );
     println!(
@@ -3632,7 +4280,7 @@ fn print_help() {
         "  rustframe-cli platform-check [name]   Validate the app against the Linux/Windows/macOS support matrix"
     );
     println!(
-        "  rustframe-cli package [name]          Build a host-native bundle into apps/<name>/dist/<platform>/"
+        "  rustframe-cli package [name] [--verify]  Build a host-native bundle into apps/<name>/dist/<platform>/"
     );
     println!(
         "  rustframe-cli inspect [name]          Show resolved paths, capabilities, schema, seeds, and migrations"
@@ -3653,6 +4301,9 @@ fn print_help() {
     println!(
         "Use `platform-check --target <triple>` to validate a custom Rust target or a narrowed matrix."
     );
+    println!(
+        "Use `package --verify` to validate the emitted bundle layout and metadata after packaging."
+    );
     println!("HTML <title> and rustframe:* meta tags still work as fallback.");
 }
 
@@ -3664,13 +4315,14 @@ mod tests {
 
     use super::{
         AppConfig, AppPackagingConfig, AppProject, AppSecurityConfig, AppSecurityModel,
-        AppShellCommand, DEFAULT_PLATFORM_TARGETS, LinuxPackagingConfig, MacOsPackagingConfig,
-        WindowsPackagingConfig, build_app_inspection, build_linux_package, build_macos_package,
-        build_windows_package, collect_embedded_assets, find_workspace_root_from, load_app_project,
-        parse_platform_check_args, platform_target_spec, prepare_ejected_runner,
-        prepare_generated_runner, read_app_config, relative_path, render_asset_match_arms,
-        render_database_chain, render_template, resolve_current_app_name_from,
-        resolve_runner_project, sync_declared_fs_roots,
+        AppShellCommand, CheckStatus, DEFAULT_PLATFORM_TARGETS, LinuxPackagingConfig,
+        MacOsPackagingConfig, WindowsPackagingConfig, build_app_inspection, build_linux_package,
+        build_macos_package, build_windows_package, collect_embedded_assets,
+        find_workspace_root_from, load_app_project, parse_package_args, parse_platform_check_args,
+        platform_target_spec, prepare_ejected_runner, prepare_generated_runner, read_app_config,
+        relative_path, render_asset_match_arms, render_database_chain, render_template,
+        resolve_current_app_name_from, resolve_runner_project, sync_declared_fs_roots,
+        verify_linux_package, verify_macos_package, verify_windows_package,
     };
 
     fn write_workspace_manifest(root: &Path) {
@@ -4466,6 +5118,18 @@ mod tests {
     }
 
     #[test]
+    fn package_args_parse_verify_flag_and_name() {
+        let temp = tempdir().unwrap();
+        write_workspace_manifest(temp.path());
+
+        let request =
+            parse_package_args(temp.path(), &["orbit-desk".into(), "--verify".into()]).unwrap();
+
+        assert_eq!(request.name, "orbit-desk");
+        assert!(request.verify);
+    }
+
+    #[test]
     fn platform_target_specs_include_windows_and_both_macos_targets() {
         assert_eq!(
             platform_target_spec("x86_64-pc-windows-msvc").map(|spec| spec.label),
@@ -4767,6 +5431,9 @@ mod tests {
         assert!(output.archive_path.exists());
         assert!(install_script.contains("Icon=$install_root/${appdir_name}/usr/share/icons"));
         assert!(install_script.contains("Keywords=package;demo;"));
+
+        let checks = verify_linux_package(&app, &output).unwrap();
+        assert!(checks.iter().all(|check| check.status == CheckStatus::Ok));
     }
 
     #[test]
@@ -4881,6 +5548,9 @@ mod tests {
         assert!(output.archive_path.exists());
         assert!(install_script.contains("WScript.Shell"));
         assert!(install_script.contains("package-demo.exe"));
+
+        let checks = verify_windows_package(&app, &output).unwrap();
+        assert!(checks.iter().all(|check| check.status == CheckStatus::Ok));
     }
 
     #[test]
@@ -4949,5 +5619,8 @@ mod tests {
         assert!(output.archive_path.exists());
         assert!(info_plist.contains("dev.rustframe.package-demo"));
         assert!(info_plist.contains("CFBundleIconFile"));
+
+        let checks = verify_macos_package(&app, &output).unwrap();
+        assert!(checks.iter().all(|check| check.status == CheckStatus::Ok));
     }
 }
