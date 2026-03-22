@@ -166,7 +166,7 @@ impl DatabaseIndex {
         }
 
         for column in &self.columns {
-            if !known_columns.contains(column.as_str()) {
+            if !known_columns.contains(column.as_str()) && !is_managed_schema_field(column) {
                 return Err(RuntimeError::InvalidConfiguration(format!(
                     "index on table '{}' references unknown column '{}'",
                     table_name, column
@@ -982,7 +982,7 @@ fn ensure_indexes(connection: &Connection, table: &DatabaseTable) -> Result<()> 
             index
                 .columns
                 .iter()
-                .map(|column| quote_identifier(column))
+                .map(|column| quote_identifier(managed_schema_field_sql_name(column)))
                 .collect::<Vec<_>>()
                 .join(", ")
         )
@@ -1221,6 +1221,18 @@ fn filter_column_sql(table: &TablePlan, field: &str) -> Result<String> {
                 )))
             }
         }
+    }
+}
+
+fn is_managed_schema_field(value: &str) -> bool {
+    matches!(value, "id" | "createdAt" | "updatedAt")
+}
+
+fn managed_schema_field_sql_name(value: &str) -> &str {
+    match value {
+        "createdAt" => "created_at",
+        "updatedAt" => "updated_at",
+        _ => value,
     }
 }
 
@@ -1675,6 +1687,48 @@ mod tests {
         .unwrap_err();
 
         assert!(error.to_string().contains("reserved"));
+    }
+
+    #[test]
+    fn allows_indexes_on_managed_timestamp_fields() {
+        let schema = DatabaseSchema::from_json(
+            r#"
+            {
+              "version": 1,
+              "tables": [
+                {
+                  "name": "tasks",
+                  "columns": [
+                    { "name": "title", "type": "text", "required": true },
+                    { "name": "status", "type": "text", "required": true, "default": "queued" }
+                  ],
+                  "indexes": [
+                    { "columns": ["status", "updatedAt"] },
+                    { "columns": ["createdAt"] }
+                  ]
+                }
+              ]
+            }
+            "#,
+        )
+        .unwrap();
+
+        let capability = open_database(schema, Vec::new());
+        let connection = Connection::open(capability.info().database_path.clone()).unwrap();
+        let mut statement = connection
+            .prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'tasks'")
+            .unwrap();
+        let index_sql = statement
+            .query_map([], |row| row.get::<_, Option<String>>(0))
+            .unwrap()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert!(index_sql.iter().any(|sql| sql.contains("\"status\", \"updated_at\"")));
+        assert!(index_sql.iter().any(|sql| sql.contains("(\"created_at\")")));
     }
 
     #[test]
