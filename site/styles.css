@@ -1394,6 +1394,13 @@ body,
     backdrop-filter: blur(18px);
 }
 
+.page-docs .docs-topbar {
+    border-bottom-color: rgba(23, 28, 36, 0.1);
+    background:
+        linear-gradient(180deg, rgba(249, 245, 239, 0.92), rgba(241, 234, 224, 0.86));
+    box-shadow: 0 10px 28px rgba(28, 33, 43, 0.06);
+}
+
 .brand-mark {
     color: var(--text);
     border-color: var(--line-strong);
@@ -1409,12 +1416,24 @@ body,
     color: var(--muted);
 }
 
+.page-docs .docs-actions .button {
+    border-color: rgba(23, 28, 36, 0.12);
+    background: rgba(255, 255, 255, 0.5);
+    color: #5d6472;
+}
+
 .topnav a:hover,
 .docs-actions .button:hover,
 .docs-actions .button:focus-visible {
     border-color: var(--line);
     background: rgba(255, 255, 255, 0.45);
     color: var(--text);
+}
+
+.page-docs .docs-actions .button:hover,
+.page-docs .docs-actions .button:focus-visible {
+    border-color: rgba(183, 132, 61, 0.24);
+    background: rgba(255, 255, 255, 0.86);
 }
 
 .topnav-cta {
