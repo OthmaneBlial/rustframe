@@ -38,31 +38,31 @@
     <main>
         <section class="hero frame reveal" id="overview">
             <div class="hero-copy">
-                <p class="eyebrow">Rust / Tao / Wry / SQLite</p>
-                <h1>Build local-first desktop workflow tools without starting from a full native project.</h1>
+                <p class="eyebrow">Workflow Wedge</p>
+                <h1>Too native for a tab. Too small for a full desktop project.</h1>
                 <p class="lede">
-                    RustFrame keeps the app folder plain, lets the runtime own the native shell,
-                    provisions embedded SQLite, and exposes filesystem or shell access only when
-                    the manifest and trust model explicitly allow it.
+                    RustFrame is the narrow path for frontend-heavy workflow tools that still need
+                    a real desktop window, local SQLite, scoped machine access, and packaging,
+                    without forcing a visible desktop-framework project on day one.
                 </p>
 
                 <div class="hero-actions">
-                    <a class="button button-primary" href="#fit">See when it fits</a>
+                    <a class="button button-primary" href="#fit">Check the fit</a>
                     <a class="button button-ghost" href="docs.html?doc=choosing-rustframe">Read the fit guide</a>
                     <a class="button button-ghost" href="showcase.html">Browse the showcase</a>
                 </div>
 
                 <div class="signal-strip">
                     <article>
-                        <span>Default shape</span>
+                        <span>Authoring model</span>
                         <strong>Plain frontend folder, hidden runner</strong>
                     </article>
                     <article>
-                        <span>Local data</span>
+                        <span>Local-first data</span>
                         <strong>Embedded SQLite with seeds and migrations</strong>
                     </article>
                     <article>
-                        <span>Machine access</span>
+                        <span>Native surface</span>
                         <strong>Scoped filesystem and allowlisted shell commands</strong>
                     </article>
                     <article>
@@ -78,7 +78,7 @@
                         <p class="eyebrow">Core Commands</p>
                         <span class="status-pill">phase 5</span>
                     </div>
-                    <h2>Run the flagship workflow now. Check the host, inspect the contract, and verify the packaged bundle later.</h2>
+                    <h2>Run the proof app. Inspect the contract. Package when the workflow earns it.</h2>
                     <div class="command-list">
                         <button class="command-chip is-active" type="button" data-command-tab="new">New</button>
                         <button class="command-chip" type="button" data-command-tab="doctor">Doctor</button>
@@ -116,14 +116,14 @@
                         <pre><code>cargo run -p rustframe-cli -- eject research-desk</code></pre>
                         <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- eject research-desk">Copy</button>
                     </div>
-                    <p class="section-copy">Phase 5 adds Svelte starters, community template guidance, remote sync and capability extension docs, plus a public showcase surface.</p>
+                    <p class="section-copy">The CLI now covers host checks, manifest inspection, data resets, verified packaging, and the eject path when the product needs more native ownership.</p>
                 </article>
 
                 <figure class="shot-card shot-card-large">
                     <img src="assets/screenshots/research-desk.png" alt="Research Desk screenshot">
                     <figcaption>
                         <strong>Research Desk</strong>
-                        <span>Flagship workflow: bundled archive review, SQLite queueing, scoped file reads, and reader windows.</span>
+                        <span>Flagship proof app: bundled archive review, scoped file access, SQLite queueing, and focused reader windows.</span>
                     </figcaption>
                 </figure>
 
@@ -152,10 +152,10 @@
         <section class="frame section-grid reveal" id="fit">
             <div class="section-heading">
                 <p class="eyebrow">Fit</p>
-                <h2>RustFrame is for a narrower job than “desktop apps in general.”</h2>
+                <h2>RustFrame is a wedge, not a general desktop answer.</h2>
                 <p class="section-note">
-                    The strongest fit is a local-first workflow tool with mostly frontend UI,
-                    structured local data, and a small amount of explicit machine access.
+                    It makes the most sense when the app is still mostly frontend code,
+                    but the workflow has outgrown a browser tab.
                 </p>
             </div>
 
@@ -186,10 +186,10 @@
         <section class="frame workflow reveal" id="workflow">
             <div class="section-heading">
                 <p class="eyebrow">Target Workflow</p>
-                <h2>One concrete job RustFrame should own: a local research desk.</h2>
+                <h2>One concrete job RustFrame should own: the local research desk.</h2>
                 <p class="section-note">
-                    <code>research-desk</code> is the current proof point: a workflow that is awkward in a browser tab,
-                    but still does not need a full native-first architecture on day one.
+                    <code>research-desk</code> is the proof point for the product story:
+                    awkward in a browser tab, but still not big enough to deserve a full native-first rewrite on day one.
                 </p>
             </div>
 
@@ -255,8 +255,8 @@
                 <p class="eyebrow">Ship</p>
                 <h2>Packaging is already part of the flagship app story.</h2>
                 <p class="section-note">
-                    RustFrame should matter when the workflow stops being a demo and starts needing a
-                    real desktop install path, even if the runtime is still intentionally small.
+                    RustFrame should matter after the experiment. If the workflow becomes something people actually install,
+                    the packaging path should already be part of the default model.
                 </p>
             </div>
 
@@ -330,46 +330,25 @@
         <section class="frame docs-strip reveal" id="docs">
             <div class="section-heading">
                 <p class="eyebrow">Docs</p>
-                <h2>Move from the landing page into the actual contract.</h2>
+                <h2>Move from the landing page into the real contract.</h2>
+                <p class="section-note">
+                    The featured guide cards below are now driven from the same docs registry as the docs sidebar,
+                    so the homepage stops drifting whenever the documentation changes.
+                </p>
             </div>
 
-            <div class="docs-grid">
-                <a class="doc-card" href="docs.html?doc=choosing-rustframe">
-                    <span>Fit guide</span>
-                    <strong>Choosing RustFrame</strong>
-                    <p>See the honest browser vs RustFrame vs Tauri vs Electron tradeoffs and where RustFrame fits.</p>
-                </a>
-                <a class="doc-card" href="docs.html?doc=architecture-overview">
-                    <span>Architecture</span>
-                    <strong>Overview</strong>
-                    <p>Read the short version of the hidden-runner model, manifest contract, runtime ownership, and capability boundaries.</p>
-                </a>
-                <a class="doc-card" href="docs.html?doc=getting-started">
+            <div id="featured-docs" class="docs-grid">
+                <a class="doc-card" href="docs.html">
                     <span>Guide</span>
-                    <strong>Getting started</strong>
-                    <p>Run the capability demo, scaffold an app, export a binary, and package a host-native bundle.</p>
-                </a>
-                <a class="doc-card" href="docs.html?doc=runtime-and-capabilities">
-                    <span>Runtime</span>
-                    <strong>Capabilities</strong>
-                    <p>See how the bridge, trust model, SQLite lifecycle, filesystem roots, and shell hardening fit together.</p>
-                </a>
-                <a class="doc-card" href="docs.html?doc=community-templates">
-                    <span>Ecosystem</span>
-                    <strong>Community templates</strong>
-                    <p>Start from workflow-shaped starters and references instead of treating every example as an equal product claim.</p>
-                </a>
-                <a class="doc-card" href="showcase.html">
-                    <span>Showcase</span>
-                    <strong>Browse the map</strong>
-                    <p>See the current flagship, starter, reference, and frontend-starter entries in one public view.</p>
+                    <strong>Loading featured docs</strong>
+                    <p>Preparing the current guide set from the site registry.</p>
                 </a>
             </div>
         </section>
     </main>
 
     <footer class="site-footer">
-        <p>RustFrame is now being narrowed around <code>research-desk</code>: local-first desktop workflow tools with mostly frontend code, embedded SQLite, a small explicit native surface, and a still-deliberate ecosystem story.</p>
+        <p>RustFrame is being narrowed around one sharp claim: local-first desktop workflow tools with mostly frontend code, embedded SQLite, and a small explicit native surface.</p>
     </footer>
 
     <script src="app.js"></script>

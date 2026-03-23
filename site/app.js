@@ -2,95 +2,157 @@ const HOME_COMMAND_TABS = document.querySelectorAll("[data-command-tab]");
 const HOME_COMMAND_PANELS = document.querySelectorAll("[data-command-panel]");
 const COPY_BUTTONS = document.querySelectorAll("[data-copy]");
 const REVEAL_ITEMS = document.querySelectorAll(".reveal");
+const GITHUB_REPO_BASE = "https://github.com/OthmaneBlial/rustframe/blob/main/";
+const FEATURED_DOC_IDS = [
+    "choosing-rustframe",
+    "architecture-overview",
+    "getting-started",
+    "runtime-and-capabilities",
+    "community-templates",
+];
 
 const DOCS = {
-    readme: {
+    "readme": {
         title: "Docs index",
+        navLabel: "Docs index",
+        section: "core",
+        summary: "Start with the map of the guides, operator docs, and example references.",
         source: "docs/README.md",
         path: "docs/README.md",
     },
     "getting-started": {
         title: "Getting started",
+        navLabel: "Getting started",
+        section: "core",
+        summary: "Run the starter app, scaffold a project, and walk the CLI from dev to package.",
         source: "docs/getting-started.md",
         path: "docs/getting-started.md",
     },
     "choosing-rustframe": {
         title: "Choosing RustFrame",
+        navLabel: "Choosing RustFrame",
+        section: "core",
+        summary: "See the honest browser, RustFrame, Tauri, and Electron tradeoffs.",
         source: "docs/choosing-rustframe.md",
         path: "docs/choosing-rustframe.md",
     },
     "architecture-overview": {
         title: "Architecture overview",
+        navLabel: "Architecture overview",
+        section: "core",
+        summary: "Understand the hidden-runner model, manifest contract, and runtime boundary.",
         source: "docs/architecture-overview.md",
         path: "docs/architecture-overview.md",
     },
     "runtime-and-capabilities": {
         title: "Runtime and capabilities",
+        navLabel: "Runtime and capabilities",
+        section: "core",
+        summary: "Review the native surface, trust model, database lifecycle, and bridge rules.",
         source: "docs/runtime-and-capabilities.md",
         path: "docs/runtime-and-capabilities.md",
     },
     "build-in-20-minutes": {
         title: "Build in 20 minutes",
+        navLabel: "Build in 20 minutes",
+        section: "core",
+        summary: "Build a small workflow app quickly without losing the runtime contract.",
         source: "docs/build-in-20-minutes.md",
         path: "docs/build-in-20-minutes.md",
     },
-    cookbook: {
+    "cookbook": {
         title: "Cookbook",
+        navLabel: "Cookbook",
+        section: "core",
+        summary: "Jump straight to practical patterns for windows, SQLite, shell, and files.",
         source: "docs/cookbook.md",
         path: "docs/cookbook.md",
     },
     "threat-model": {
         title: "Threat model",
+        navLabel: "Threat model",
+        section: "operations",
+        summary: "See what the runtime protects, what it delegates, and where the operator stays responsible.",
         source: "docs/threat-model.md",
         path: "docs/threat-model.md",
     },
     "migrations-and-versioning": {
         title: "Migrations and versioning",
+        navLabel: "Migrations and versioning",
+        section: "operations",
+        summary: "Manage schema upgrades, shipped data changes, and app compatibility with intent.",
         source: "docs/migrations-and-versioning.md",
         path: "docs/migrations-and-versioning.md",
     },
     "platform-support": {
         title: "Platform support",
+        navLabel: "Platform support",
+        section: "operations",
+        summary: "Read the support boundary for Linux, Windows, and macOS packaging.",
         source: "docs/platform-support.md",
         path: "docs/platform-support.md",
     },
     "signing-and-notarization": {
         title: "Signing and notarization",
+        navLabel: "Signing and notarization",
+        section: "operations",
+        summary: "Prepare shipped bundles for the trust and identity layers outside the runtime.",
         source: "docs/signing-and-notarization.md",
         path: "docs/signing-and-notarization.md",
     },
     "update-strategy": {
         title: "Update strategy",
+        navLabel: "Update strategy",
+        section: "operations",
+        summary: "Choose how packaged apps update without hand-waving the release process.",
         source: "docs/update-strategy.md",
         path: "docs/update-strategy.md",
     },
     "release-checklist": {
         title: "Release checklist",
+        navLabel: "Release checklist",
+        section: "operations",
+        summary: "Use the operator checklist before calling a RustFrame app ready to ship.",
         source: "docs/release-checklist.md",
         path: "docs/release-checklist.md",
     },
     "community-templates": {
         title: "Community templates",
+        navLabel: "Community templates",
+        section: "ecosystem",
+        summary: "See how starters and references should stay tied to credible workflow jobs.",
         source: "docs/community-templates.md",
         path: "docs/community-templates.md",
     },
     "remote-sync-patterns": {
         title: "Remote sync patterns",
+        navLabel: "Remote sync patterns",
+        section: "ecosystem",
+        summary: "Layer sync onto local-first apps without turning the runtime into a backend framework.",
         source: "docs/remote-sync-patterns.md",
         path: "docs/remote-sync-patterns.md",
     },
     "capability-extension-patterns": {
         title: "Capability extension patterns",
+        navLabel: "Capability extension patterns",
+        section: "ecosystem",
+        summary: "Extend the native surface deliberately instead of reopening the whole machine.",
         source: "docs/capability-extension-patterns.md",
         path: "docs/capability-extension-patterns.md",
     },
     "frontend-app-rules": {
         title: "Frontend app rules",
+        navLabel: "Frontend app rules",
+        section: "ecosystem",
+        summary: "Keep frontend apps compatible with the runtime contract and packaging model.",
         source: "docs/frontend-app-rules.md",
         path: "docs/frontend-app-rules.md",
     },
     "example-apps": {
         title: "Example apps",
+        navLabel: "Example apps",
+        section: "ecosystem",
+        summary: "Browse the example set as references, not equal product claims.",
         source: "docs/example-apps.md",
         path: "docs/example-apps.md",
     },
@@ -106,6 +168,7 @@ const DOC_SOURCE_TO_ID = new Map(
 setupCommandTabs();
 setupCopyButtons();
 setupRevealObserver();
+setupHomePage();
 setupDocsPage();
 setupShowcasePage();
 
@@ -166,6 +229,24 @@ function setupRevealObserver() {
     REVEAL_ITEMS.forEach((item) => observer.observe(item));
 }
 
+function setupHomePage() {
+    const container = document.getElementById("featured-docs");
+    if (!container) {
+        return;
+    }
+
+    const cards = FEATURED_DOC_IDS.map((docId) => renderFeaturedDocCard(docId)).join("");
+    container.innerHTML =
+        cards +
+        `
+        <a class="doc-card doc-card-showcase" href="showcase.html">
+            <span>Showcase</span>
+            <strong>Browse the map</strong>
+            <p>See the flagship, starter, reference, and frontend-starter entries in one public surface.</p>
+        </a>
+        `;
+}
+
 function setupDocsPage() {
     const docsContent = document.getElementById("docs-content");
     if (!docsContent) {
@@ -175,6 +256,14 @@ function setupDocsPage() {
     const searchInput = document.getElementById("docs-search");
     const titleNode = document.getElementById("docs-title");
     const sourceNode = document.getElementById("docs-source");
+    const navRoot = document.getElementById("docs-nav");
+    const countNode = document.getElementById("docs-count");
+    if (navRoot) {
+        navRoot.innerHTML = renderDocsNav();
+    }
+    if (countNode) {
+        countNode.textContent = `${Object.keys(DOCS).length} mirrored guides`;
+    }
     const navLinks = Array.from(document.querySelectorAll("[data-doc-link]"));
 
     const params = new URLSearchParams(window.location.search);
@@ -187,6 +276,10 @@ function setupDocsPage() {
             navLinks.forEach((link) => {
                 const label = link.textContent.toLowerCase();
                 link.classList.toggle("is-hidden", Boolean(query) && !label.includes(query));
+            });
+            Array.from(document.querySelectorAll(".docs-nav-group")).forEach((group) => {
+                const visibleLinks = group.querySelectorAll("a:not(.is-hidden)");
+                group.classList.toggle("is-hidden", !visibleLinks.length);
             });
         });
     }
@@ -202,6 +295,9 @@ function setupDocsPage() {
             next.searchParams.set("doc", resolved);
             window.history.pushState({ doc: resolved }, "", next);
         }
+        const reducedMotion =
+            window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        docsContent.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
     }
 
     navLinks.forEach((link) => {
@@ -232,6 +328,7 @@ async function loadDoc(docId, docsContent, titleNode, sourceNode) {
     const meta = DOCS[docId];
     titleNode.textContent = meta.title;
     sourceNode.textContent = meta.source;
+    sourceNode.href = `${GITHUB_REPO_BASE}${meta.source}`;
 
     try {
         const response = await fetch(meta.path);
@@ -313,6 +410,56 @@ function renderShowcaseCard(item) {
             </div>
         </article>
     `;
+}
+
+function renderFeaturedDocCard(docId) {
+    const meta = DOCS[docId];
+    if (!meta) {
+        return "";
+    }
+
+    return `
+        <a class="doc-card" href="docs.html?doc=${docId}">
+            <span>${escapeHtml(navSectionLabel(meta.section))}</span>
+            <strong>${escapeHtml(meta.title)}</strong>
+            <p>${escapeHtml(meta.summary)}</p>
+        </a>
+    `;
+}
+
+function renderDocsNav() {
+    const sections = [
+        { id: "core", label: "Start here" },
+        { id: "operations", label: "Ship and operate" },
+        { id: "ecosystem", label: "Patterns and examples" },
+    ];
+
+    return sections
+        .map(({ id, label }) => {
+            const items = Object.entries(DOCS).filter(([, meta]) => meta.section === id);
+            if (!items.length) {
+                return "";
+            }
+
+            const links = items
+                .map(
+                    ([docId, meta]) =>
+                        `<a href="docs.html?doc=${docId}" data-doc-link="${docId}">${escapeHtml(
+                            meta.navLabel || meta.title
+                        )}</a>`
+                )
+                .join("");
+
+            return `
+                <section class="docs-nav-group">
+                    <p class="docs-nav-label">${escapeHtml(label)}</p>
+                    <div class="docs-nav-links">
+                        ${links}
+                    </div>
+                </section>
+            `;
+        })
+        .join("");
 }
 
 function enhanceDocsCodeBlocks(container) {
@@ -553,6 +700,16 @@ function normalizeDocId(value) {
 
     const normalized = normalizeDocSlug(value);
     return DOC_SOURCE_TO_ID.get(normalized) || (DOCS[normalized] ? normalized : "readme");
+}
+
+function navSectionLabel(section) {
+    if (section === "operations") {
+        return "Operations";
+    }
+    if (section === "ecosystem") {
+        return "Patterns";
+    }
+    return "Guide";
 }
 
 function normalizeDocSlug(value) {

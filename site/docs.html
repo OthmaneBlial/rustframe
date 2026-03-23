@@ -28,7 +28,12 @@
             <div class="docs-sidebar-head">
                 <p class="eyebrow">Docs</p>
                 <h1>Repository guides</h1>
-                <p>All content on this page is loaded from the repo-level <code>docs/</code> folder so the site stays aligned with the source tree.</p>
+                <p>Everything on this page is mirrored from the repo-level <code>docs/</code> folder, so the static site stays tied to the same working contract as the source tree.</p>
+            </div>
+
+            <div class="docs-sidebar-meta">
+                <strong id="docs-count">18 mirrored guides</strong>
+                <span>One registry drives the docs routes, sidebar navigation, and the featured guide surface on the homepage.</span>
             </div>
 
             <label class="docs-search">
@@ -36,33 +41,16 @@
                 <input id="docs-search" type="search" placeholder="Search docs by title">
             </label>
 
-            <nav class="docs-nav" aria-label="Documentation">
-                <a href="docs.html?doc=readme" data-doc-link="readme">Docs index</a>
-                <a href="docs.html?doc=getting-started" data-doc-link="getting-started">Getting started</a>
-                <a href="docs.html?doc=choosing-rustframe" data-doc-link="choosing-rustframe">Choosing RustFrame</a>
-                <a href="docs.html?doc=architecture-overview" data-doc-link="architecture-overview">Architecture overview</a>
-                <a href="docs.html?doc=runtime-and-capabilities" data-doc-link="runtime-and-capabilities">Runtime and capabilities</a>
-                <a href="docs.html?doc=build-in-20-minutes" data-doc-link="build-in-20-minutes">Build in 20 minutes</a>
-                <a href="docs.html?doc=cookbook" data-doc-link="cookbook">Cookbook</a>
-                <a href="docs.html?doc=threat-model" data-doc-link="threat-model">Threat model</a>
-                <a href="docs.html?doc=migrations-and-versioning" data-doc-link="migrations-and-versioning">Migrations and versioning</a>
-                <a href="docs.html?doc=platform-support" data-doc-link="platform-support">Platform support</a>
-                <a href="docs.html?doc=signing-and-notarization" data-doc-link="signing-and-notarization">Signing and notarization</a>
-                <a href="docs.html?doc=update-strategy" data-doc-link="update-strategy">Update strategy</a>
-                <a href="docs.html?doc=release-checklist" data-doc-link="release-checklist">Release checklist</a>
-                <a href="docs.html?doc=community-templates" data-doc-link="community-templates">Community templates</a>
-                <a href="docs.html?doc=remote-sync-patterns" data-doc-link="remote-sync-patterns">Remote sync patterns</a>
-                <a href="docs.html?doc=capability-extension-patterns" data-doc-link="capability-extension-patterns">Capability extension patterns</a>
-                <a href="docs.html?doc=frontend-app-rules" data-doc-link="frontend-app-rules">Frontend app rules</a>
-                <a href="docs.html?doc=example-apps" data-doc-link="example-apps">Example apps</a>
-            </nav>
+            <nav id="docs-nav" class="docs-nav" aria-label="Documentation"></nav>
         </aside>
 
         <section class="docs-panel">
             <div class="docs-meta">
-                <p class="eyebrow">Current doc</p>
-                <strong id="docs-title">Loading…</strong>
-                <span id="docs-source">docs/README.md</span>
+                <div class="docs-meta-copy">
+                    <p class="eyebrow">Current doc</p>
+                    <strong id="docs-title">Loading…</strong>
+                </div>
+                <a id="docs-source" class="docs-source-link" href="https://github.com/OthmaneBlial/rustframe/tree/main/docs" target="_blank" rel="noreferrer">docs/README.md</a>
             </div>
 
             <article id="docs-content" class="docs-content">
