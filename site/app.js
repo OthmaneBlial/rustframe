@@ -284,44 +284,44 @@ function setupDocsPage() {
         });
     }
 
-    function activateDoc(docId, { pushState = false } = {}) {
+    async function activateDoc(docId, { pushState = false, scroll = true } = {}) {
         const resolved = normalizeDocId(docId);
         navLinks.forEach((link) => {
             link.classList.toggle("is-active", link.dataset.docLink === resolved);
         });
-        loadDoc(resolved, docsContent, titleNode, sourceNode);
+        await loadDoc(resolved, docsContent, titleNode, sourceNode);
         if (pushState) {
             const next = new URL(window.location.href);
             next.searchParams.set("doc", resolved);
             window.history.pushState({ doc: resolved }, "", next);
         }
-        const reducedMotion =
-            window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        docsContent.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+        if (scroll) {
+            scrollDocsToTitle(docsContent);
+        }
     }
 
     navLinks.forEach((link) => {
-        link.addEventListener("click", (event) => {
+        link.addEventListener("click", async (event) => {
             event.preventDefault();
-            activateDoc(link.dataset.docLink, { pushState: true });
+            await activateDoc(link.dataset.docLink, { pushState: true, scroll: true });
         });
     });
 
-    docsContent.addEventListener("click", (event) => {
+    docsContent.addEventListener("click", async (event) => {
         const link = event.target.closest("a[data-doc-target]");
         if (!link) {
             return;
         }
         event.preventDefault();
-        activateDoc(link.dataset.docTarget, { pushState: true });
+        await activateDoc(link.dataset.docTarget, { pushState: true, scroll: true });
     });
 
-    window.addEventListener("popstate", () => {
+    window.addEventListener("popstate", async () => {
         const next = new URLSearchParams(window.location.search).get("doc");
-        activateDoc(next, { pushState: false });
+        await activateDoc(next, { pushState: false, scroll: true });
     });
 
-    activateDoc(activeId, { pushState: false });
+    void activateDoc(activeId, { pushState: false, scroll: false });
 }
 
 async function loadDoc(docId, docsContent, titleNode, sourceNode) {
@@ -495,6 +495,22 @@ function bindCopyButton(button, getText) {
         window.setTimeout(() => {
             button.textContent = original;
         }, 1200);
+    });
+}
+
+function scrollDocsToTitle(docsContent) {
+    const reducedMotion =
+        window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const header = document.querySelector(".docs-topbar");
+    const headerStyle = header ? window.getComputedStyle(header) : null;
+    const headerOffset =
+        header && headerStyle && headerStyle.position !== "static" ? header.getBoundingClientRect().height : 0;
+    const target = docsContent.querySelector("h1, h2, p") || docsContent;
+    const targetTop = window.scrollY + target.getBoundingClientRect().top - headerOffset - 20;
+
+    window.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: reducedMotion ? "auto" : "smooth",
     });
 }
 
