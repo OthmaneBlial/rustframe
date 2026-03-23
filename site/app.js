@@ -96,6 +96,13 @@ const DOCS = {
     },
 };
 
+const DOC_SOURCE_TO_ID = new Map(
+    Object.entries(DOCS).flatMap(([id, meta]) => [
+        [normalizeDocSlug(meta.path), id],
+        [normalizeDocSlug(meta.source), id],
+    ])
+);
+
 setupCommandTabs();
 setupCopyButtons();
 setupRevealObserver();
@@ -172,7 +179,7 @@ function setupDocsPage() {
 
     const params = new URLSearchParams(window.location.search);
     const requested = params.get("doc");
-    const activeId = DOCS[requested] ? requested : "readme";
+    const activeId = normalizeDocId(requested);
 
     if (searchInput) {
         searchInput.addEventListener("input", () => {
@@ -184,11 +191,41 @@ function setupDocsPage() {
         });
     }
 
+    function activateDoc(docId, { pushState = false } = {}) {
+        const resolved = normalizeDocId(docId);
+        navLinks.forEach((link) => {
+            link.classList.toggle("is-active", link.dataset.docLink === resolved);
+        });
+        loadDoc(resolved, docsContent, titleNode, sourceNode);
+        if (pushState) {
+            const next = new URL(window.location.href);
+            next.searchParams.set("doc", resolved);
+            window.history.pushState({ doc: resolved }, "", next);
+        }
+    }
+
     navLinks.forEach((link) => {
-        link.classList.toggle("is-active", link.dataset.docLink === activeId);
+        link.addEventListener("click", (event) => {
+            event.preventDefault();
+            activateDoc(link.dataset.docLink, { pushState: true });
+        });
     });
 
-    loadDoc(activeId, docsContent, titleNode, sourceNode);
+    docsContent.addEventListener("click", (event) => {
+        const link = event.target.closest("a[data-doc-target]");
+        if (!link) {
+            return;
+        }
+        event.preventDefault();
+        activateDoc(link.dataset.docTarget, { pushState: true });
+    });
+
+    window.addEventListener("popstate", () => {
+        const next = new URLSearchParams(window.location.search).get("doc");
+        activateDoc(next, { pushState: false });
+    });
+
+    activateDoc(activeId, { pushState: false });
 }
 
 async function loadDoc(docId, docsContent, titleNode, sourceNode) {
@@ -338,6 +375,45 @@ function renderMarkdown(markdown) {
         listType = null;
     }
 
+    function flushTable(table) {
+        if (!table) {
+            return;
+        }
+
+        const rows = table
+            .map((line) =>
+                line
+                    .trim()
+                    .replace(/^\|/, "")
+                    .replace(/\|$/, "")
+                    .split("|")
+                    .map((cell) => cell.trim())
+            )
+            .filter((row) => row.length);
+
+        if (rows.length < 2) {
+            rows.forEach((row) => {
+                html.push(`<p>${renderInline(row.join(" | "))}</p>`);
+            });
+            return;
+        }
+
+        const [header, _separator, ...body] = rows;
+        html.push("<div class=\"docs-table-wrap\"><table><thead><tr>");
+        header.forEach((cell) => {
+            html.push(`<th>${renderInline(cell)}</th>`);
+        });
+        html.push("</tr></thead><tbody>");
+        body.forEach((row) => {
+            html.push("<tr>");
+            row.forEach((cell) => {
+                html.push(`<td>${renderInline(cell)}</td>`);
+            });
+            html.push("</tr>");
+        });
+        html.push("</tbody></table></div>");
+    }
+
     function flushCode() {
         if (!inCode) {
             return;
@@ -347,7 +423,9 @@ function renderMarkdown(markdown) {
         codeLines = [];
     }
 
-    lines.forEach((line) => {
+    for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index];
+
         if (line.startsWith("```")) {
             flushParagraph();
             flushList();
@@ -356,18 +434,18 @@ function renderMarkdown(markdown) {
             } else {
                 inCode = true;
             }
-            return;
+            continue;
         }
 
         if (inCode) {
             codeLines.push(line);
-            return;
+            continue;
         }
 
         if (!line.trim()) {
             flushParagraph();
             flushList();
-            return;
+            continue;
         }
 
         const heading = line.match(/^(#{1,3})\s+(.*)$/);
@@ -375,8 +453,45 @@ function renderMarkdown(markdown) {
             flushParagraph();
             flushList();
             const level = heading[1].length;
-            html.push(`<h${level}>${renderInline(heading[2])}</h${level}>`);
-            return;
+            const text = heading[2].trim();
+            const id = slugifyHeading(text);
+            html.push(`<h${level} id="${id}">${renderInline(text)}</h${level}>`);
+            continue;
+        }
+
+        if (
+            line.trim().startsWith("|") &&
+            index + 1 < lines.length &&
+            /^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(lines[index + 1])
+        ) {
+            flushParagraph();
+            flushList();
+
+            const tableLines = [line, lines[index + 1]];
+            index += 2;
+            while (index < lines.length && lines[index].trim().startsWith("|")) {
+                tableLines.push(lines[index]);
+                index += 1;
+            }
+            index -= 1;
+
+            flushTable(tableLines);
+            continue;
+        }
+
+        if (line.trim().startsWith(">")) {
+            flushParagraph();
+            flushList();
+
+            const quoteLines = [];
+            while (index < lines.length && lines[index].trim().startsWith(">")) {
+                quoteLines.push(lines[index].replace(/^\s*>\s?/, "").trim());
+                index += 1;
+            }
+            index -= 1;
+
+            html.push(`<blockquote><p>${renderInline(quoteLines.join(" "))}</p></blockquote>`);
+            continue;
         }
 
         const bullet = line.match(/^-\s+(.*)$/);
@@ -388,7 +503,7 @@ function renderMarkdown(markdown) {
                 html.push("<ul>");
             }
             html.push(`<li>${renderInline(bullet[1])}</li>`);
-            return;
+            continue;
         }
 
         const numbered = line.match(/^\d+\.\s+(.*)$/);
@@ -400,11 +515,11 @@ function renderMarkdown(markdown) {
                 html.push("<ol>");
             }
             html.push(`<li>${renderInline(numbered[1])}</li>`);
-            return;
+            continue;
         }
 
         paragraph.push(line.trim());
-    });
+    }
 
     flushParagraph();
     flushList();
@@ -417,14 +532,57 @@ function renderInline(text) {
     value = value.replace(/`([^`]+)`/g, "<code>$1</code>");
     value = value.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     value = value.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => {
-        if (href.endsWith(".md")) {
-            const slug = href.split("/").pop().replace(/\.md$/, "");
-            const target = slug === "README" ? "readme" : slug;
-            return `<a href="docs.html?doc=${target}">${label}</a>`;
+        const target = resolveInternalDocHref(href);
+        if (target) {
+            return `<a href="docs.html?doc=${target}" data-doc-target="${target}">${label}</a>`;
         }
-        return `<a href="${href}">${label}</a>`;
+
+        if (isExternalHref(href)) {
+            return `<a href="${escapeHtml(href)}" target="_blank" rel="noreferrer">${label}</a>`;
+        }
+
+        return `<a href="${escapeHtml(href)}">${label}</a>`;
     });
     return value;
+}
+
+function normalizeDocId(value) {
+    if (!value) {
+        return "readme";
+    }
+
+    const normalized = normalizeDocSlug(value);
+    return DOC_SOURCE_TO_ID.get(normalized) || (DOCS[normalized] ? normalized : "readme");
+}
+
+function normalizeDocSlug(value) {
+    return String(value || "")
+        .split("#")[0]
+        .split("/")
+        .pop()
+        .replace(/\.md$/i, "")
+        .replace(/_/g, "-")
+        .toLowerCase();
+}
+
+function resolveInternalDocHref(href) {
+    if (isExternalHref(href) || href.startsWith("#") || !/\.md(?:#.*)?$/i.test(href)) {
+        return null;
+    }
+
+    const normalized = normalizeDocSlug(href);
+    return DOC_SOURCE_TO_ID.get(normalized) || null;
+}
+
+function isExternalHref(href) {
+    return /^[a-z]+:\/\//i.test(href) || /^(mailto|tel):/i.test(href);
+}
+
+function slugifyHeading(value) {
+    return String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
 }
 
 function escapeHtml(value) {
