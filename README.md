@@ -19,10 +19,6 @@
   <a href="docs/README.md">All Docs</a>
 </p>
 
-<p align="center">
-  <img src="site/assets/readme-hero.svg" alt="RustFrame editorial hero graphic" width="100%">
-</p>
-
 RustFrame is not trying to be the next everything-framework for desktop apps.
 
 It is a narrower bet:
