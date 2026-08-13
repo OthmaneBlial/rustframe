@@ -67,12 +67,13 @@ pub fn package(
     let staged_binary = staging_dir.join(executable_name(&app.name));
     copy_with_permissions(source_binary, &staged_binary)?;
 
+    let formats = resolve_formats(requested_formats)?;
     let mut config = Config::default();
     config.product_name = app.config.title.clone();
-    config.version = app.config.packaging.version.clone();
+    config.version = native_packager_version(&app.config.packaging.version, &formats)?;
     config.binaries = vec![Binary::new(&app.name).main(true)];
     config.identifier = Some(app.config.packaging.macos.bundle_identifier.clone());
-    config.formats = Some(resolve_formats(requested_formats)?);
+    config.formats = Some(formats);
     config.out_dir = out_dir.clone();
     config.binaries_dir = Some(staging_dir.clone());
     config.description = Some(app.config.packaging.description.clone());
@@ -220,6 +221,54 @@ fn resolve_formats(requested: &[String]) -> CliResult<Vec<PackageFormat>> {
         }
     }
     Ok(formats)
+}
+
+fn native_packager_version(version: &str, formats: &[PackageFormat]) -> CliResult<String> {
+    if !formats.contains(&PackageFormat::Wix) {
+        return Ok(version.to_string());
+    }
+
+    let (version_without_build, build) = version
+        .split_once('+')
+        .map_or((version, None), |(base, build)| (base, Some(build)));
+    let prerelease = version_without_build
+        .split_once('-')
+        .map(|(_, prerelease)| prerelease);
+    if build.is_some_and(|build| build.parse::<u16>().is_ok())
+        || (build.is_none()
+            && prerelease.is_none_or(|prerelease| prerelease.parse::<u16>().is_ok()))
+    {
+        return Ok(version.to_string());
+    }
+
+    let build = msi_build_number(version, prerelease.unwrap_or_default());
+    Ok(format!("{version_without_build}+{build}"))
+}
+
+fn msi_build_number(version: &str, prerelease: &str) -> u16 {
+    let identifiers = prerelease.split('.').collect::<Vec<_>>();
+    let sequence = identifiers
+        .last()
+        .and_then(|identifier| identifier.parse::<u16>().ok())
+        .filter(|sequence| *sequence <= 9_999);
+    if let Some(sequence) = sequence {
+        let stage: u16 = match identifiers.first().copied().unwrap_or_default() {
+            "alpha" | "a" => 10_000,
+            "beta" | "b" => 20_000,
+            "rc" => 30_000,
+            _ if identifiers.len() == 1 => 0,
+            _ => 40_000,
+        };
+        if let Some(build) = stage.checked_add(sequence) {
+            if build > 0 && build < u16::MAX {
+                return build;
+            }
+        }
+    }
+
+    let digest = Sha256::digest(version.as_bytes());
+    let candidate = u16::from_be_bytes([digest[0], digest[1]]);
+    candidate.max(1)
 }
 
 fn resources(app: &AppProject) -> Option<Vec<Resource>> {
@@ -398,7 +447,9 @@ fn verify_artifacts(
 
 #[cfg(test)]
 mod tests {
-    use super::{host_formats, resolve_formats};
+    use cargo_packager::PackageFormat;
+
+    use super::{host_formats, native_packager_version, resolve_formats};
 
     #[test]
     fn selects_the_two_v1_native_formats_for_the_host() {
@@ -417,6 +468,30 @@ mod tests {
         assert_eq!(
             resolve_formats(&[requested.into()]).unwrap(),
             vec![selected]
+        );
+    }
+
+    #[test]
+    fn adds_a_numeric_internal_build_to_prerelease_msi_versions() {
+        assert_eq!(
+            native_packager_version("0.1.0-rc.1", &[PackageFormat::Wix]).unwrap(),
+            "0.1.0-rc.1+30001"
+        );
+    }
+
+    #[test]
+    fn leaves_public_versions_unchanged_for_other_formats() {
+        assert_eq!(
+            native_packager_version("0.1.0-rc.1", &[PackageFormat::Nsis]).unwrap(),
+            "0.1.0-rc.1"
+        );
+        assert_eq!(
+            native_packager_version("1.2.3+42", &[PackageFormat::Wix]).unwrap(),
+            "1.2.3+42"
+        );
+        assert_eq!(
+            native_packager_version("1.2.3", &[PackageFormat::Wix]).unwrap(),
+            "1.2.3"
         );
     }
 }
