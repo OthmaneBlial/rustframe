@@ -3,10 +3,13 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use rusqlite::{
-    Connection, OptionalExtension, params,
+    Connection, OptionalExtension,
+    backup::Backup,
+    params,
     types::{Value as SqlValue, ValueRef},
 };
 use serde::{Deserialize, Serialize};
@@ -21,6 +24,7 @@ const APPLIED_SEEDS_TABLE: &str = "__rustframe_applied_seeds";
 const APPLIED_MIGRATIONS_TABLE: &str = "__rustframe_applied_migrations";
 const SCHEMA_VERSION_KEY: &str = "schema_version";
 const SCHEMA_CHECKSUM_KEY: &str = "schema_checksum";
+const APP_ID_KEY: &str = "app_id";
 const DATABASE_FILE_NAME: &str = "app.db";
 const SEARCH_TABLE_PREFIX: &str = "__rustframe_fts_";
 
@@ -157,8 +161,7 @@ impl DatabaseIndex {
     fn validate(&self, table_name: &str, known_columns: &BTreeSet<&str>) -> Result<()> {
         if self.columns.is_empty() {
             return Err(RuntimeError::InvalidConfiguration(format!(
-                "table '{}' defines an index with no columns",
-                table_name
+                "table '{table_name}' defines an index with no columns"
             )));
         }
 
@@ -169,8 +172,7 @@ impl DatabaseIndex {
         for column in &self.columns {
             if !known_columns.contains(column.as_str()) && !is_managed_schema_field(column) {
                 return Err(RuntimeError::InvalidConfiguration(format!(
-                    "index on table '{}' references unknown column '{}'",
-                    table_name, column
+                    "index on table '{table_name}' references unknown column '{column}'"
                 )));
             }
         }
@@ -209,8 +211,7 @@ impl DatabaseSeedManifest {
     fn validate(&self, path: &str) -> Result<()> {
         if self.entries.is_empty() {
             return Err(RuntimeError::InvalidConfiguration(format!(
-                "seed file '{}' must define at least one entry",
-                path
+                "seed file '{path}' must define at least one entry"
             )));
         }
 
@@ -238,8 +239,7 @@ impl DatabaseMigrationFile {
         let version = migration_version_from_path(&path)?;
         if source.trim().is_empty() {
             return Err(RuntimeError::InvalidConfiguration(format!(
-                "migration file '{}' must not be empty",
-                path
+                "migration file '{path}' must not be empty"
             )));
         }
 
@@ -258,8 +258,7 @@ fn migration_version_from_path(path: &str) -> Result<u32> {
         .and_then(|value| value.to_str())
         .ok_or_else(|| {
             RuntimeError::InvalidConfiguration(format!(
-                "migration path '{}' must include a UTF-8 file name",
-                path
+                "migration path '{path}' must include a UTF-8 file name"
             ))
         })?;
 
@@ -270,22 +269,19 @@ fn migration_version_from_path(path: &str) -> Result<u32> {
 
     if digits.is_empty() {
         return Err(RuntimeError::InvalidConfiguration(format!(
-            "migration file '{}' must start with a numeric version prefix",
-            path
+            "migration file '{path}' must start with a numeric version prefix"
         )));
     }
 
     let version = digits.parse::<u32>().map_err(|error| {
         RuntimeError::InvalidConfiguration(format!(
-            "migration file '{}' has an invalid version prefix: {}",
-            path, error
+            "migration file '{path}' has an invalid version prefix: {error}"
         ))
     })?;
 
     if version == 0 {
         return Err(RuntimeError::InvalidConfiguration(format!(
-            "migration file '{}' must start with a version greater than zero",
-            path
+            "migration file '{path}' must start with a version greater than zero"
         )));
     }
 
@@ -375,9 +371,47 @@ pub enum DatabaseOrderDirection {
     Desc,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "operation", rename_all = "lowercase")]
+pub enum DatabaseBatchOperation {
+    Insert {
+        table: String,
+        record: Value,
+    },
+    Update {
+        table: String,
+        id: i64,
+        patch: Value,
+    },
+    Delete {
+        table: String,
+        id: i64,
+    },
+}
+
+impl DatabaseBatchOperation {
+    pub fn table(&self) -> &str {
+        match self {
+            Self::Insert { table, .. }
+            | Self::Update { table, .. }
+            | Self::Delete { table, .. } => table,
+        }
+    }
+
+    pub fn operation_name(&self) -> &'static str {
+        match self {
+            Self::Insert { .. } => "insert",
+            Self::Update { .. } => "update",
+            Self::Delete { .. } => "delete",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct DatabaseCapability {
     info: DatabaseInfo,
+    schema: DatabaseSchema,
+    migration_files: Vec<DatabaseMigrationFile>,
     tables: BTreeMap<String, TablePlan>,
     connection: RefCell<Connection>,
 }
@@ -405,6 +439,7 @@ impl DatabaseCapability {
         let tables = build_table_plans(&config.schema)?;
 
         initialize_meta_tables(&connection)?;
+        set_or_validate_app_identity(&connection, &config.app_id)?;
         apply_schema(
             &connection,
             &config.schema,
@@ -424,6 +459,8 @@ impl DatabaseCapability {
 
         Ok(Self {
             info,
+            schema: config.schema,
+            migration_files: config.migration_files,
             tables,
             connection: RefCell::new(connection),
         })
@@ -585,7 +622,7 @@ impl DatabaseCapability {
         drop(connection);
 
         let inserted = self.get(&table.name, id)?.ok_or_else(|| {
-            RuntimeError::RecordNotFound(format!("inserted row '{}' was not found", id))
+            RuntimeError::RecordNotFound(format!("inserted row '{id}' was not found"))
         })?;
         self.sync_search_record(table, &inserted)?;
         Ok(inserted)
@@ -618,8 +655,7 @@ impl DatabaseCapability {
         for key in patch.keys() {
             if reserved.contains(&key.as_str()) {
                 return Err(RuntimeError::InvalidParameter(format!(
-                    "field '{}' is managed by RustFrame and cannot be updated directly",
-                    key
+                    "field '{key}' is managed by RustFrame and cannot be updated directly"
                 )));
             }
 
@@ -690,12 +726,103 @@ impl DatabaseCapability {
         Ok(changed > 0)
     }
 
+    /// Executes every mutation in one SQLite transaction. Any error rolls the
+    /// full batch back, including full-text-search index updates.
+    pub fn batch(&self, operations: &[DatabaseBatchOperation]) -> Result<Vec<Value>> {
+        if operations.is_empty() {
+            return Err(RuntimeError::InvalidParameter(
+                "database batch must contain at least one operation".into(),
+            ));
+        }
+        if operations.len() > 1_000 {
+            return Err(RuntimeError::InvalidParameter(
+                "database batch is limited to 1000 operations".into(),
+            ));
+        }
+        {
+            let connection = self.connection.borrow();
+            connection.execute_batch("BEGIN IMMEDIATE")?;
+        }
+
+        let mut results = Vec::with_capacity(operations.len());
+        for operation in operations {
+            let result = match operation {
+                DatabaseBatchOperation::Insert { table, record } => {
+                    self.insert(table, record.clone())
+                }
+                DatabaseBatchOperation::Update { table, id, patch } => {
+                    self.update(table, *id, patch.clone())
+                }
+                DatabaseBatchOperation::Delete { table, id } => {
+                    self.delete(table, *id).map(Value::Bool)
+                }
+            };
+            match result {
+                Ok(value) => results.push(value),
+                Err(error) => {
+                    let _ = self.connection.borrow().execute_batch("ROLLBACK");
+                    return Err(error);
+                }
+            }
+        }
+
+        if let Err(error) = self.connection.borrow().execute_batch("COMMIT") {
+            let _ = self.connection.borrow().execute_batch("ROLLBACK");
+            return Err(error.into());
+        }
+        Ok(results)
+    }
+
+    /// Creates a transactionally consistent SQLite snapshot while the source
+    /// database remains open and in WAL mode.
+    pub fn backup_to(&self, destination: &Path) -> Result<()> {
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let source = self.connection.borrow();
+        let mut destination_connection = Connection::open(destination)?;
+        backup_connections(&source, &mut destination_connection)
+    }
+
+    /// Restores a compatible snapshot through SQLite's online backup API and
+    /// always writes a safety snapshot before touching the active database.
+    pub fn restore_from(&self, source: &Path, safety_backup: &Path) -> Result<()> {
+        let source_connection = Connection::open(source)?;
+        validate_backup_identity(
+            &source_connection,
+            &self.info.app_id,
+            self.info.schema_version,
+        )?;
+        self.backup_to(safety_backup)?;
+
+        let mut destination = self.connection.borrow_mut();
+        let restore_result = (|| {
+            backup_connections(&source_connection, &mut destination)?;
+            destination.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
+            apply_schema(
+                &destination,
+                &self.schema,
+                &self.tables,
+                &self.migration_files,
+            )?;
+            rebuild_search_indexes(&destination, &self.tables)
+        })();
+        if let Err(restore_error) = restore_result {
+            let safety_connection = Connection::open(safety_backup)?;
+            if let Err(rollback_error) = backup_connections(&safety_connection, &mut destination) {
+                return Err(RuntimeError::InvalidConfiguration(format!(
+                    "restore failed: {restore_error}; safety rollback also failed: {rollback_error}"
+                )));
+            }
+            destination.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
+            return Err(restore_error);
+        }
+        Ok(())
+    }
+
     fn table(&self, table: &str) -> Result<&TablePlan> {
         self.tables.get(table).ok_or_else(|| {
-            RuntimeError::InvalidParameter(format!(
-                "database schema has no table named '{}'",
-                table
-            ))
+            RuntimeError::InvalidParameter(format!("database schema has no table named '{table}'"))
         })
     }
 
@@ -715,6 +842,89 @@ impl DatabaseCapability {
         let connection = self.connection.borrow_mut();
         upsert_search_record(&connection, table, id, &content)
     }
+}
+
+pub fn backup_database_file(source: &Path, destination: &Path) -> Result<()> {
+    if !source.is_file() {
+        return Err(RuntimeError::InvalidParameter(format!(
+            "database '{}' does not exist",
+            source.display()
+        )));
+    }
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let source = Connection::open(source)?;
+    let mut destination = Connection::open(destination)?;
+    backup_connections(&source, &mut destination)
+}
+
+pub fn restore_database_file(
+    active: &Path,
+    source: &Path,
+    expected_app_id: &str,
+    expected_schema_version: u32,
+    safety_backup: &Path,
+) -> Result<()> {
+    let source_connection = Connection::open(source)?;
+    validate_backup_identity(&source_connection, expected_app_id, expected_schema_version)?;
+    backup_database_file(active, safety_backup)?;
+    let mut active_connection = Connection::open(active)?;
+    if let Err(restore_error) = backup_connections(&source_connection, &mut active_connection) {
+        let safety_connection = Connection::open(safety_backup)?;
+        if let Err(rollback_error) = backup_connections(&safety_connection, &mut active_connection)
+        {
+            return Err(RuntimeError::InvalidConfiguration(format!(
+                "restore failed: {restore_error}; safety rollback also failed: {rollback_error}"
+            )));
+        }
+        return Err(restore_error);
+    }
+    Ok(())
+}
+
+fn backup_connections(source: &Connection, destination: &mut Connection) -> Result<()> {
+    let backup = Backup::new(source, destination)?;
+    backup.run_to_completion(128, Duration::from_millis(5), None)?;
+    Ok(())
+}
+
+fn set_or_validate_app_identity(connection: &Connection, app_id: &str) -> Result<()> {
+    match meta_value(connection, APP_ID_KEY)? {
+        Some(stored) if stored != app_id => Err(RuntimeError::InvalidConfiguration(format!(
+            "database belongs to app '{stored}', not '{app_id}'"
+        ))),
+        Some(_) => Ok(()),
+        None => set_meta_value(connection, APP_ID_KEY, app_id.to_string()),
+    }
+}
+
+fn validate_backup_identity(
+    connection: &Connection,
+    app_id: &str,
+    schema_version: u32,
+) -> Result<()> {
+    let stored_app = meta_value(connection, APP_ID_KEY)?.ok_or_else(|| {
+        RuntimeError::InvalidConfiguration(
+            "backup does not contain RustFrame app identity metadata".into(),
+        )
+    })?;
+    if stored_app != app_id {
+        return Err(RuntimeError::InvalidConfiguration(format!(
+            "backup belongs to app '{stored_app}', not '{app_id}'"
+        )));
+    }
+    let stored_version = meta_value(connection, SCHEMA_VERSION_KEY)?
+        .and_then(|value| value.parse::<u32>().ok())
+        .ok_or_else(|| {
+            RuntimeError::InvalidConfiguration("backup has no valid schema version".into())
+        })?;
+    if stored_version > schema_version {
+        return Err(RuntimeError::InvalidConfiguration(format!(
+            "backup schema version {stored_version} is newer than supported version {schema_version}"
+        )));
+    }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -920,10 +1130,10 @@ fn apply_seed_files(
     Ok(())
 }
 
-fn validate_migration_files<'a>(
+fn validate_migration_files(
     schema_version: u32,
-    migration_files: &'a [DatabaseMigrationFile],
-) -> Result<BTreeMap<u32, &'a DatabaseMigrationFile>> {
+    migration_files: &[DatabaseMigrationFile],
+) -> Result<BTreeMap<u32, &DatabaseMigrationFile>> {
     let mut migrations = BTreeMap::new();
 
     for migration in migration_files {
@@ -1545,8 +1755,7 @@ fn validate_value_for_type(value: &Value, kind: &DatabaseColumnType, nullable: b
         Ok(())
     } else {
         Err(RuntimeError::InvalidParameter(format!(
-            "value '{}' does not match the expected {:?} type",
-            value, kind
+            "value '{value}' does not match the expected {kind:?} type"
         )))
     }
 }
@@ -1619,15 +1828,13 @@ fn validate_identifier(value: &str, label: &str) -> Result<()> {
 
     if !matches!(first, 'a'..='z' | 'A'..='Z' | '_') {
         return Err(RuntimeError::InvalidConfiguration(format!(
-            "{label} '{}' must start with a letter or underscore",
-            value
+            "{label} '{value}' must start with a letter or underscore"
         )));
     }
 
     if !characters.all(|character| character.is_ascii_alphanumeric() || character == '_') {
         return Err(RuntimeError::InvalidConfiguration(format!(
-            "{label} '{}' may only contain letters, digits, and underscores",
-            value
+            "{label} '{value}' may only contain letters, digits, and underscores"
         )));
     }
 
@@ -1644,8 +1851,7 @@ fn validate_app_id(value: &str) -> Result<()> {
 
     if !matches!(first, 'a'..='z' | 'A'..='Z' | '_') {
         return Err(RuntimeError::InvalidConfiguration(format!(
-            "app id '{}' must start with a letter or underscore",
-            value
+            "app id '{value}' must start with a letter or underscore"
         )));
     }
 
@@ -1653,8 +1859,7 @@ fn validate_app_id(value: &str) -> Result<()> {
         .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
     {
         return Err(RuntimeError::InvalidConfiguration(format!(
-            "app id '{}' may only contain letters, digits, underscores, and hyphens",
-            value
+            "app id '{value}' may only contain letters, digits, underscores, and hyphens"
         )));
     }
 
@@ -1667,8 +1872,7 @@ fn validate_reserved_column_name(value: &str) -> Result<()> {
         "id" | "createdAt" | "updatedAt" | "created_at" | "updated_at"
     ) {
         return Err(RuntimeError::InvalidConfiguration(format!(
-            "column name '{}' is reserved by RustFrame",
-            value
+            "column name '{value}' is reserved by RustFrame"
         )));
     }
 
@@ -1757,11 +1961,20 @@ fn rebuild_search_indexes(
     connection: &Connection,
     tables: &BTreeMap<String, TablePlan>,
 ) -> Result<()> {
-    for table in tables.values() {
-        rebuild_search_index(connection, table)?;
+    connection.execute_batch("BEGIN IMMEDIATE")?;
+    let result = (|| {
+        for table in tables.values() {
+            rebuild_search_index(connection, table)?;
+        }
+        Ok(())
+    })();
+    match result {
+        Ok(()) => connection.execute_batch("COMMIT").map_err(Into::into),
+        Err(error) => {
+            let _ = connection.execute_batch("ROLLBACK");
+            Err(error)
+        }
     }
-
-    Ok(())
 }
 
 fn rebuild_search_index(connection: &Connection, table: &TablePlan) -> Result<()> {

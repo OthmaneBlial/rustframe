@@ -5,12 +5,16 @@ use std::{
     path::{Path, PathBuf},
     process,
     process::{Child, Command, ExitStatus, Stdio},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     thread,
     time::{Duration, Instant},
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{Result, RuntimeError};
@@ -21,13 +25,67 @@ const DEFAULT_SHELL_MAX_OUTPUT_BYTES: usize = 64 * 1024;
 #[derive(Clone, Debug, Default)]
 pub struct FsCapability {
     roots: Vec<PathBuf>,
+    root_ids: Vec<String>,
+    grants: Arc<Mutex<BTreeMap<String, StoredFsGrant>>>,
+    next_grant_id: Arc<AtomicU64>,
+    persistence_path: Arc<Mutex<Option<PathBuf>>>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FsGrantAccess {
+    Read,
+    ReadWrite,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FsGrantKind {
+    File,
+    Directory,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsGrant {
+    pub id: String,
+    pub uri: String,
+    pub name: String,
+    pub access: FsGrantAccess,
+    pub kind: FsGrantKind,
+    pub persistent: bool,
+}
+
+#[derive(Clone, Debug)]
+struct StoredFsGrant {
+    grant: FsGrant,
+    path: PathBuf,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedFsGrant {
+    id: String,
+    path: PathBuf,
+    access: FsGrantAccess,
+    kind: FsGrantKind,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsWalkOptions {
+    #[serde(default)]
+    pub recursive: bool,
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    pub limit: Option<usize>,
 }
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FsEntry {
+    pub uri: String,
     pub path: String,
-    pub absolute_path: String,
     pub name: String,
     pub parent: String,
     pub is_dir: bool,
@@ -51,6 +109,7 @@ struct ResolvedFsPath {
     root: PathBuf,
     absolute: PathBuf,
     relative: PathBuf,
+    uri_prefix: Option<String>,
 }
 
 impl FsCapability {
@@ -60,6 +119,8 @@ impl FsCapability {
         P: Into<PathBuf>,
     {
         let mut resolved_roots = Vec::new();
+        let mut root_ids = Vec::new();
+        let mut seen_root_ids = BTreeSet::new();
         for root in roots {
             let path = root.into();
             let canonical = path.canonicalize().map_err(|error| {
@@ -76,16 +137,195 @@ impl FsCapability {
                 )));
             }
 
+            let id = filesystem_root_id(&canonical, resolved_roots.len());
+            if !seen_root_ids.insert(id.clone()) {
+                return Err(RuntimeError::InvalidConfiguration(format!(
+                    "filesystem roots resolve to duplicate id '{id}'"
+                )));
+            }
             resolved_roots.push(canonical);
+            root_ids.push(id);
         }
 
         Ok(Self {
             roots: resolved_roots,
+            root_ids,
+            grants: Arc::new(Mutex::new(BTreeMap::new())),
+            next_grant_id: Arc::new(AtomicU64::new(1)),
+            persistence_path: Arc::new(Mutex::new(None)),
         })
     }
 
     pub fn roots(&self) -> &[PathBuf] {
         &self.roots
+    }
+
+    pub fn root_uris(&self) -> Vec<String> {
+        self.root_ids
+            .iter()
+            .map(|id| format!("root://{id}"))
+            .collect()
+    }
+
+    pub fn with_persistence(self, path: impl Into<PathBuf>) -> Result<Self> {
+        let path = path.into();
+        if let Ok(source) = fs::read_to_string(&path) {
+            let persisted: Vec<PersistedFsGrant> = serde_json::from_str(&source)?;
+            let mut grants = self.grants.lock().map_err(|_| {
+                RuntimeError::InvalidConfiguration("filesystem grant store is poisoned".into())
+            })?;
+            let mut max_id = 0;
+            for entry in persisted {
+                let Ok(canonical) = entry.path.canonicalize() else {
+                    continue;
+                };
+                let numeric_id = entry
+                    .id
+                    .strip_prefix("grant-")
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .unwrap_or(0);
+                max_id = max_id.max(numeric_id);
+                let name = canonical
+                    .file_name()
+                    .map(|value| value.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "Selected folder".into());
+                grants.insert(
+                    entry.id.clone(),
+                    StoredFsGrant {
+                        grant: FsGrant {
+                            uri: format!("grant://{}", entry.id),
+                            id: entry.id,
+                            name,
+                            access: entry.access,
+                            kind: entry.kind,
+                            persistent: true,
+                        },
+                        path: canonical,
+                    },
+                );
+            }
+            self.next_grant_id.store(max_id + 1, Ordering::Relaxed);
+        }
+        *self.persistence_path.lock().map_err(|_| {
+            RuntimeError::InvalidConfiguration("filesystem grant persistence is poisoned".into())
+        })? = Some(path);
+        Ok(self)
+    }
+
+    pub fn grant_path(
+        &self,
+        path: impl Into<PathBuf>,
+        access: FsGrantAccess,
+        persistent: bool,
+    ) -> Result<FsGrant> {
+        let path = path.into();
+        let canonical = path.canonicalize().map_err(|error| {
+            RuntimeError::InvalidParameter(format!(
+                "selected path '{}' is unavailable: {error}",
+                path.display()
+            ))
+        })?;
+        let metadata = fs::metadata(&canonical)?;
+        let kind = if metadata.is_dir() {
+            FsGrantKind::Directory
+        } else if metadata.is_file() {
+            FsGrantKind::File
+        } else {
+            return Err(RuntimeError::InvalidParameter(
+                "only files and directories can receive filesystem grants".into(),
+            ));
+        };
+        let id = format!(
+            "grant-{}",
+            self.next_grant_id.fetch_add(1, Ordering::Relaxed)
+        );
+        let grant = FsGrant {
+            id: id.clone(),
+            uri: format!("grant://{id}"),
+            name: canonical
+                .file_name()
+                .map(|value| value.to_string_lossy().to_string())
+                .unwrap_or_else(|| "Selected folder".into()),
+            access,
+            kind,
+            persistent,
+        };
+        self.grants
+            .lock()
+            .map_err(|_| {
+                RuntimeError::InvalidConfiguration("filesystem grant store is poisoned".into())
+            })?
+            .insert(
+                id,
+                StoredFsGrant {
+                    grant: grant.clone(),
+                    path: canonical,
+                },
+            );
+        if persistent {
+            self.save_persistent_grants()?;
+        }
+        Ok(grant)
+    }
+
+    pub fn grants(&self) -> Result<Vec<FsGrant>> {
+        Ok(self
+            .grants
+            .lock()
+            .map_err(|_| {
+                RuntimeError::InvalidConfiguration("filesystem grant store is poisoned".into())
+            })?
+            .values()
+            .map(|stored| stored.grant.clone())
+            .collect())
+    }
+
+    pub fn revoke_grant(&self, id: &str) -> Result<bool> {
+        let removed = self
+            .grants
+            .lock()
+            .map_err(|_| {
+                RuntimeError::InvalidConfiguration("filesystem grant store is poisoned".into())
+            })?
+            .remove(id)
+            .is_some();
+        if removed {
+            self.save_persistent_grants()?;
+        }
+        Ok(removed)
+    }
+
+    fn save_persistent_grants(&self) -> Result<()> {
+        let path = self
+            .persistence_path
+            .lock()
+            .map_err(|_| {
+                RuntimeError::InvalidConfiguration(
+                    "filesystem grant persistence is poisoned".into(),
+                )
+            })?
+            .clone();
+        let Some(path) = path else {
+            return Ok(());
+        };
+        let grants = self.grants.lock().map_err(|_| {
+            RuntimeError::InvalidConfiguration("filesystem grant store is poisoned".into())
+        })?;
+        let persisted = grants
+            .values()
+            .filter(|stored| stored.grant.persistent)
+            .map(|stored| PersistedFsGrant {
+                id: stored.grant.id.clone(),
+                path: stored.path.clone(),
+                access: stored.grant.access,
+                kind: stored.grant.kind,
+            })
+            .collect::<Vec<_>>();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(path, serde_json::to_vec_pretty(&persisted)?)?;
+        Ok(())
     }
 
     pub fn read_text<P>(&self, requested: P) -> Result<String>
@@ -143,7 +383,12 @@ impl FsCapability {
                         ))
                     })?;
 
-                self.entry_for_paths(&resolved.root, &child_absolute, &child_relative)
+                let mut entry =
+                    self.entry_for_paths(&resolved.root, &child_absolute, &child_relative)?;
+                if let Some(prefix) = &resolved.uri_prefix {
+                    apply_uri_prefix(&mut entry, prefix, &child_relative);
+                }
+                Ok(entry)
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -155,6 +400,72 @@ impl FsCapability {
                 .then_with(|| left.path.cmp(&right.path))
         });
 
+        Ok(entries)
+    }
+
+    pub fn walk<P>(&self, requested: P, options: &FsWalkOptions) -> Result<Vec<FsEntry>>
+    where
+        P: AsRef<Path>,
+    {
+        let root = self.resolve_existing(requested.as_ref())?;
+        if !root.absolute.is_dir() {
+            return Err(RuntimeError::InvalidParameter(
+                "fs.walk requires a directory URI".into(),
+            ));
+        }
+        let limit = options.limit.unwrap_or(10_000);
+        if limit == 0 || limit > 100_000 {
+            return Err(RuntimeError::InvalidParameter(
+                "fs.walk limit must be between 1 and 100000".into(),
+            ));
+        }
+        let extensions = options
+            .extensions
+            .iter()
+            .map(|value| value.trim().trim_start_matches('.').to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .collect::<BTreeSet<_>>();
+        let mut directories = vec![root.absolute.clone()];
+        let mut entries = Vec::new();
+        while let Some(directory) = directories.pop() {
+            for entry in fs::read_dir(&directory)? {
+                let path = entry?.path();
+                let canonical = path.canonicalize()?;
+                if !canonical.starts_with(&root.root) {
+                    return Err(RuntimeError::PermissionDenied(format!(
+                        "filesystem walk encountered an escaping symlink at '{}'",
+                        path.display()
+                    )));
+                }
+                let relative = canonical
+                    .strip_prefix(&root.root)
+                    .map(PathBuf::from)
+                    .map_err(|_| {
+                        RuntimeError::PermissionDenied("filesystem walk escaped its grant".into())
+                    })?;
+                let mut item = self.entry_for_paths(&root.root, &canonical, &relative)?;
+                if let Some(prefix) = &root.uri_prefix {
+                    apply_uri_prefix(&mut item, prefix, &relative);
+                }
+                if item.is_dir && options.recursive {
+                    directories.push(canonical);
+                }
+                let matches_extension = extensions.is_empty()
+                    || item.is_dir
+                    || item
+                        .extension
+                        .as_ref()
+                        .is_some_and(|value| extensions.contains(&value.to_ascii_lowercase()));
+                if matches_extension {
+                    entries.push(item);
+                    if entries.len() >= limit {
+                        entries.sort_by(|left, right| left.uri.cmp(&right.uri));
+                        return Ok(entries);
+                    }
+                }
+            }
+        }
+        entries.sort_by(|left, right| left.uri.cmp(&right.uri));
         Ok(entries)
     }
 
@@ -186,30 +497,17 @@ impl FsCapability {
         P: AsRef<Path>,
         Q: AsRef<Path>,
     {
-        let source = source.as_ref();
-        if !source.is_absolute() {
-            return Err(RuntimeError::InvalidParameter(
-                "copy source must be an absolute path".into(),
-            ));
-        }
-
-        let source_metadata = fs::metadata(source).map_err(|error| {
-            RuntimeError::InvalidParameter(format!(
-                "unable to read copy source '{}': {error}",
-                source.display()
-            ))
-        })?;
-
-        if !source_metadata.is_file() {
+        let source = self.resolve_existing(source.as_ref())?;
+        if !source.absolute.is_file() {
             return Err(RuntimeError::InvalidParameter(format!(
                 "copy source '{}' is not a file",
-                source.display()
+                display_requested_path(&source.relative)
             )));
         }
 
         let resolved = self.resolve_for_write(destination.as_ref())?;
         self.prepare_write_target(&resolved)?;
-        fs::copy(source, &resolved.absolute)?;
+        fs::copy(source.absolute, &resolved.absolute)?;
         self.entry_for_resolved(&resolved)
     }
 
@@ -236,6 +534,12 @@ impl FsCapability {
     }
 
     fn resolve_existing(&self, requested: &Path) -> Result<ResolvedFsPath> {
+        if let Some(resolved) = self.resolve_root_uri(requested, false)? {
+            return Ok(resolved);
+        }
+        if let Some(resolved) = self.resolve_grant_uri(requested, false)? {
+            return Ok(resolved);
+        }
         if self.roots.is_empty() {
             return Err(RuntimeError::PermissionDenied(
                 "no filesystem roots have been allowed".into(),
@@ -259,7 +563,7 @@ impl FsCapability {
             return self.ensure_allowed(canonical, requested);
         }
 
-        for root in &self.roots {
+        for (index, root) in self.roots.iter().enumerate() {
             let joined = root.join(requested);
             let canonical = match joined.canonicalize() {
                 Ok(path) => path,
@@ -274,6 +578,7 @@ impl FsCapability {
                         .map(PathBuf::from)
                         .unwrap_or_default(),
                     absolute: canonical,
+                    uri_prefix: Some(format!("root://{}", self.root_ids[index])),
                 });
             }
         }
@@ -285,6 +590,12 @@ impl FsCapability {
     }
 
     fn resolve_for_write(&self, requested: &Path) -> Result<ResolvedFsPath> {
+        if let Some(resolved) = self.resolve_root_uri(requested, true)? {
+            return Ok(resolved);
+        }
+        if let Some(resolved) = self.resolve_grant_uri(requested, true)? {
+            return Ok(resolved);
+        }
         if self.roots.is_empty() {
             return Err(RuntimeError::PermissionDenied(
                 "no filesystem roots have been allowed".into(),
@@ -298,8 +609,9 @@ impl FsCapability {
         }
 
         if requested.is_absolute() {
-            for root in &self.roots {
-                if let Ok(resolved) = resolve_candidate_for_write(root, requested) {
+            for (index, root) in self.roots.iter().enumerate() {
+                if let Ok(mut resolved) = resolve_candidate_for_write(root, requested) {
+                    resolved.uri_prefix = Some(format!("root://{}", self.root_ids[index]));
                     return Ok(resolved);
                 }
             }
@@ -310,9 +622,10 @@ impl FsCapability {
             )));
         }
 
-        for root in &self.roots {
+        for (index, root) in self.roots.iter().enumerate() {
             let candidate = root.join(requested);
-            if let Ok(resolved) = resolve_candidate_for_write(root, &candidate) {
+            if let Ok(mut resolved) = resolve_candidate_for_write(root, &candidate) {
+                resolved.uri_prefix = Some(format!("root://{}", self.root_ids[index]));
                 return Ok(resolved);
             }
         }
@@ -324,10 +637,11 @@ impl FsCapability {
     }
 
     fn ensure_allowed(&self, canonical: PathBuf, requested: &Path) -> Result<ResolvedFsPath> {
-        if let Some(root) = self
+        if let Some((index, root)) = self
             .roots
             .iter()
-            .find(|root| canonical.starts_with(root.as_path()))
+            .enumerate()
+            .find(|(_, root)| canonical.starts_with(root.as_path()))
         {
             return Ok(ResolvedFsPath {
                 root: root.clone(),
@@ -336,6 +650,7 @@ impl FsCapability {
                     .map(PathBuf::from)
                     .unwrap_or_default(),
                 absolute: canonical,
+                uri_prefix: Some(format!("root://{}", self.root_ids[index])),
             });
         }
 
@@ -343,6 +658,127 @@ impl FsCapability {
             "path '{}' is outside the configured filesystem roots",
             requested.display()
         )))
+    }
+
+    fn resolve_root_uri(
+        &self,
+        requested: &Path,
+        for_write: bool,
+    ) -> Result<Option<ResolvedFsPath>> {
+        let rendered = requested.to_string_lossy().replace('\\', "/");
+        let Some(rest) = rendered.strip_prefix("root://") else {
+            return Ok(None);
+        };
+        let (id, relative) = rest.split_once('/').unwrap_or((rest, ""));
+        if id.is_empty() || relative.split('/').any(|segment| segment == "..") {
+            return Err(RuntimeError::PermissionDenied(
+                "filesystem root URI is invalid or escapes its root".into(),
+            ));
+        }
+        let index = self
+            .root_ids
+            .iter()
+            .position(|candidate| candidate == id)
+            .ok_or_else(|| {
+                RuntimeError::PermissionDenied(format!(
+                    "filesystem root URI references unknown root '{id}'"
+                ))
+            })?;
+        let root = &self.roots[index];
+        let candidate = root.join(relative);
+        let mut resolved = if for_write {
+            resolve_candidate_for_write(root, &candidate)?
+        } else {
+            let absolute = candidate.canonicalize().map_err(|error| {
+                RuntimeError::InvalidParameter(format!(
+                    "unable to resolve root URI '{rendered}': {error}"
+                ))
+            })?;
+            if !absolute.starts_with(root) {
+                return Err(RuntimeError::PermissionDenied(
+                    "filesystem root URI escaped its declared root".into(),
+                ));
+            }
+            ResolvedFsPath {
+                relative: absolute
+                    .strip_prefix(root)
+                    .map(PathBuf::from)
+                    .unwrap_or_default(),
+                absolute,
+                root: root.clone(),
+                uri_prefix: None,
+            }
+        };
+        resolved.uri_prefix = Some(format!("root://{id}"));
+        Ok(Some(resolved))
+    }
+
+    fn resolve_grant_uri(
+        &self,
+        requested: &Path,
+        for_write: bool,
+    ) -> Result<Option<ResolvedFsPath>> {
+        let rendered = requested.to_string_lossy().replace('\\', "/");
+        let Some(rest) = rendered.strip_prefix("grant://") else {
+            return Ok(None);
+        };
+        let (id, relative) = rest.split_once('/').unwrap_or((rest, ""));
+        if id.is_empty() || relative.split('/').any(|segment| segment == "..") {
+            return Err(RuntimeError::PermissionDenied(
+                "filesystem grant URI is invalid or escapes its root".into(),
+            ));
+        }
+        let grants = self.grants.lock().map_err(|_| {
+            RuntimeError::InvalidConfiguration("filesystem grant store is poisoned".into())
+        })?;
+        let stored = grants.get(id).ok_or_else(|| {
+            RuntimeError::PermissionDenied(format!("filesystem grant '{id}' is missing or revoked"))
+        })?;
+        if for_write && stored.grant.access != FsGrantAccess::ReadWrite {
+            return Err(RuntimeError::PermissionDenied(format!(
+                "filesystem grant '{id}' is read-only"
+            )));
+        }
+        if stored.grant.kind == FsGrantKind::File {
+            if !relative.is_empty() {
+                return Err(RuntimeError::PermissionDenied(
+                    "file grants cannot resolve child paths".into(),
+                ));
+            }
+            return Ok(Some(ResolvedFsPath {
+                root: stored.path.clone(),
+                absolute: stored.path.clone(),
+                relative: PathBuf::new(),
+                uri_prefix: Some(format!("grant://{id}")),
+            }));
+        }
+
+        let candidate = stored.path.join(relative);
+        let mut resolved = if for_write {
+            resolve_candidate_for_write(&stored.path, &candidate)?
+        } else {
+            let absolute = candidate.canonicalize().map_err(|error| {
+                RuntimeError::InvalidParameter(format!(
+                    "unable to resolve grant URI '{rendered}': {error}"
+                ))
+            })?;
+            if !absolute.starts_with(&stored.path) {
+                return Err(RuntimeError::PermissionDenied(
+                    "filesystem grant URI escaped its selected directory".into(),
+                ));
+            }
+            ResolvedFsPath {
+                relative: absolute
+                    .strip_prefix(&stored.path)
+                    .map(PathBuf::from)
+                    .unwrap_or_default(),
+                absolute,
+                root: stored.path.clone(),
+                uri_prefix: None,
+            }
+        };
+        resolved.uri_prefix = Some(format!("grant://{id}"));
+        Ok(Some(resolved))
     }
 
     fn prepare_write_target(&self, resolved: &ResolvedFsPath) -> Result<()> {
@@ -361,14 +797,20 @@ impl FsCapability {
     }
 
     fn entry_for_resolved(&self, resolved: &ResolvedFsPath) -> Result<FsEntry> {
-        self.entry_for_paths(&resolved.root, &resolved.absolute, &resolved.relative)
+        let mut entry =
+            self.entry_for_paths(&resolved.root, &resolved.absolute, &resolved.relative)?;
+        if let Some(prefix) = &resolved.uri_prefix {
+            apply_uri_prefix(&mut entry, prefix, &resolved.relative);
+        }
+        Ok(entry)
     }
 
     fn entry_for_paths(&self, root: &Path, absolute: &Path, relative: &Path) -> Result<FsEntry> {
         let metadata = fs::metadata(absolute)?;
+        let path = display_requested_path(relative);
         Ok(FsEntry {
-            path: display_requested_path(relative),
-            absolute_path: absolute.to_string_lossy().to_string(),
+            uri: path.clone(),
+            path,
             name: absolute
                 .file_name()
                 .map(|value| value.to_string_lossy().to_string())
@@ -444,6 +886,7 @@ fn resolve_candidate_for_write(root: &Path, candidate: &Path) -> Result<Resolved
         root: root.to_path_buf(),
         absolute,
         relative,
+        uri_prefix: None,
     })
 }
 
@@ -453,6 +896,51 @@ fn display_requested_path(path: &Path) -> String {
         ".".into()
     } else {
         rendered
+    }
+}
+
+fn uri_join(prefix: &str, relative: &Path) -> String {
+    let relative = display_requested_path(relative);
+    if relative == "." {
+        prefix.to_string()
+    } else {
+        format!("{prefix}/{relative}")
+    }
+}
+
+fn apply_uri_prefix(entry: &mut FsEntry, prefix: &str, relative: &Path) {
+    entry.uri = uri_join(prefix, relative);
+    entry.parent = relative
+        .parent()
+        .map(|parent| uri_join(prefix, parent))
+        .unwrap_or_else(|| prefix.to_string());
+}
+
+fn filesystem_root_id(root: &Path, index: usize) -> String {
+    let source = root
+        .file_name()
+        .map(|value| value.to_string_lossy())
+        .unwrap_or_default();
+    let mut id = String::new();
+    let mut separator = false;
+    for character in source.chars() {
+        if character.is_ascii_alphanumeric() || matches!(character, '_' | '-') {
+            if separator && !id.is_empty() {
+                id.push('-');
+            }
+            separator = false;
+            id.push(character.to_ascii_lowercase());
+        } else {
+            separator = true;
+        }
+    }
+    while id.ends_with('-') {
+        id.pop();
+    }
+    if id.is_empty() {
+        format!("root-{}", index + 1)
+    } else {
+        id
     }
 }
 
@@ -851,8 +1339,7 @@ where
         Ok(())
     } else {
         Err(RuntimeError::InvalidParameter(format!(
-            "desktop helper '{}' exited with status {}",
-            program, status
+            "desktop helper '{program}' exited with status {status}"
         )))
     }
 }
@@ -877,9 +1364,10 @@ fn audit_shell_event(
         "timestamp": timestamp,
         "name": name,
         "program": command.program,
-        "args": command.args,
-        "extraArgs": extra_args,
-        "cwd": command.cwd.as_ref().map(|value| value.to_string_lossy().to_string()),
+        "fixedArgCount": command.args.len(),
+        "extraArgCount": extra_args.len(),
+        "argumentsRedacted": true,
+        "cwdConfigured": command.cwd.is_some(),
         "envKeys": command.env.keys().cloned().collect::<Vec<_>>(),
         "clearEnv": command.clear_env,
         "timeoutMs": command.timeout.as_millis() as u64,
@@ -905,12 +1393,18 @@ fn audit_shell_event(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, fs};
+    use std::{
+        collections::BTreeMap,
+        fs,
+        path::{Path, PathBuf},
+    };
 
     use base64::Engine as _;
     use tempfile::tempdir;
 
-    use super::{BASE64_STANDARD, FsCapability, ShellCapability, ShellCommand};
+    use super::{
+        BASE64_STANDARD, FsCapability, FsGrantAccess, FsWalkOptions, ShellCapability, ShellCommand,
+    };
 
     #[test]
     fn reads_file_inside_allowed_root() {
@@ -945,6 +1439,52 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn rejects_read_write_and_walk_through_escaping_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("secret.txt"), "secret").unwrap();
+        symlink(&outside, root.join("escape")).unwrap();
+
+        let rooted = FsCapability::new([root.clone()]).unwrap();
+        assert!(rooted.read_text("escape/secret.txt").is_err());
+        assert!(rooted.write_text("escape/new.txt", "blocked").is_err());
+        assert!(!outside.join("new.txt").exists());
+        assert!(
+            rooted
+                .walk(
+                    ".",
+                    &FsWalkOptions {
+                        recursive: true,
+                        extensions: Vec::new(),
+                        limit: Some(100),
+                    },
+                )
+                .is_err()
+        );
+
+        let grants = FsCapability::new(Vec::<PathBuf>::new()).unwrap();
+        let grant = grants
+            .grant_path(&root, FsGrantAccess::ReadWrite, false)
+            .unwrap();
+        assert!(
+            grants
+                .read_text(format!("{}/escape/secret.txt", grant.uri))
+                .is_err()
+        );
+        assert!(
+            grants
+                .write_text(format!("{}/escape/new.txt", grant.uri), "blocked")
+                .is_err()
+        );
+    }
+
     #[test]
     fn lists_directory_entries_and_metadata() {
         let temp = tempdir().unwrap();
@@ -958,6 +1498,8 @@ mod tests {
 
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].path, "notes");
+        assert_eq!(entries[0].uri, "root://frontend/notes");
+        assert_eq!(entries[0].parent, "root://frontend");
         assert!(entries[0].is_dir);
         assert_eq!(entries[1].path, "summary.txt");
         assert!(entries[1].is_file);
@@ -976,6 +1518,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(written.path, "imports/brief.md");
+        assert_eq!(written.uri, "root://frontend/imports/brief.md");
         assert_eq!(
             fs::read_to_string(root.join("imports/brief.md")).unwrap(),
             "# Imported"
@@ -1004,7 +1547,7 @@ mod tests {
     }
 
     #[test]
-    fn copies_external_files_into_allowed_root() {
+    fn copies_granted_files_into_allowed_root() {
         let temp = tempdir().unwrap();
         let root = temp.path().join("frontend");
         fs::create_dir_all(&root).unwrap();
@@ -1012,8 +1555,11 @@ mod tests {
         fs::write(&external, "# External").unwrap();
 
         let capability = FsCapability::new([root.clone()]).unwrap();
+        let grant = capability
+            .grant_path(&external, FsGrantAccess::Read, false)
+            .unwrap();
         let copied = capability
-            .copy_from(&external, "imports/source.md")
+            .copy_from(&grant.uri, "root://frontend/imports/source.md")
             .unwrap();
 
         assert_eq!(copied.path, "imports/source.md");
@@ -1021,6 +1567,55 @@ mod tests {
             fs::read_to_string(root.join("imports/source.md")).unwrap(),
             "# External"
         );
+    }
+
+    #[test]
+    fn root_uris_resolve_without_exposing_absolute_paths() {
+        let temp = tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        fs::create_dir_all(root.join("reports")).unwrap();
+        fs::write(root.join("reports/q3.md"), "Q3").unwrap();
+
+        let capability = FsCapability::new([root]).unwrap();
+        assert_eq!(capability.root_uris(), vec!["root://workspace"]);
+        assert_eq!(
+            capability
+                .read_text("root://workspace/reports/q3.md")
+                .unwrap(),
+            "Q3"
+        );
+        let metadata = capability
+            .metadata("root://workspace/reports/q3.md")
+            .unwrap();
+        assert_eq!(metadata.uri, "root://workspace/reports/q3.md");
+        assert_eq!(metadata.parent, "root://workspace/reports");
+        assert!(
+            !metadata
+                .uri
+                .contains(temp.path().to_string_lossy().as_ref())
+        );
+        assert!(
+            capability
+                .read_text("root://workspace/../secret.txt")
+                .is_err()
+        );
+        assert!(
+            capability
+                .read_text("root://unknown/reports/q3.md")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_derived_root_ids() {
+        let temp = tempdir().unwrap();
+        let first = temp.path().join("one/workspace");
+        let second = temp.path().join("two/workspace");
+        fs::create_dir_all(&first).unwrap();
+        fs::create_dir_all(&second).unwrap();
+
+        let error = FsCapability::new([first, second]).unwrap_err();
+        assert!(error.to_string().contains("duplicate id 'workspace'"));
     }
 
     #[test]
@@ -1124,7 +1719,109 @@ mod tests {
 
         let output = capability.exec("pwd", &[]).unwrap();
 
-        assert_eq!(output.stdout.trim(), nested.to_string_lossy());
+        assert_eq!(
+            Path::new(output.stdout.trim()).canonicalize().unwrap(),
+            nested.canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    fn grants_use_opaque_uris_and_enforce_access_and_revocation() {
+        let temp = tempdir().unwrap();
+        fs::write(temp.path().join("notes.md"), "private notes").unwrap();
+        let capability = FsCapability::new(Vec::<PathBuf>::new()).unwrap();
+        let grant = capability
+            .grant_path(temp.path(), FsGrantAccess::Read, false)
+            .unwrap();
+
+        assert!(grant.uri.starts_with("grant://grant-"));
+        assert_eq!(
+            capability
+                .read_text(format!("{}/notes.md", grant.uri))
+                .unwrap(),
+            "private notes"
+        );
+        assert!(
+            capability
+                .write_text(format!("{}/notes.md", grant.uri), "changed")
+                .unwrap_err()
+                .to_string()
+                .contains("read-only")
+        );
+        assert!(capability.revoke_grant(&grant.id).unwrap());
+        assert!(
+            capability
+                .read_text(format!("{}/notes.md", grant.uri))
+                .unwrap_err()
+                .to_string()
+                .contains("revoked")
+        );
+    }
+
+    #[test]
+    fn persistent_grants_survive_capability_restart_and_revocation() {
+        let temp = tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        let store = temp.path().join("private/grants.json");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(workspace.join("notes.md"), "persisted").unwrap();
+
+        let first = FsCapability::new(Vec::<PathBuf>::new())
+            .unwrap()
+            .with_persistence(&store)
+            .unwrap();
+        let grant = first
+            .grant_path(&workspace, FsGrantAccess::Read, true)
+            .unwrap();
+        drop(first);
+
+        let restored = FsCapability::new(Vec::<PathBuf>::new())
+            .unwrap()
+            .with_persistence(&store)
+            .unwrap();
+        assert_eq!(restored.grants().unwrap().len(), 1);
+        assert_eq!(
+            restored
+                .read_text(format!("{}/notes.md", grant.uri))
+                .unwrap(),
+            "persisted"
+        );
+        assert!(restored.revoke_grant(&grant.id).unwrap());
+
+        let after_revocation = FsCapability::new(Vec::<PathBuf>::new())
+            .unwrap()
+            .with_persistence(&store)
+            .unwrap();
+        assert!(after_revocation.grants().unwrap().is_empty());
+    }
+
+    #[test]
+    fn recursive_walk_filters_extensions_and_limits_entries() {
+        let temp = tempdir().unwrap();
+        fs::create_dir_all(temp.path().join("nested")).unwrap();
+        fs::write(temp.path().join("a.md"), "a").unwrap();
+        fs::write(temp.path().join("nested/b.txt"), "b").unwrap();
+        fs::write(temp.path().join("nested/c.png"), "c").unwrap();
+        let capability = FsCapability::new(Vec::<PathBuf>::new()).unwrap();
+        let grant = capability
+            .grant_path(temp.path(), FsGrantAccess::Read, false)
+            .unwrap();
+        let entries = capability
+            .walk(
+                &grant.uri,
+                &FsWalkOptions {
+                    recursive: true,
+                    extensions: vec!["md".into(), ".txt".into()],
+                    limit: Some(10),
+                },
+            )
+            .unwrap();
+        let files = entries
+            .iter()
+            .filter(|entry| entry.is_file)
+            .collect::<Vec<_>>();
+        assert_eq!(files.len(), 2);
+        assert!(files.iter().all(|entry| entry.uri.starts_with(&grant.uri)));
     }
 
     #[cfg(unix)]

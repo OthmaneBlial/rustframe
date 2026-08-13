@@ -1,43 +1,34 @@
 # Release Checklist
 
-Use this before you hand a RustFrame app to real users.
+## Compatibility and source
 
-## Host And Build
+- Version `rustframe-runtime`, `rustframe-cli`, and `rustframe-api` compatibly.
+- Keep manifest schema v1 URLs immutable and add migration guidance for public changes.
+- Update `CHANGELOG.md`, API references, error codes, permission references, and the MSRV when relevant.
+- Run formatting, Clippy with warnings denied, the full test suite, frontend checks, dependency advisories, and license checks.
 
-- Run `cargo run -p rustframe-cli -- doctor` on the native host you will package from.
-- Run `cargo run -p rustframe-cli -- platform-check <app>` for the host row you are shipping.
-- Confirm `packaging.version`, description, publisher, homepage, and icons are correct in `rustframe.json`.
+## Publish order
 
-## App Contract
+1. Publish `rustframe-runtime` to crates.io.
+2. Install and smoke-test the packaged runtime dependency, then publish `rustframe-cli`.
+3. Publish `rustframe-api` to npm.
+4. Build CLI binaries with `dist`/`cargo-dist`, checksums, and provenance.
+5. Build Research Desk installers on Linux, Windows, and macOS.
+6. Publish versioned documentation and announcement material.
 
-- Run `cargo run -p rustframe-cli -- inspect <app>`.
-- Confirm the security model is correct for the frontend trust level.
-- Confirm filesystem roots are narrow and intentional.
-- Confirm shell commands are named, bounded, and still needed.
-- Confirm the schema version, seeds, and migrations match the release you are shipping.
+Registry publication is intentionally manual. Run the **Publish registry packages** GitHub workflow with the coordinated version and the confirmation value `publish`. The protected `release` environment must provide `CARGO_REGISTRY_TOKEN` and `NPM_TOKEN`. The workflow refuses existing versions, verifies all three package versions, publishes the runtime first, waits for it to become downloadable, and then publishes the CLI and frontend API. A tag matching the same version separately starts the generated `dist` workflow for CLI binaries, installers, checksums, attestations, and the GitHub Release.
 
-## Packaging
+## App and package verification
 
-- Run `cargo run -p rustframe-cli -- package <app> --verify`.
-- Open the produced bundle on the target host and smoke-test the main workflow.
-- Confirm packaged filesystem roots actually appear in the bundle.
-- Confirm install and uninstall scripts match your delivery method.
+- Create a project outside this repository using the release CLI.
+- Confirm generated projects contain no repository path dependencies.
+- Run `rustframe validate`, `build`, `package --verify`, and `eject` on the standalone project.
+- Inspect package manifests and checksums; make unsigned or signed status explicit.
+- Install and launch each native artifact, exercise database and filesystem flows, upgrade from the previous release, and uninstall.
+- Test backup and restore with valid, invalid, incompatible, and interrupted inputs without losing active data.
 
-## Distribution
+The native package workflow installs, smoke-launches, and uninstalls every generated format on its native GitHub runner. Upgrade checks still require a previously published release candidate and must be recorded in the release notes.
 
-- Sign or notarize the bundle with host tooling if your users or environment require it.
-- Generate checksums for the published artifacts.
-- Publish host-specific install notes with the release.
-- Keep the release notes tied to `packaging.version`.
+## Release candidates
 
-## Updates
-
-- State the current update path clearly: manual, host-assisted, or app-managed.
-- Confirm users know which bundle replaces which old install.
-- Do not promise auto-updates if the product does not implement them.
-
-## Support Boundaries
-
-- State which host OS rows you actually validated.
-- State which rows are not promised.
-- State any known constraints around signing, enterprise deployment, or unsupported native integrations.
+Publish at least one release candidate before stable v1. Do not call a release stable while any critical native-host check is skipped or ignored. Record exact tested operating-system versions and any signing limitations in the release notes.

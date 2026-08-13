@@ -1,0 +1,35 @@
+name: Bug report
+description: Report reproducible incorrect RustFrame behavior
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Please remove secrets and personal files from logs and reproductions.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: RustFrame CLI/runtime/API, Rust, Node, and operating-system versions.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Minimal project or exact commands and steps.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and diagnostics
+      description: Include concise output from `rustframe doctor` or `rustframe --verbose` when relevant.
+    validations:
+      required: true

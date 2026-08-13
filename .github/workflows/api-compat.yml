@@ -1,0 +1,47 @@
+name: Public API compatibility
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-semver:
+    name: Rust runtime semver
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for a published baseline
+        id: baseline
+        shell: bash
+        run: |
+          if curl --fail --silent --show-error https://crates.io/api/v1/crates/rustframe-runtime >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install Linux WebView dependencies
+        if: steps.baseline.outputs.exists == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+      - name: Check public Rust API against crates.io
+        if: steps.baseline.outputs.exists == 'true'
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: rustframe-runtime
+
+  typescript-contract:
+    name: TypeScript public contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/rustframe-api/package-lock.json
+      - run: npm --prefix packages/rustframe-api ci
+      - run: npm --prefix packages/rustframe-api test

@@ -24,7 +24,7 @@ Good seed content:
 
 - default settings
 - starter lanes
-- sample rows for fresh local installs
+- required lookup values for fresh local installs
 
 Bad seed usage:
 
@@ -70,7 +70,7 @@ Do not confuse it with the database schema version. They move together sometimes
 1. Update `data/schema.json` to the new desired shape.
 2. Add SQL migrations for renames, drops, backfills, or type changes.
 3. Leave old seed files alone unless the change is only for brand-new installs.
-4. Run `rustframe-cli inspect <app>` and check the schema diagnostics.
+4. Run `rustframe inspect` and check the schema diagnostics.
 5. Reset local dev data only when you intentionally want a fresh install simulation.
 6. Bump `packaging.version` when you build the next distributed bundle.
 
@@ -79,10 +79,10 @@ Do not confuse it with the database schema version. They move together sometimes
 Useful commands while iterating:
 
 ```bash
-cargo run -p rustframe-cli -- inspect hello-rustframe
-cargo run -p rustframe-cli -- reset-data hello-rustframe
+rustframe inspect
+rustframe db reset
 ```
 
 `inspect` shows the resolved schema version, seeds, migration files, and diagnostics.
 
-`reset-data` deletes the local app data directory so the next `dev` run recreates the database from the embedded assets.
+`db reset` deletes the local app data directory so the next `dev` run recreates the database from the embedded assets.

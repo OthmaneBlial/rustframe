@@ -1,6 +1,13 @@
 [workspace]
 members = ["crates/rustframe", "crates/rustframe-cli", "examples/capability-demo"]
+exclude = ["fuzz"]
 resolver = "2"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/OthmaneBlial/rustframe"
 
 [profile.release]
 opt-level = "z"
@@ -8,3 +15,8 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

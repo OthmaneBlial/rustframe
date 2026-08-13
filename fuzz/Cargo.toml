@@ -1,0 +1,34 @@
+[package]
+name = "rustframe-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+rustframe = { package = "rustframe-runtime", path = "../crates/rustframe", default-features = false }
+rustframe-cli = { path = "../crates/rustframe-cli" }
+
+[[bin]]
+name = "manifest_parsing"
+path = "fuzz_targets/manifest_parsing.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ipc_decoding"
+path = "fuzz_targets/ipc_decoding.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "filesystem_uri_resolution"
+path = "fuzz_targets/filesystem_uri_resolution.rs"
+test = false
+doc = false
+bench = false

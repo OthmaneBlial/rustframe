@@ -1,0 +1,22 @@
+name: Fuzz smoke
+
+on:
+  pull_request:
+  schedule:
+    - cron: "41 4 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +nightly install cargo-fuzz --locked
+      - run: cargo +nightly fuzz run manifest_parsing -- -runs=2000
+      - run: cargo +nightly fuzz run ipc_decoding -- -runs=2000
+      - run: cargo +nightly fuzz run filesystem_uri_resolution -- -runs=2000

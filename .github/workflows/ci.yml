@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  rust:
+    name: Rust / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux WebView dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Public schema matches embedded validator
+        shell: bash
+        run: cmp schemas/v1/rustframe.schema.json crates/rustframe-cli/schema/rustframe-v1.schema.json
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --all-targets
+
+  frontend-and-standalone:
+    name: Frontend API and standalone project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/rustframe-api/package-lock.json
+            apps/research-desk/package-lock.json
+
+      - name: Install Linux WebView dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Build and pack frontend API
+        run: |
+          npm --prefix packages/rustframe-api ci
+          npm --prefix packages/rustframe-api run check
+          npm --prefix packages/rustframe-api test
+          npm --prefix packages/rustframe-api run build
+          (cd packages/rustframe-api && npm pack --dry-run)
+
+      - name: Build Research Desk
+        run: |
+          npm --prefix apps/research-desk ci
+          npm --prefix apps/research-desk run build
+
+      - name: Create and build outside the repository
+        shell: bash
+        env:
+          RUSTFRAME_RUNTIME_PATH: ${{ github.workspace }}/crates/rustframe
+        run: |
+          set -euo pipefail
+          scratch="$(mktemp -d)"
+          cli="$PWD/target/debug/rustframe"
+          cargo build -p rustframe-cli
+          api_tarball="$(cd packages/rustframe-api && npm pack --pack-destination "$scratch" | tail -n 1)"
+          (cd "$scratch" && "$cli" new standalone --template vanilla-ts)
+          npm --prefix "$scratch/standalone" install "$scratch/$api_tarball"
+          env -u RUSTFRAME_RUNTIME_PATH "$cli" --project "$scratch/standalone" eject
+          if rg --fixed-strings "${{ github.workspace }}" "$scratch/standalone/native/Cargo.toml"; then
+            echo "generated project leaked a repository path" >&2
+            exit 1
+          fi
+          rg 'package = "rustframe-runtime", version = "=0.1.0"' "$scratch/standalone/native/Cargo.toml"
+          mv "$scratch/standalone/native" "$scratch/registry-contract"
+          "$cli" --project "$scratch/standalone" validate
+          "$cli" --project "$scratch/standalone" build
+          RUSTFRAME_SMOKE_TEST=1 \
+            RUSTFRAME_SMOKE_OUTPUT="$scratch/standalone/target/rustframe/smoke.json" \
+            RUSTFRAME_SMOKE_DATA_DIR="$scratch/standalone/target/rustframe/smoke-data" \
+            "$scratch/standalone/target/rustframe/native/release/standalone"
+          test -s "$scratch/standalone/target/rustframe/smoke.json"
+
+  publish-dry-run:
+    name: Published artifact contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - name: Package runtime crate
+        run: cargo package -p rustframe-runtime --allow-dirty
+      - name: Check CLI release dependency
+        shell: bash
+        run: rg 'package = "rustframe-runtime", version = "=0.1.0"' crates/rustframe-cli/Cargo.toml

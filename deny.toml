@@ -1,0 +1,47 @@
+[graph]
+all-features = true
+
+[advisories]
+ignore = [
+  { id = "RUSTSEC-2024-0370", reason = "Unmaintained proc-macro-error is transitive through the GTK3 desktop backend; no vulnerability is reported and upstream replacement is tracked." },
+  { id = "RUSTSEC-2024-0411", reason = "Unmaintained GTK3 binding required by the current wry Linux backend; no vulnerability is reported and GTK4 migration is tracked." },
+  { id = "RUSTSEC-2024-0412", reason = "Unmaintained GTK3 binding required by the current wry Linux backend; no vulnerability is reported and GTK4 migration is tracked." },
+  { id = "RUSTSEC-2024-0413", reason = "Unmaintained GTK3 binding required by the current wry Linux backend; no vulnerability is reported and GTK4 migration is tracked." },
+  { id = "RUSTSEC-2024-0414", reason = "Unmaintained GTK3 binding required by the current wry Linux backend; no vulnerability is reported and GTK4 migration is tracked." },
+  { id = "RUSTSEC-2024-0415", reason = "Unmaintained GTK3 binding required by the current wry Linux backend; no vulnerability is reported and GTK4 migration is tracked." },
+  { id = "RUSTSEC-2024-0416", reason = "Unmaintained GTK3 binding required by the current wry Linux backend; no vulnerability is reported and GTK4 migration is tracked." },
+  { id = "RUSTSEC-2024-0417", reason = "Unmaintained GTK3 binding required by the current wry Linux backend; no vulnerability is reported and GTK4 migration is tracked." },
+  { id = "RUSTSEC-2024-0418", reason = "Unmaintained GTK3 binding required by the current wry Linux backend; no vulnerability is reported and GTK4 migration is tracked." },
+  { id = "RUSTSEC-2024-0419", reason = "Unmaintained GTK3 binding required by the current wry Linux backend; no vulnerability is reported and GTK4 migration is tracked." },
+  { id = "RUSTSEC-2024-0420", reason = "Unmaintained GTK3 binding required by the current wry Linux backend; no vulnerability is reported and GTK4 migration is tracked." },
+]
+
+[licenses]
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CC0-1.0",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MIT",
+  "MIT-0",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

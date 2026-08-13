@@ -12,6 +12,10 @@ pub enum RuntimeError {
     InvalidParameter(String),
     #[error("permission denied: {0}")]
     PermissionDenied(String),
+    #[error("request too large: {0}")]
+    RequestTooLarge(String),
+    #[error("rate limited: {0}")]
+    RateLimited(String),
     #[error("timed out: {0}")]
     TimedOut(String),
     #[error("record not found: {0}")]

@@ -1,0 +1,36 @@
+name: Feature proposal
+description: Propose a focused local-first workflow capability
+title: "[Proposal]: "
+labels: ["proposal", "exploratory"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What developer or end-user problem cannot be solved with the public API today?
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: Proposed public API
+      description: Show the smallest useful manifest, TypeScript, or Rust surface.
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and compatibility
+      description: Describe permissions, trust boundaries, migration, and platform differences.
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Roadmap relationship
+      options:
+        - Accepted v1 scope
+        - Exploratory after v1
+        - Currently deferred category
+    validations:
+      required: true

@@ -1,12 +1,16 @@
 [package]
-name = "rustframe"
+name = "rustframe-runtime"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 description = "Runtime for frontend-first, local-first desktop workflow tools"
 license = "MIT"
 repository = "https://github.com/OthmaneBlial/rustframe"
 keywords = ["desktop", "local-first", "sqlite", "wry", "workflow"]
 categories = ["gui", "database"]
+
+[lib]
+name = "rustframe"
 
 [features]
 default = ["desktop"]
@@ -16,7 +20,7 @@ desktop = ["dep:arboard", "dep:gtk", "dep:mime_guess", "dep:rfd", "dep:tao", "de
 arboard = { version = "3.6.1", optional = true }
 base64 = "0.22.1"
 dirs = "6.0.0"
-rusqlite = { version = "0.37.0", features = ["bundled"] }
+rusqlite = { version = "0.37.0", features = ["backup", "bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10.9"

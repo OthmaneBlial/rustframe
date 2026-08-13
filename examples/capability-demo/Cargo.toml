@@ -2,7 +2,11 @@
 name = "capability-demo"
 version = "0.1.0"
 edition = "2024"
+publish = false
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
 
 [dependencies]
 rust-embed = "8.11.0"
-rustframe = { path = "../../crates/rustframe" }
+rustframe = { package = "rustframe-runtime", version = "=0.1.0", path = "../../crates/rustframe" }

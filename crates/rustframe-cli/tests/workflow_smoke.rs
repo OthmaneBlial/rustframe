@@ -2,299 +2,118 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::{Command, Output},
-    sync::atomic::{AtomicUsize, Ordering},
-    sync::{Mutex, MutexGuard, OnceLock},
 };
 
 use serde_json::Value;
 use tempfile::tempdir;
 
-#[cfg(unix)]
-use std::os::unix::fs::symlink;
-
-static NEXT_APP_ID: AtomicUsize = AtomicUsize::new(0);
-
-fn workflow_lock() -> MutexGuard<'static, ()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
-}
-
 fn cli_binary() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_rustframe-cli"))
+    PathBuf::from(env!("CARGO_BIN_EXE_rustframe"))
 }
 
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(2)
-        .unwrap()
-        .to_path_buf()
-}
-
-#[cfg(not(unix))]
-fn copy_dir_recursive(source: &Path, destination: &Path) {
-    fs::create_dir_all(destination).unwrap();
-
-    for entry in fs::read_dir(source).unwrap() {
-        let entry = entry.unwrap();
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
-        let metadata = entry.metadata().unwrap();
-
-        if metadata.is_dir() {
-            copy_dir_recursive(&source_path, &destination_path);
-        } else if metadata.is_file() {
-            fs::copy(&source_path, &destination_path).unwrap();
-        }
-    }
-}
-
-fn link_dir_or_copy(source: &Path, destination: &Path) {
-    #[cfg(unix)]
-    {
-        symlink(source, destination).unwrap();
-    }
-
-    #[cfg(not(unix))]
-    {
-        copy_dir_recursive(source, destination);
-    }
-}
-
-fn create_test_workspace() -> PathBuf {
-    let temp = tempdir().unwrap();
-    let root = temp.path().to_path_buf();
-    std::mem::forget(temp);
-
-    fs::write(
-        root.join("Cargo.toml"),
-        "[workspace]\nmembers = []\n# crates/rustframe\n",
-    )
-    .unwrap();
-    fs::copy(repo_root().join("Cargo.lock"), root.join("Cargo.lock")).unwrap();
-    fs::create_dir_all(root.join("crates")).unwrap();
-    link_dir_or_copy(
-        &repo_root().join("crates/rustframe"),
-        &root.join("crates/rustframe"),
+fn run(current_dir: &Path, args: &[&str]) -> Output {
+    let output = Command::new(cli_binary())
+        .current_dir(current_dir)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "rustframe {args:?} failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
     );
-    link_dir_or_copy(&repo_root().join("target"), &root.join("target"));
-
-    root
-}
-
-fn next_app_name(prefix: &str) -> String {
-    format!("{prefix}-{}", NEXT_APP_ID.fetch_add(1, Ordering::Relaxed))
-}
-
-fn app_title(name: &str) -> String {
-    name.split('-')
-        .filter(|segment| !segment.is_empty())
-        .map(|segment| {
-            let mut chars = segment.chars();
-            let Some(first) = chars.next() else {
-                return String::new();
-            };
-            let mut capitalized = String::new();
-            capitalized.push(first.to_ascii_uppercase());
-            capitalized.extend(chars);
-            capitalized
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn run_command(command: &mut Command) -> Output {
-    let output = command.output().unwrap();
-    if !output.status.success() {
-        panic!(
-            "command failed: {:?}\nstdout:\n{}\nstderr:\n{}",
-            command,
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
     output
 }
 
-fn run_cli(workspace: &Path, args: &[&str]) -> Output {
-    let mut command = Command::new(cli_binary());
-    command.current_dir(workspace).args(args);
-    run_command(&mut command)
-}
-
-fn run_cli_smoke(workspace: &Path, args: &[&str], report_path: &Path, data_dir: &Path) -> Output {
-    let mut command = Command::new(cli_binary());
-    command
-        .current_dir(workspace)
-        .args(args)
-        .env("RUSTFRAME_SMOKE_TEST", "1")
-        .env("RUSTFRAME_SMOKE_OUTPUT", report_path)
-        .env("RUSTFRAME_SMOKE_DATA_DIR", data_dir);
-    run_command(&mut command)
-}
-
-fn read_report(path: &Path) -> Value {
-    serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap()
-}
-
-fn host_target() -> String {
-    let output = Command::new("rustc").arg("-vV").output().unwrap();
-    assert!(
-        output.status.success(),
-        "rustc -vV failed:\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .find_map(|line| line.strip_prefix("host: ").map(str::to_string))
-        .unwrap()
-}
-
-fn executable_name(name: &str) -> String {
-    if cfg!(windows) {
-        format!("{name}.exe")
-    } else {
-        name.to_string()
-    }
-}
-
 #[test]
-fn new_creates_manifest_first_app_scaffold() {
-    let _guard = workflow_lock();
-    let workspace = create_test_workspace();
-    let app_name = next_app_name("scaffold-smoke");
+fn creates_and_validates_a_standalone_typescript_project() {
+    let temp = tempdir().unwrap();
+    run(
+        temp.path(),
+        &["new", "field-notes", "--template", "vanilla-ts"],
+    );
+    let project = temp.path().join("field-notes");
 
-    run_cli(&workspace, &["new", &app_name]);
-
-    let app_dir = workspace.join("apps").join(&app_name);
-    assert!(app_dir.join("index.html").exists());
-    assert!(app_dir.join("styles.css").exists());
-    assert!(app_dir.join("app.js").exists());
-    assert!(app_dir.join("rustframe.json").exists());
-    assert!(app_dir.join("data/schema.json").exists());
-    assert!(app_dir.join("data/seeds/001-welcome.json").exists());
-    assert!(!app_dir.join("bridge.js").exists());
-
-    let schema: Value =
-        serde_json::from_str(&fs::read_to_string(app_dir.join("data/schema.json")).unwrap())
-            .unwrap();
-    let app_js = fs::read_to_string(app_dir.join("app.js")).unwrap();
+    assert!(project.join("rustframe.json").is_file());
+    assert!(project.join("package.json").is_file());
+    assert!(project.join("src/main.ts").is_file());
+    assert!(project.join("src/rustframe.generated.ts").is_file());
+    assert!(project.join("data/migrations").is_dir());
+    assert!(!project.join("native").exists());
 
     let manifest: Value =
-        serde_json::from_str(&fs::read_to_string(app_dir.join("rustframe.json")).unwrap()).unwrap();
-    assert_eq!(manifest["appId"], app_name);
-    assert_eq!(manifest["window"]["title"], app_title(&app_name));
-    assert_eq!(manifest["window"]["width"], 1280);
-    assert_eq!(manifest["window"]["height"], 820);
-    assert_eq!(manifest["security"]["model"], "local-first");
-    assert_eq!(manifest["packaging"]["linux"]["icon"], "assets/icon.svg");
-    assert_eq!(manifest["packaging"]["windows"]["icon"], "assets/icon.svg");
-    assert_eq!(
-        manifest["packaging"]["macos"]["bundleIdentifier"],
-        format!("dev.rustframe.{app_name}")
-    );
-    assert_eq!(schema["tables"][0]["name"], "work_items");
-    assert!(app_js.contains("window.RustFrame.db.search(\"work_items\""));
-}
-
-#[test]
-fn dev_and_export_support_runtime_smoke_checks() {
-    let _guard = workflow_lock();
-    let workspace = create_test_workspace();
-    let app_name = next_app_name("runtime-smoke");
-    let expected_title = app_title(&app_name);
-    run_cli(&workspace, &["new", &app_name]);
-
-    let smoke_dir = workspace.join("smoke");
-    fs::create_dir_all(&smoke_dir).unwrap();
-    let dev_report_path = smoke_dir.join("dev-report.json");
-    let dev_data_dir = smoke_dir.join("dev-data");
-
-    run_cli_smoke(
-        &workspace,
-        &["dev", &app_name, "http://127.0.0.1:43123"],
-        &dev_report_path,
-        &dev_data_dir,
-    );
-
-    let dev_report = read_report(&dev_report_path);
-    assert_eq!(dev_report["appId"], app_name);
-    assert_eq!(dev_report["launchMode"], "dev-server");
-    assert_eq!(dev_report["activeDevUrl"], "http://127.0.0.1:43123");
-    assert_eq!(dev_report["window"]["title"], expected_title);
-    assert_eq!(dev_report["security"]["model"], "local-first");
-    assert_eq!(dev_report["security"]["database"], true);
-    assert_eq!(dev_report["security"]["filesystem"], false);
-    assert_eq!(dev_report["security"]["shell"], false);
-    assert_eq!(dev_report["hasIndexHtml"], true);
-    assert_eq!(dev_report["bridgeInjected"], true);
-    assert_eq!(dev_report["database"]["schemaVersion"], 1);
+        serde_json::from_str(&fs::read_to_string(project.join("rustframe.json")).unwrap()).unwrap();
+    assert_eq!(manifest["schemaVersion"], 1);
+    assert_eq!(manifest["app"]["id"], "field-notes");
+    assert_eq!(manifest["frontend"]["distDir"], "dist");
     assert!(
-        workspace
-            .join("target/rustframe/apps")
-            .join(&app_name)
-            .join("runner/src/main.rs")
-            .exists()
-    );
-
-    run_cli(&workspace, &["export", &app_name]);
-    let exported_binary = workspace
-        .join("apps")
-        .join(&app_name)
-        .join("dist")
-        .join(executable_name(&app_name));
-    assert!(exported_binary.exists());
-
-    let export_report_path = smoke_dir.join("export-report.json");
-    let export_data_dir = smoke_dir.join("export-data");
-    let mut binary_command = Command::new(&exported_binary);
-    binary_command
-        .current_dir(&workspace)
-        .env("RUSTFRAME_SMOKE_TEST", "1")
-        .env("RUSTFRAME_SMOKE_OUTPUT", &export_report_path)
-        .env("RUSTFRAME_SMOKE_DATA_DIR", &export_data_dir);
-    run_command(&mut binary_command);
-
-    let export_report = read_report(&export_report_path);
-    assert_eq!(export_report["appId"], app_name);
-    assert_eq!(export_report["launchMode"], "embedded");
-    assert_eq!(export_report["activeDevUrl"], Value::Null);
-    assert_eq!(export_report["window"]["title"], expected_title);
-    assert_eq!(export_report["security"]["model"], "local-first");
-    assert_eq!(export_report["security"]["database"], true);
-    assert_eq!(export_report["database"]["schemaVersion"], 1);
-    assert!(
-        export_report["database"]["tables"]
+        !manifest["security"]["permissions"]
             .as_array()
             .unwrap()
-            .iter()
-            .any(|value| value == "work_items")
+            .is_empty()
     );
+
+    run(&project, &["validate"]);
+    let inspection = run(&project, &["inspect", "--json"]);
+    let inspection: Value = serde_json::from_slice(&inspection.stdout).unwrap();
+    assert_eq!(inspection["appId"], "field-notes");
 }
 
 #[test]
-fn platform_check_validates_the_runner_for_the_host_target() {
-    let _guard = workflow_lock();
-    let workspace = create_test_workspace();
-    let app_name = next_app_name("platform-check");
-    let host_target = host_target();
-
-    run_cli(&workspace, &["new", &app_name]);
-
-    let output = run_cli(
-        &workspace,
-        &[
-            "platform-check",
-            &app_name,
-            "--target",
-            host_target.as_str(),
-        ],
+fn supports_plain_javascript_without_generated_typescript() {
+    let temp = tempdir().unwrap();
+    run(
+        temp.path(),
+        &["new", "plain-tool", "--template", "vanilla-js"],
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let project = temp.path().join("plain-tool");
+    assert!(project.join("src/main.js").is_file());
+    assert!(project.join("src/rustframe.generated.js").is_file());
+    assert!(!project.join("src/rustframe.generated.ts").exists());
+    run(&project, &["validate"]);
+}
 
-    assert!(stdout.contains("Platform support matrix"));
-    assert!(stdout.contains(host_target.as_str()));
-    assert!(stdout.contains("[ok]"));
-    assert!(stdout.contains("Packaging:"));
+#[test]
+fn eject_uses_the_registry_runtime_and_no_repository_path() {
+    let temp = tempdir().unwrap();
+    run(temp.path(), &["new", "portable-tool"]);
+    let project = temp.path().join("portable-tool");
+    run(&project, &["eject"]);
+
+    let cargo = fs::read_to_string(project.join("native/Cargo.toml")).unwrap();
+    assert!(cargo.contains("package = \"rustframe-runtime\""));
+    assert!(cargo.contains("version = \"=0.1.0\""));
+    assert!(!cargo.contains("rustframe = { package = \"rustframe-runtime\", path ="));
+    assert!(!cargo.contains("crates/rustframe"));
+}
+
+#[test]
+fn migrates_pre_v1_manifests_without_rewriting_application_logic() {
+    let temp = tempdir().unwrap();
+    let project = temp.path().join("legacy-tool");
+    fs::create_dir_all(project.join("data")).unwrap();
+    fs::create_dir_all(project.join("src/features")).unwrap();
+    fs::write(project.join("index.html"), "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self'\"><script src=\"app.js\"></script>").unwrap();
+    fs::write(project.join("app.js"), "window.RustFrame.db.info();").unwrap();
+    fs::write(
+        project.join("src/features/files.ts"),
+        "window.RustFrame.fs.listGrants();",
+    )
+    .unwrap();
+    fs::write(project.join("data/schema.json"), r#"{"version":1,"tables":[{"name":"items","columns":[{"name":"title","type":"text","required":true}]}]}"#).unwrap();
+    fs::write(project.join("rustframe.json"), r#"{"appId":"legacy-tool","window":{"title":"Legacy Tool","width":900,"height":700},"security":{"model":"local-first"},"filesystem":{"roots":[]},"shell":{"commands":[]},"packaging":{"version":"0.1.0"}}"#).unwrap();
+
+    let output = run(&project, &["migrate"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("manual bridge review required: db, fs"));
+    assert!(project.join("rustframe.pre-v1.json").is_file());
+    assert_eq!(
+        fs::read_to_string(project.join("app.js")).unwrap(),
+        "window.RustFrame.db.info();"
+    );
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(project.join("rustframe.json")).unwrap()).unwrap();
+    assert_eq!(manifest["schemaVersion"], 1);
+    assert!(project.join("package.json").is_file());
 }

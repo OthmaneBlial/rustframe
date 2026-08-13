@@ -1,0 +1,38 @@
+name: Dependency security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-policy:
+    name: Rust advisories, licenses, and sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          rust-version: "1.88.0"
+          command: check advisories bans licenses sources
+
+  npm-audit:
+    name: npm high-severity audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/rustframe-api/package-lock.json
+            apps/research-desk/package-lock.json
+      - run: npm --prefix packages/rustframe-api audit --audit-level=high
+      - run: npm --prefix apps/research-desk audit --audit-level=high

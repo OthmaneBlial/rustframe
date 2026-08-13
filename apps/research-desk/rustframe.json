@@ -1,60 +1,47 @@
 {
-  "appId": "research-desk",
-  "window": {
+  "$schema": "https://rustframe.dev/schemas/v1/rustframe.schema.json",
+  "schemaVersion": 1,
+  "app": {
+    "id": "research-desk",
     "title": "Research Desk",
-    "width": 1480,
-    "height": 940
+    "windows": [
+      { "id": "main", "title": "Research Desk", "route": "/", "width": 1480, "height": 940 },
+      { "id": "reader", "title": "Research Desk Reader", "route": "/reader", "width": 1120, "height": 840 }
+    ]
+  },
+  "frontend": {
+    "devCommand": "npm run dev -- --host 127.0.0.1",
+    "buildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:5173",
+    "distDir": "dist",
+    "generatedTypes": "rustframe.generated.js"
   },
   "security": {
-    "model": "local-first"
+    "model": "local-first",
+    "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    "permissions": [
+      {
+        "window": "main",
+        "allow": ["db:read", "db:write", "db:backup", "db:restore", "fs:grants:read", "fs:grants:write", "fs:grants:watch", "dialog:open", "dialog:save", "window:create", "clipboard:write"]
+      },
+      {
+        "window": "reader-*",
+        "allow": ["db:read", "db:write", "fs:grants:read", "window:create", "clipboard:write"]
+      }
+    ]
   },
+  "database": { "schema": "data/schema.json", "seeds": "data/seeds", "migrations": "data/migrations" },
+  "filesystem": { "roots": [], "persistGrants": true },
+  "shell": { "commands": [] },
   "packaging": {
     "version": "0.1.0",
+    "identifier": "dev.rustframe.research-desk",
     "description": "Local-first research archive and review workbench",
     "publisher": "RustFrame",
     "homepage": "https://github.com/OthmaneBlial/rustframe",
-    "linux": {
-      "icon": "assets/icon.svg",
-      "categories": ["Office", "Utility"],
-      "keywords": ["research", "archive", "desktop", "local-first"]
-    },
-    "windows": {
-      "icon": "assets/icon.svg"
-    },
-    "macos": {
-      "bundleIdentifier": "dev.rustframe.research-desk",
-      "icon": "assets/icon.svg"
-    }
-  },
-  "filesystem": {
-    "roots": ["workspace", "tools"]
-  },
-  "shell": {
-    "commands": [
-      {
-        "name": "indexWorkspacePy3",
-        "program": "python3",
-        "args": ["index_workspace.py", "../workspace"],
-        "cwd": "tools",
-        "timeoutMs": 15000,
-        "maxOutputBytes": 262144
-      },
-      {
-        "name": "indexWorkspacePython",
-        "program": "python",
-        "args": ["index_workspace.py", "../workspace"],
-        "cwd": "tools",
-        "timeoutMs": 15000,
-        "maxOutputBytes": 262144
-      },
-      {
-        "name": "indexWorkspacePyLauncher",
-        "program": "py",
-        "args": ["-3", "index_workspace.py", "../workspace"],
-        "cwd": "tools",
-        "timeoutMs": 15000,
-        "maxOutputBytes": 262144
-      }
-    ]
+    "icon": "assets/icon.svg",
+    "linux": { "categories": ["Office", "Utility"], "keywords": ["research", "documents", "local-first"] },
+    "windows": {},
+    "macos": {}
   }
 }

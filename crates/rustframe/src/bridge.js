@@ -1,7 +1,21 @@
 (function () {
     const pending = new Map();
     const fileDropListeners = new Set();
+    const databaseChangeListeners = new Set();
+    const filesystemChangeListeners = new Set();
+    const restoreListeners = new Set();
     let nextId = 1;
+    class RustFrameBridgeError extends Error {
+        constructor(code, message, details) {
+            super(message);
+            this.name = "RustFrameError";
+            this.code = code;
+            this.details = details;
+        }
+    }
+    if (typeof window.RustFrameError !== "function") {
+        window.RustFrameError = RustFrameBridgeError;
+    }
     const bridgeConfig = (() => {
         const raw = window.__RUSTFRAME_BRIDGE_CONFIG__;
         const config = raw && typeof raw === "object" ? raw : {};
@@ -24,22 +38,22 @@
     })();
 
     function normalizeError(payload) {
-        if (payload && typeof payload === "object") {
-            return payload;
-        }
-
-        return {
-            code: "unknown_error",
-            message: String(payload ?? "Unknown RustFrame error")
-        };
+        const error = payload && typeof payload === "object"
+            ? payload
+            : { code: "unknown_error", message: String(payload ?? "Unknown RustFrame error") };
+        const code = typeof error.code === "string" ? error.code : "unknown_error";
+        const message = typeof error.message === "string"
+            ? error.message
+            : "Unknown RustFrame error";
+        return new window.RustFrameError(code, message, error.details);
     }
 
     function invoke(method, params = {}) {
         if (!window.ipc || typeof window.ipc.postMessage !== "function") {
-            return Promise.reject({
-                code: "ipc_unavailable",
-                message: "window.ipc.postMessage is not available in this WebView"
-            });
+            return Promise.reject(new window.RustFrameError(
+                "ipc_unavailable",
+                "window.ipc.postMessage is not available in this WebView"
+            ));
         }
 
         return new Promise((resolve, reject) => {
@@ -50,10 +64,7 @@
     }
 
     function rejectRestrictedBridge(message) {
-        return Promise.reject({
-            code: "permission_denied",
-            message
-        });
+        return Promise.reject(new window.RustFrameError("permission_denied", message));
     }
 
     function normalizePath(input = ".") {
@@ -140,6 +151,17 @@
         window.dispatchEvent(new CustomEvent("rustframe:file-drop", { detail: payload }));
     }
 
+    function emitEvent(listeners, name, payload) {
+        listeners.forEach((listener) => {
+            try {
+                listener(payload);
+            } catch (error) {
+                window.setTimeout(() => { throw error; }, 0);
+            }
+        });
+        window.dispatchEvent(new CustomEvent(name, { detail: payload }));
+    }
+
     function resolveFromNative(message) {
         const callback = pending.get(message.id);
         if (!callback) {
@@ -159,6 +181,9 @@
     window.RustFrame = Object.freeze({
         __resolveFromNative: resolveFromNative,
         __emitFileDrop: emitFileDrop,
+        __emitDatabaseChange: (payload) => emitEvent(databaseChangeListeners, "rustframe:database-change", payload),
+        __emitFilesystemChange: (payload) => emitEvent(filesystemChangeListeners, "rustframe:filesystem-change", payload),
+        __emitRestore: (payload) => emitEvent(restoreListeners, "rustframe:restore", payload),
         invoke,
         security: bridgeConfig,
         window: Object.freeze({
@@ -192,6 +217,24 @@
             listDir: (path = ".") => bridgeConfig.filesystem
                 ? invoke("fs.listDir", { path })
                 : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            walk: (uri, options = {}) => bridgeConfig.filesystem
+                ? invoke("fs.walk", { uri, ...options })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            requestGrant: (options = {}) => bridgeConfig.filesystem
+                ? invoke("fs.requestGrant", options)
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            listGrants: () => bridgeConfig.filesystem
+                ? invoke("fs.listGrants")
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            revokeGrant: (id) => bridgeConfig.filesystem
+                ? invoke("fs.revokeGrant", { id }).then((result) => result.revoked)
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            watch: (uri, options = {}) => bridgeConfig.filesystem
+                ? invoke("fs.watch", { uri, ...options })
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
+            unwatch: (id) => bridgeConfig.filesystem
+                ? invoke("fs.unwatch", { id }).then((result) => result.unwatched)
+                : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
             writeText: (path, contents) => bridgeConfig.filesystem
                 ? invoke("fs.writeText", { path, contents })
                 : rejectRestrictedBridge("filesystem bridge is disabled for this frontend"),
@@ -209,6 +252,7 @@
                 : rejectRestrictedBridge("filesystem bridge is disabled for this frontend")
         }),
         clipboard: Object.freeze({
+            readText: () => invoke("clipboard.readText"),
             writeText: (text) => invoke("clipboard.writeText", { text })
         }),
         dialog: Object.freeze({
@@ -235,6 +279,21 @@
                 }
                 fileDropListeners.add(listener);
                 return () => fileDropListeners.delete(listener);
+            },
+            onDatabaseChange: (listener) => {
+                if (typeof listener !== "function") throw new TypeError("RustFrame.events.onDatabaseChange expects a function");
+                databaseChangeListeners.add(listener);
+                return () => databaseChangeListeners.delete(listener);
+            },
+            onFilesystemChange: (listener) => {
+                if (typeof listener !== "function") throw new TypeError("RustFrame.events.onFilesystemChange expects a function");
+                filesystemChangeListeners.add(listener);
+                return () => filesystemChangeListeners.delete(listener);
+            },
+            onRestore: (listener) => {
+                if (typeof listener !== "function") throw new TypeError("RustFrame.events.onRestore expects a function");
+                restoreListeners.add(listener);
+                return () => restoreListeners.delete(listener);
             }
         }),
         path: Object.freeze({
@@ -273,6 +332,15 @@
                 : rejectRestrictedBridge("database bridge is disabled for this frontend"),
             delete: (table, id) => bridgeConfig.database
                 ? invoke("db.delete", { table, id })
+                : rejectRestrictedBridge("database bridge is disabled for this frontend"),
+            batch: (operations) => bridgeConfig.database
+                ? invoke("db.batch", { operations })
+                : rejectRestrictedBridge("database bridge is disabled for this frontend"),
+            backup: (options = {}) => bridgeConfig.database
+                ? invoke("db.backup", options)
+                : rejectRestrictedBridge("database bridge is disabled for this frontend"),
+            restore: (options = {}) => bridgeConfig.database
+                ? invoke("db.restore", options)
                 : rejectRestrictedBridge("database bridge is disabled for this frontend")
         })
     });

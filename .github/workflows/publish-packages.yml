@@ -1,0 +1,109 @@
+name: Publish registry packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version shared by rustframe-runtime, rustframe-cli, and rustframe-api
+        required: true
+        type: string
+      confirmation:
+        description: Type "publish" to release packages to crates.io and npm
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-packages-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish ${{ inputs.version }} in dependency order
+    if: ${{ inputs.confirmation == 'publish' }}
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: packages/rustframe-api/package-lock.json
+
+      - name: Verify coordinated versions
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "rustframe-runtime") | .version')"
+          cli_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "rustframe-cli") | .version')"
+          api_version="$(node -p "require('./packages/rustframe-api/package.json').version")"
+          test "$runtime_version" = "$EXPECTED_VERSION"
+          test "$cli_version" = "$EXPECTED_VERSION"
+          test "$api_version" = "$EXPECTED_VERSION"
+
+      - name: Refuse an already-published version
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for crate in rustframe-runtime rustframe-cli; do
+            if curl --fail --silent --show-error "https://crates.io/api/v1/crates/$crate/$EXPECTED_VERSION" >/dev/null; then
+              echo "$crate $EXPECTED_VERSION already exists on crates.io" >&2
+              exit 1
+            fi
+          done
+          if npm view "rustframe-api@$EXPECTED_VERSION" version >/dev/null 2>&1; then
+            echo "rustframe-api $EXPECTED_VERSION already exists on npm" >&2
+            exit 1
+          fi
+
+      - name: Verify source packages
+        run: |
+          cargo test --workspace --all-targets --locked
+          cargo package -p rustframe-runtime --locked
+          npm --prefix packages/rustframe-api ci
+          npm --prefix packages/rustframe-api test
+
+      - name: Publish rustframe-runtime
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p rustframe-runtime --locked
+
+      - name: Wait for rustframe-runtime registry availability
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent --show-error --location \
+              "https://crates.io/api/v1/crates/rustframe-runtime/$EXPECTED_VERSION/download" \
+              --output /dev/null; then
+              exit 0
+            fi
+            echo "Waiting for rustframe-runtime $EXPECTED_VERSION to reach the crates.io index ($attempt/40)"
+            sleep 15
+          done
+          echo "rustframe-runtime did not become downloadable within 10 minutes" >&2
+          exit 1
+
+      - name: Publish rustframe-cli
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p rustframe-cli --locked
+
+      - name: Publish rustframe-api
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm --prefix packages/rustframe-api publish --provenance --access public

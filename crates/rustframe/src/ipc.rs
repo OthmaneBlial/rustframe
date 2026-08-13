@@ -3,6 +3,8 @@ use serde_json::Value;
 
 use crate::RuntimeError;
 
+pub const DEFAULT_MAX_IPC_REQUEST_BYTES: usize = 1024 * 1024;
+
 #[derive(Debug, Deserialize)]
 pub struct IpcRequest {
     pub id: u64,
@@ -24,6 +26,15 @@ pub struct IpcResponse {
 pub struct IpcErrorResponse {
     pub code: &'static str,
     pub message: String,
+}
+
+pub fn decode_request(body: &[u8], max_bytes: usize) -> Result<IpcRequest, RuntimeError> {
+    if body.len() > max_bytes {
+        return Err(RuntimeError::RequestTooLarge(format!(
+            "IPC request exceeds the {max_bytes} byte limit"
+        )));
+    }
+    serde_json::from_slice(body).map_err(RuntimeError::Json)
 }
 
 impl IpcResponse {
@@ -69,6 +80,14 @@ impl From<&RuntimeError> for IpcErrorResponse {
                 code: "permission_denied",
                 message: error.to_string(),
             },
+            RuntimeError::RequestTooLarge(_) => Self {
+                code: "request_too_large",
+                message: error.to_string(),
+            },
+            RuntimeError::RateLimited(_) => Self {
+                code: "rate_limited",
+                message: error.to_string(),
+            },
             RuntimeError::TimedOut(_) => Self {
                 code: "timeout",
                 message: error.to_string(),
@@ -108,5 +127,33 @@ impl From<&RuntimeError> for IpcErrorResponse {
                 message: error.to_string(),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decoder_rejects_oversized_and_malformed_requests() {
+        assert!(matches!(
+            decode_request(br#"{"id":1}"#, 4),
+            Err(RuntimeError::RequestTooLarge(_))
+        ));
+        assert!(matches!(
+            decode_request(b"not-json", DEFAULT_MAX_IPC_REQUEST_BYTES),
+            Err(RuntimeError::Json(_))
+        ));
+    }
+
+    #[test]
+    fn decoder_accepts_a_well_formed_request() {
+        let request = decode_request(
+            br#"{"id":7,"method":"db.info","params":{}}"#,
+            DEFAULT_MAX_IPC_REQUEST_BYTES,
+        )
+        .unwrap();
+        assert_eq!(request.id, 7);
+        assert_eq!(request.method, "db.info");
     }
 }

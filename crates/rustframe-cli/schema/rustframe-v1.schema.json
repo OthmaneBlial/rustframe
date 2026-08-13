@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rustframe.dev/schemas/v1/rustframe.schema.json",
+  "title": "RustFrame manifest schema v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "app", "frontend", "security", "database", "filesystem", "shell", "packaging"],
+  "properties": {
+    "$schema": { "const": "https://rustframe.dev/schemas/v1/rustframe.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "windows"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "title": { "type": "string", "minLength": 1 },
+        "windows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "title", "width", "height"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+              "title": { "type": "string", "minLength": 1 },
+              "route": { "type": "string", "default": "/" },
+              "width": { "type": "number", "minimum": 320, "maximum": 10000 },
+              "height": { "type": "number", "minimum": 240, "maximum": 10000 }
+            }
+          }
+        }
+      }
+    },
+    "frontend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["devCommand", "buildCommand", "devUrl", "distDir", "generatedTypes"],
+      "properties": {
+        "devCommand": { "type": "string", "minLength": 1 },
+        "buildCommand": { "type": "string", "minLength": 1 },
+        "devUrl": { "type": "string", "pattern": "^http://(127\\.0\\.0\\.1|localhost):[0-9]+" },
+        "distDir": { "$ref": "#/$defs/relativePath" },
+        "generatedTypes": { "$ref": "#/$defs/relativePath" }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "csp", "permissions"],
+      "properties": {
+        "model": { "enum": ["local-first", "networked"] },
+        "csp": { "type": "string", "minLength": 1 },
+        "permissions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["window", "allow"],
+            "properties": {
+              "window": { "type": "string", "minLength": 1 },
+              "allow": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+            }
+          }
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "seeds", "migrations"],
+      "properties": {
+        "schema": { "$ref": "#/$defs/relativePath" },
+        "seeds": { "$ref": "#/$defs/relativePath" },
+        "migrations": { "$ref": "#/$defs/relativePath" }
+      }
+    },
+    "filesystem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roots", "persistGrants"],
+      "properties": {
+        "roots": { "type": "array", "items": { "$ref": "#/$defs/relativePath" } },
+        "persistGrants": { "type": "boolean" }
+      }
+    },
+    "shell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commands"],
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "program"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9-]*$" },
+              "program": { "type": "string", "pattern": "^[^/\\\\]+$" },
+              "args": { "type": "array", "items": { "type": "string" } },
+              "allowedArgs": { "type": "array", "items": { "type": "string" } },
+              "cwd": { "$ref": "#/$defs/relativePath" },
+              "env": { "type": "object", "additionalProperties": { "type": "string" } },
+              "clearEnv": { "type": "boolean" },
+              "timeoutMs": { "type": "integer", "minimum": 1, "maximum": 300000 },
+              "maxOutputBytes": { "type": "integer", "minimum": 1, "maximum": 10485760 }
+            }
+          }
+        }
+      }
+    },
+    "packaging": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "identifier", "icon"],
+      "properties": {
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+" },
+        "identifier": { "type": "string", "pattern": "^[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+$" },
+        "description": { "type": "string", "minLength": 1 },
+        "publisher": { "type": "string", "minLength": 1 },
+        "homepage": { "type": "string", "format": "uri" },
+        "icon": { "$ref": "#/$defs/relativePath" },
+        "linux": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "icon": { "$ref": "#/$defs/relativePath" },
+            "categories": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "keywords": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "windows": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "icon": { "$ref": "#/$defs/relativePath" } }
+        },
+        "macos": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bundleIdentifier": { "type": "string", "pattern": "^[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+$" },
+            "icon": { "$ref": "#/$defs/relativePath" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "not": { "pattern": "(^/|^[A-Za-z]:|(^|/)\\.\\.(/|$))" }
+    }
+  }
+}

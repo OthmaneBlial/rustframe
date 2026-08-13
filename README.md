@@ -1,199 +1,162 @@
 # RustFrame
 
-> A Rust runtime and CLI for building frontend-first, local-first desktop workflow tools.
+RustFrame is a narrow, local-first desktop framework for TypeScript and JavaScript tools. It supplies a native window, SQLite, capability-scoped filesystem access, bounded automation, multi-window events, and host-native packaging without making the application itself a Rust project.
 
-RustFrame is for apps that are mostly HTML, CSS, and JavaScript but still need a real desktop window, local SQLite, a small and explicit native surface, and an installable package.
-
-The app starts as a plain folder. RustFrame owns the desktop shell, the runtime bridge, database lifecycle, capability boundaries, and packaging. You can eject to an app-owned Rust runner when the app needs deeper native control.
-
-RustFrame is not a Rust UI toolkit. It is the Rust layer around a frontend-first desktop app.
-
-<p align="center">
-  <a href="docs/getting-started.md">Get Started</a>
-  ·
-  <a href="docs/choosing-rustframe.md">Choose RustFrame</a>
-  ·
-  <a href="docs/architecture-overview.md">Architecture</a>
-  ·
-  <a href="docs/runtime-and-capabilities.md">Runtime API</a>
-  ·
-  <a href="docs/example-apps.md">Example Apps</a>
-  ·
-  <a href="docs/README.md">All Docs</a>
-</p>
-
-## The useful middle
-
-A browser tab is often too limited for a serious local workflow. A full desktop project can be too much ceremony for a focused internal tool, workbench, or operator app.
-
-RustFrame targets that middle:
-
-| If you need… | RustFrame gives you… |
-| --- | --- |
-| A desktop window | `tao` + `wry`, managed by the runtime |
-| Local structured data | Bundled SQLite with schema files, immutable seeds, and SQL migrations |
-| Machine access | Scoped filesystem roots, native dialogs, clipboard, and in-app windows |
-| A little automation | Named shell commands with allowlists, timeouts, output limits, and audit records |
-| A small starting point | A plain frontend folder and a generated hidden runner |
-| A path to more Rust | `rustframe-cli eject` and an app-owned native runner |
-
-The point is not to replace Tauri, Electron, or a native stack at everything. The point is to keep a narrow class of local-first tools small until their native requirements justify more structure.
-
-## Why Rust developers may want it
-
-RustFrame lets Rust own the parts that should be explicit and host-aware without making every app start as a Rust application:
-
-- the native window and event loop
-- the `window.RustFrame` IPC bridge
-- SQLite provisioning, search, and migrations
-- filesystem scope and shell capability enforcement
-- multi-window coordination
-- host-native export and packaging
-
-Frontend authors work in `index.html`, `styles.css`, `app.js`, and `rustframe.json`. Rust developers get a reusable runtime crate, a deterministic manifest contract, and an escape hatch for custom native code.
-
-## See the proof app first
-
-`apps/research-desk` is the clearest example of the intended wedge: a local archive review workbench that is awkward in a browser tab but does not need a full native-first rewrite on day one.
+## Quickstart
 
 ```bash
-cargo run -p rustframe-cli -- doctor
-cargo run -p rustframe-cli -- dev research-desk
+cargo install rustframe-cli
+rustframe new my-tool
+cd my-tool
+npm install
+rustframe dev
 ```
 
-The app demonstrates:
-
-- indexing a bundled local archive into SQLite
-- reading real documents through declared filesystem roots
-- running an allowlisted Python indexer from the UI
-- opening focused reader windows over the shared local database
-- exporting the visible review queue
-
-## Start a new app
-
-Check the host, scaffold a frontend-first app, and run it:
+The default template is Vite with vanilla TypeScript. React, Vue, Svelte, and plain JavaScript are also supported:
 
 ```bash
-cargo run -p rustframe-cli -- doctor
-cargo run -p rustframe-cli -- new hello-rustframe
-cargo run -p rustframe-cli -- dev hello-rustframe
+rustframe new my-react-tool --template react-ts --package-manager npm --install
+rustframe new no-typescript --template vanilla-js
 ```
 
-The generated app is intentionally not a miniature native project. Its source shape is:
+Each project is independent and can live anywhere:
 
 ```text
-apps/hello-rustframe/
-├── index.html
-├── styles.css
-├── app.js
+my-tool/
 ├── rustframe.json
-├── assets/
-└── data/
-    ├── schema.json
-    ├── seeds/
-    └── migrations/
+├── package.json
+├── index.html
+├── src/
+│   ├── main.ts
+│   └── rustframe.generated.ts
+├── data/
+│   ├── schema.json
+│   ├── seeds/
+│   └── migrations/
+├── public/
+└── assets/
 ```
 
-Use `rustframe.json` for window settings, development URLs, security mode, capabilities, and packaging metadata. The runtime generates the Rust runner under `target/`; it does not clutter the app folder with generated native code.
+RustFrame locates the nearest `rustframe.json`. Generated native runners live under `target/rustframe/` and depend on the exact compatible `rustframe-runtime` registry release. Use `rustframe eject` only when the project needs to own its native Rust code.
 
-If you prefer a frontend dev server, use one of the Vite, React, Vue, or Svelte starters under [`examples/frontend-starters/`](examples/frontend-starters/).
+## Stable commands
 
-## The app contract
+```text
+rustframe new
+rustframe doctor
+rustframe dev
+rustframe validate
+rustframe inspect
+rustframe codegen
+rustframe build
+rustframe package
+rustframe db reset
+rustframe db backup
+rustframe db restore
+rustframe migrate
+rustframe eject
+```
 
-The manifest makes the native surface visible and reviewable:
+Use `--project <path>` for monorepos:
+
+```bash
+rustframe --project apps/research-desk validate
+```
+
+## Project contract
+
+`rustframe.json` schema version 1 is the public native contract. Unknown fields, unsafe paths, missing assets, undeclared permissions, stale generated database types, and incompatible trust settings fail `rustframe validate`.
 
 ```json
 {
-  "appId": "research-desk",
-  "security": { "model": "local-first" },
-  "filesystem": {
-    "roots": ["workspace", "tools"]
+  "$schema": "https://rustframe.dev/schemas/v1/rustframe.schema.json",
+  "schemaVersion": 1,
+  "app": {
+    "id": "my-tool",
+    "title": "My Tool",
+    "windows": [{ "id": "main", "route": "/" }]
   },
-  "shell": {
-    "commands": [
-      {
-        "name": "indexWorkspace",
-        "program": "python3",
-        "args": ["index_workspace.py", "../workspace"],
-        "cwd": "tools",
-        "timeoutMs": 15000,
-        "maxOutputBytes": 262144
-      }
-    ]
+  "frontend": {
+    "devCommand": "npm run dev -- --host 127.0.0.1",
+    "buildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:5173",
+    "distDir": "dist",
+    "generatedTypes": "src/rustframe.generated.ts"
+  },
+  "security": {
+    "model": "local-first",
+    "csp": "default-src 'self'; object-src 'none'; base-uri 'none'",
+    "permissions": [{
+      "window": "main",
+      "allow": ["db:read", "db:write", "fs:grants:read", "dialog:open"]
+    }]
+  },
+  "database": {
+    "schema": "data/schema.json",
+    "seeds": "data/seeds",
+    "migrations": "data/migrations"
+  },
+  "filesystem": { "roots": [], "persistGrants": true },
+  "shell": { "commands": [] },
+  "packaging": {
+    "version": "0.1.0",
+    "identifier": "dev.example.my-tool",
+    "icon": "assets/icon.svg"
   }
 }
 ```
 
-The injected bridge exposes only the namespaces allowed by the resolved trust model and manifest. In `networked` mode, database, filesystem, and shell access are disabled by default. Native IPC enforces the same boundary; the frontend cannot bypass it by calling the transport directly.
+The published `rustframe-api` npm package supplies bridge availability checks, stable errors, complete frontend types, and generated table-aware database clients. Plain JavaScript can continue using the injected `window.RustFrame` global.
 
-## From prototype to package
+## Local workflow APIs
 
-The CLI covers the workflow around the runtime:
+- Opaque `grant://` and `root://` filesystem URIs; absolute paths are not the primary frontend API.
+- Persistent or temporary user-selected file and folder grants, recursive walking, revocation, and watchers.
+- Atomic SQLite batches, full-text search, migrations, cross-window mutation events, online backups, and safety-backed restore.
+- Exact or prefix-pattern window permissions enforced by native IPC.
+- Named shell commands with fixed/allowlisted arguments, timeouts, output limits, and redacted audit records.
+- Multiple native windows with shared database and restore events.
+
+## Build and package
 
 ```bash
-# inspect the resolved app contract
-cargo run -p rustframe-cli -- inspect hello-rustframe
-
-# rebuild local SQLite from schema, migrations, and immutable seeds
-cargo run -p rustframe-cli -- reset-data hello-rustframe
-
-# emit the raw executable
-cargo run -p rustframe-cli -- export hello-rustframe
-
-# create and verify a host-native bundle
-cargo run -p rustframe-cli -- package hello-rustframe --verify
-
-# create an app-owned Rust runner when the hidden runner is no longer enough
-cargo run -p rustframe-cli -- eject hello-rustframe
+rustframe validate
+rustframe build
+rustframe package --verify
 ```
 
-`export` and `package` carry declared relative filesystem roots beside the executable or inside the platform bundle. Platform checks report which rows were validated on the current native host instead of pretending cross-host validation happened.
+Packaging uses `cargo-packager` and creates the host formats:
 
-## Fit guide
+- macOS: `.app` and DMG
+- Windows: NSIS and MSI
+- Linux: AppImage and Debian package
 
-Choose RustFrame when:
+Use `--format` for one format, such as `rustframe package --format app --verify`. Local packages are explicitly marked unsigned and include `SHA256SUMS`, a machine-readable package manifest, and release notes. Signing and notarization are release-pipeline concerns; automatic updating is deliberately outside v1.
 
-- the product is mostly frontend code but local-first data is central
-- you need a native shell plus a few explicit machine capabilities
-- you want the runtime to own SQLite, packaging, and capability wiring
-- you want to delay app-owned Rust until the product earns that complexity
+## Research Desk
 
-Choose a browser or PWA when the app does not need packaging, local SQLite, or machine access.
+[`apps/research-desk`](apps/research-desk) is the end-to-end proof app. It uses only public RustFrame APIs to let the user select a document folder, persist consented access, index Markdown/text without Python, watch incremental changes, search, tag, review, pin, open synchronized reader windows, switch recent workspaces, export queues, and back up or restore SQLite.
 
-Choose Tauri, Electron, or a native stack when you need broad native integrations, a mature plugin ecosystem, Chromium-level rendering consistency, or a framework your team already operates well.
+Run it from this repository with the integration-only local runtime override:
 
-See the fuller [Choosing RustFrame](docs/choosing-rustframe.md) comparison for the trade-offs.
+```bash
+export RUSTFRAME_RUNTIME_PATH="$PWD/crates/rustframe"
+cargo run -p rustframe-cli -- --project apps/research-desk dev
+```
 
-## What ships today
+## Scope
 
-- `rustframe`: the reusable runtime crate, built around `tao`, `wry`, and bundled `rusqlite`
-- `rustframe-cli`: scaffolding, host checks, inspection, development, export, packaging, reset, and ejection
-- runtime-owned `window.RustFrame` bridge for window, database, filesystem, dialog, clipboard, and shell operations
-- local-first and networked trust models
-- schema reconciliation, immutable seeds, versioned migrations, and runtime full-text search
-- host-native Linux, Windows, and macOS packaging flows
-- workflow starters, frontend-stack starters, capability examples, and a community template catalog
-- automated tests plus CI package verification on supported host runners
+RustFrame is intentionally smaller than Tauri or Electron. Choose it for local-first workflow tools whose frontend is trusted and bundled. Choose a broader framework when you need a plugin ecosystem, mobile targets, tray APIs, notifications, global shortcuts, or built-in updating. Those features are not part of public v1.
 
-The project is early (`0.1.x`). The ecosystem is small, deep native integration is intentionally not the default path, and signing and updates remain release-pipeline concerns. Linux also carries the GTK, WebKitGTK, and display-stack requirements of `wry`.
+## Documentation
 
-## Repository map
+- [Getting started](docs/getting-started.md)
+- [Runtime and capabilities](docs/runtime-and-capabilities.md)
+- [Threat model](docs/threat-model.md)
+- [Platform support](docs/platform-support.md)
+- [Signing and notarization](docs/signing-and-notarization.md)
+- [Release checklist](docs/release-checklist.md)
+- [Security policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
 
-- [`crates/rustframe`](crates/rustframe) — reusable runtime crate
-- [`crates/rustframe-cli`](crates/rustframe-cli) — app lifecycle and packaging CLI
-- [`apps/research-desk`](apps/research-desk) — flagship local archive workflow
-- [`apps/hello-rustframe`](apps/hello-rustframe) — default workflow starter
-- [`examples/frontend-starters`](examples/frontend-starters) — Vite, React, Vue, and Svelte entry points
-- [`examples/capability-demo`](examples/capability-demo) — direct runtime capability example
-- [`docs/`](docs) — product, architecture, security, and release guides
-- [`site/`](site) — static project site generated from the repo
-
-## Read next
-
-- [Getting Started](docs/getting-started.md)
-- [Architecture Overview](docs/architecture-overview.md)
-- [Runtime And Capabilities](docs/runtime-and-capabilities.md)
-- [Frontend App Rules](FRONTEND_APP_RULES.md)
-- [Example Apps](docs/example-apps.md)
-- [Platform Support](docs/platform-support.md)
-- [Release Checklist](docs/release-checklist.md)
+RustFrame collects no telemetry by default. Public runtime, CLI, manifest, and frontend API compatibility follow semantic versioning.

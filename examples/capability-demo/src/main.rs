@@ -3,7 +3,7 @@
 use std::{borrow::Cow, env, path::PathBuf};
 
 use rust_embed::RustEmbed;
-use rustframe::{EmbeddedAssets, Result, RustFrame, ShellCommand};
+use rustframe::{EmbeddedAssets, FrontendSecurity, Result, RustFrame, ShellCommand};
 
 #[derive(RustEmbed)]
 #[folder = "frontend/"]
@@ -41,6 +41,10 @@ fn main() -> Result<()> {
         .title("RustFrame Capability Demo")
         .size(1180.0, 760.0)
         .embedded_assets::<DemoAssets>()
+        .frontend_security(
+            FrontendSecurity::local_first()
+                .allow_window_permissions("main", ["fs:workspace:read", "shell:listFrontend"]),
+        )
         .allow_fs_root(frontend_dir)
         .allow_shell_command_configured("listFrontend", shell_command);
 

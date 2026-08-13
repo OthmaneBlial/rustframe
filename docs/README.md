@@ -25,11 +25,12 @@ RustFrame is a Rust workspace for local-first desktop workflow tools that should
 ## Workspace Map
 
 - `crates/rustframe` is the reusable runtime crate.
-- `crates/rustframe-cli` creates, validates, exports, and packages frontend-first desktop apps on the current host OS.
-- `examples/frontend-starters/*` shows how to pair RustFrame with plain Vite, React Vite, Vue Vite, and Svelte Vite frontends.
+- `crates/rustframe-cli` publishes the `rustframe` binary for standalone project creation, validation, building, migration, diagnostics, and packaging.
+- `packages/rustframe-api` is the typed npm bridge package used by generated TypeScript projects.
+- `schemas/v1/rustframe.schema.json` is the immutable manifest schema v1 contract.
 - `examples/community-templates/catalog.json` is the machine-readable ecosystem catalog for workflow-shaped starting points.
 - `examples/capability-demo` proves embedded assets, native IPC, sandboxed filesystem access, and allowlisted shell execution.
-- `apps/research-desk` is the flagship local archive review workflow and the main proof app for the repo.
+- `apps/research-desk` is the flagship user-selected document workflow and the main proof app for the repo.
 - `apps/*` contains frontend-only desktop apps with root-level `index.html`, `styles.css`, `app.js`, optional `data/`, raw binaries in `dist/`, and platform bundles in `dist/<platform>/`.
 
 ## Repo Sources

@@ -2,11 +2,6 @@ const APP = document.getElementById("app");
 const ROUTE = window.RustFrame?.window?.route || "/";
 const [ROUTE_PATH, ROUTE_QUERY = ""] = ROUTE.split("?");
 const ROUTE_PARAMS = new URLSearchParams(ROUTE_QUERY);
-const INDEX_COMMANDS = [
-    { name: "indexWorkspacePy3", label: "python3" },
-    { name: "indexWorkspacePython", label: "python" },
-    { name: "indexWorkspacePyLauncher", label: "py -3" }
-];
 const STATUS_ORDER = ["queued", "reviewing", "ready", "archived"];
 const PRIORITY_ORDER = ["critical", "watch", "reference"];
 let latestSearchRequestId = 0;
@@ -29,6 +24,7 @@ const state = {
     collection: "all",
     status: "all",
     importBusy: false,
+    activeWatcherId: null,
     log: "Research Desk is booting."
 };
 
@@ -49,6 +45,27 @@ if (window.RustFrame?.events?.onFileDrop) {
     });
 }
 
+if (window.RustFrame?.events?.onDatabaseChange) {
+    window.RustFrame.events.onDatabaseChange((event) => {
+        if (event?.sourceWindowId === window.RustFrame.window.id) return;
+        void refreshAfterExternalChange();
+    });
+}
+
+if (window.RustFrame?.events?.onFilesystemChange) {
+    let refreshTimer = null;
+    window.RustFrame.events.onFilesystemChange(() => {
+        window.clearTimeout(refreshTimer);
+        refreshTimer = window.setTimeout(() => void indexWorkspace("filesystem change"), 250);
+    });
+}
+
+if (window.RustFrame?.events?.onRestore) {
+    window.RustFrame.events.onRestore(() => {
+        void refreshAfterRestore();
+    });
+}
+
 boot().catch((error) => {
     state.log = `Research Desk failed to boot.\n${formatError(error)}`;
     renderFatal();
@@ -61,29 +78,14 @@ async function boot() {
     if (state.mode === "main") {
         await refreshDocuments();
         await loadWorkspaceEntries();
-        if (!state.documents.length) {
-            try {
-                await indexWorkspace("first boot");
-            } catch (error) {
-                writeLog(
-                    `Automatic indexing failed.\n` +
-                    `${formatError(error)}\n\n` +
-                    `Use "Index workspace" after installing one of the configured Python launchers.`
-                );
-            }
-        }
-        await refreshDocuments();
+        await restoreWorkspaceWatcher();
         selectDefaultDocument();
         await refreshSelectedContent();
         await refreshWindows();
-        if (!state.log.startsWith("Automatic indexing failed")) {
-            writeLog(
-                `Bundled archive connected.\n` +
-                `Database: ${state.dbInfo.databasePath}\n` +
-                `Tables: ${state.dbInfo.tables.join(", ")}\n` +
-                `Use "Index workspace" to re-scan the local archive.`
-            );
-        }
+        const workspace = workspaceProfile();
+        writeLog(workspace.root
+            ? `Workspace connected: ${workspace.label}\n${state.documents.length} documents indexed.\nDatabase tables: ${state.dbInfo.tables.join(", ")}`
+            : "Choose a Markdown or text-document folder to create your first private research workspace.");
         renderMain();
     } else {
         const documentId = Number(ROUTE_PARAMS.get("doc"));
@@ -98,6 +100,19 @@ async function boot() {
         }
         renderReader();
     }
+}
+
+async function refreshAfterExternalChange() {
+    if (state.mode === "reader") {
+        await loadReaderDocument();
+        renderReader();
+        return;
+    }
+    await loadSettings();
+    await refreshDocuments();
+    selectDefaultDocument();
+    await refreshSelectedContent();
+    renderMain();
 }
 
 async function loadSettings() {
@@ -123,8 +138,13 @@ async function refreshWindows() {
 }
 
 async function loadWorkspaceEntries() {
+    const root = workspaceProfile().root;
+    if (!root) {
+        state.workspaceEntries = [];
+        return;
+    }
     try {
-        state.workspaceEntries = await window.RustFrame.fs.listDir(".");
+        state.workspaceEntries = await window.RustFrame.fs.listDir(root);
     } catch {
         state.workspaceEntries = [];
     }
@@ -204,17 +224,20 @@ async function loadReaderDocument() {
 }
 
 async function indexWorkspace(reason) {
+    const profile = workspaceProfile();
+    if (!profile.root) {
+        await chooseWorkspace();
+        return;
+    }
     state.importBusy = true;
     render();
 
     try {
-        const result = await runIndexAutomation();
-        const indexed = JSON.parse(result.stdout);
+        const indexed = await scanWorkspace(profile.root);
         await mergeIndexedDocuments(indexed);
         await saveSetting("workspaceProfile", {
-            label: "Bundled Sample Archive",
-            root: "workspace",
-            command: result.label,
+            ...profile,
+            command: "RustFrame native indexer",
             fileCount: indexed.length,
             lastIndexedAt: new Date().toISOString()
         });
@@ -225,9 +248,9 @@ async function indexWorkspace(reason) {
         await refreshWindows();
         await loadWorkspaceEntries();
         writeLog(
-            `Indexed ${indexed.length} archive documents using ${result.label}.\n` +
+            `Indexed ${indexed.length} documents using RustFrame filesystem APIs.\n` +
             `Reason: ${reason}\n` +
-            `Workspace root: workspace/`
+            `Workspace: ${profile.label}`
         );
     } finally {
         state.importBusy = false;
@@ -235,39 +258,189 @@ async function indexWorkspace(reason) {
     }
 }
 
-async function runIndexAutomation() {
-    let lastError = null;
+async function chooseWorkspace() {
+    const grant = await window.RustFrame.fs.requestGrant({
+        kind: "directory",
+        access: "read",
+        persist: true,
+        title: "Choose a Markdown or text-document folder"
+    });
+    if (!grant) {
+        writeLog("Workspace selection canceled. No folder access was retained.");
+        return;
+    }
+    await saveSetting("workspaceProfile", {
+        label: grant.name,
+        root: grant.uri,
+        grantId: grant.id,
+        command: "RustFrame native indexer",
+        fileCount: 0,
+        lastIndexedAt: null
+    });
+    await rememberWorkspace(grant);
+    await loadSettings();
+    await restoreWorkspaceWatcher();
+    await indexWorkspace("workspace selected");
+}
 
-    for (const command of INDEX_COMMANDS) {
+async function rememberWorkspace(grant) {
+    const existing = recentWorkspaces().filter((workspace) => workspace.grantId !== grant.id);
+    await saveSetting("recentWorkspaces", [
+        { grantId: grant.id, root: grant.uri, label: grant.name, lastOpenedAt: new Date().toISOString() },
+        ...existing
+    ].slice(0, 8));
+}
+
+async function switchWorkspace(grantId) {
+    const grants = await window.RustFrame.fs.listGrants();
+    const grant = grants.find((entry) => entry.id === grantId);
+    if (!grant) {
+        writeLog("That recent workspace grant has been revoked. Choose the folder again to reconnect it.");
+        return;
+    }
+    await saveSetting("workspaceProfile", {
+        label: grant.name,
+        root: grant.uri,
+        grantId: grant.id,
+        command: "RustFrame native indexer",
+        fileCount: 0,
+        lastIndexedAt: null
+    });
+    await rememberWorkspace(grant);
+    await loadSettings();
+    await restoreWorkspaceWatcher();
+    await indexWorkspace("recent workspace selected");
+}
+
+async function backupDatabase() {
+    const dateLabel = new Date().toISOString().slice(0, 10);
+    const result = await window.RustFrame.db.backup({
+        suggestedName: `research-desk-${dateLabel}.db`
+    });
+    writeLog(result.cancelled ? "Database backup canceled." : "A consistent SQLite backup was created successfully.");
+}
+
+async function restoreDatabase() {
+    const result = await window.RustFrame.db.restore();
+    if (!result.restored) {
+        writeLog("Database restore canceled. Existing data was not changed.");
+        return;
+    }
+    writeLog("Database restored successfully. A safety backup was created before replacement.");
+}
+
+async function refreshAfterRestore() {
+    await loadSettings();
+    await refreshDocuments();
+    await loadWorkspaceEntries();
+    await restoreWorkspaceWatcher();
+    selectDefaultDocument();
+    await refreshSelectedContent();
+    await refreshWindows();
+    writeLog("Database restore completed. Every open window reloaded its state.");
+    render();
+}
+
+async function restoreWorkspaceWatcher() {
+    const profile = workspaceProfile();
+    if (!profile.root || !window.RustFrame.fs.watch) return;
+    const grants = await window.RustFrame.fs.listGrants();
+    if (!grants.some((grant) => grant.uri === profile.root)) {
+        writeLog("The saved workspace grant is unavailable. Choose the folder again to restore access.");
+        return;
+    }
+    if (state.activeWatcherId) await window.RustFrame.fs.unwatch(state.activeWatcherId);
+    const watcher = await window.RustFrame.fs.watch(profile.root, { recursive: true });
+    state.activeWatcherId = watcher.id;
+}
+
+async function scanWorkspace(root) {
+    const entries = await window.RustFrame.fs.walk(root, {
+        recursive: true,
+        extensions: ["md", "txt"],
+        limit: 10000
+    });
+    const files = entries.filter((entry) => entry.isFile);
+    const records = [];
+    for (const entry of files) {
         try {
-            const result = await window.RustFrame.shell.exec(command.name);
-            if (result.exitCode === 0) {
-                return { label: command.label, stdout: result.stdout };
-            }
-
-            lastError = new Error(
-                result.stderr.trim() ||
-                result.stdout.trim() ||
-                `${command.label} exited with code ${result.exitCode}`
-            );
+            const text = await window.RustFrame.fs.readText(entry.uri);
+            records.push(buildIndexedRecord(root, entry, text));
         } catch (error) {
-            lastError = error;
+            records.push({
+                path: entry.uri,
+                title: entry.name,
+                collection: "Unreadable",
+                kind: "unreadable",
+                summary: `The source could not be read: ${formatError(error)}`,
+                status: "queued",
+                priority: "watch",
+                tags: ["unreadable"],
+                readingMinutes: 1,
+                lineCount: 0,
+                fileSize: entry.size,
+                sourceModifiedAt: entry.modifiedAt || ""
+            });
         }
     }
+    return records.sort((left, right) => left.path.localeCompare(right.path));
+}
 
-    throw lastError || new Error("No indexing command succeeded.");
+function buildIndexedRecord(root, entry, text) {
+    const { metadata, body } = parseFrontmatter(text);
+    const relative = entry.uri.startsWith(`${root}/`) ? entry.uri.slice(root.length + 1) : entry.name;
+    const segments = relative.split("/");
+    const collectionSource = metadata.collection || (segments.length > 1 ? segments[0] : "Unsorted");
+    const title = metadata.title || body.split("\n").map((line) => line.trim()).find((line) => line.startsWith("# "))?.slice(2).trim() || entry.name.replace(/\.[^.]+$/u, "").replace(/[-_]+/gu, " ");
+    const summary = metadata.summary || body.split("\n").map((line) => line.trim()).filter((line) => line && !line.startsWith("#") && !line.startsWith("-")).join(" ").slice(0, 220);
+    const wordCount = (body.match(/\b[\p{L}\p{N}_]+\b/gu) || []).length;
+    return {
+        path: entry.uri,
+        title,
+        collection: humanizeLabel(collectionSource),
+        kind: metadata.kind || humanizeLabel(segments.length > 1 ? segments.at(-2) : "document"),
+        summary,
+        reviewer: metadata.reviewer || "",
+        status: STATUS_ORDER.includes(metadata.status) ? metadata.status : "queued",
+        priority: PRIORITY_ORDER.includes(metadata.priority) ? metadata.priority : "watch",
+        tags: String(metadata.tags || "").split(",").map((tag) => tag.trim()).filter(Boolean),
+        readingMinutes: Math.max(1, Number(metadata.readingMinutes) || Math.round(wordCount / 220)),
+        lineCount: text.split(/\r?\n/u).length,
+        fileSize: entry.size,
+        sourceModifiedAt: entry.modifiedAt || ""
+    };
+}
+
+function parseFrontmatter(text) {
+    if (!text.startsWith("---")) return { metadata: {}, body: text };
+    const lines = text.replace(/\r\n/gu, "\n").split("\n");
+    const metadata = {};
+    let end = 0;
+    for (let index = 1; index < lines.length; index += 1) {
+        if (lines[index].trim() === "---") { end = index; break; }
+        const separator = lines[index].indexOf(":");
+        if (separator > 0) metadata[lines[index].slice(0, separator).trim()] = lines[index].slice(separator + 1).trim();
+    }
+    return { metadata, body: end ? lines.slice(end + 1).join("\n").trim() : text };
+}
+
+function humanizeLabel(value) {
+    return String(value || "Unsorted").replace(/[-_]+/gu, " ").replace(/\b\w/gu, (letter) => letter.toUpperCase());
 }
 
 async function mergeIndexedDocuments(indexedDocuments) {
     const existing = await window.RustFrame.db.list("documents");
     const existingByPath = new Map(existing.map((row) => [row.path, row]));
 
+    const operations = [];
+    const indexedPaths = new Set();
     for (const documentRecord of indexedDocuments) {
         const normalized = normalizeIndexedDocument(documentRecord);
+        indexedPaths.add(normalized.path);
         const current = existingByPath.get(normalized.path);
 
         if (current) {
-            await window.RustFrame.db.update("documents", current.id, {
+            operations.push({ operation: "update", table: "documents", id: current.id, patch: {
                 title: normalized.title,
                 collection: normalized.collection,
                 kind: normalized.kind,
@@ -280,14 +453,23 @@ async function mergeIndexedDocuments(indexedDocuments) {
                 lineCount: normalized.lineCount,
                 fileSize: normalized.fileSize,
                 sourceModifiedAt: normalized.sourceModifiedAt
-            });
+            }});
         } else {
-            await window.RustFrame.db.insert("documents", {
+            operations.push({ operation: "insert", table: "documents", record: {
                 ...normalized,
                 note: "",
                 pinned: false
-            });
+            }});
         }
+    }
+    const root = workspaceProfile().root;
+    for (const current of existing) {
+        if (root && current.path.startsWith(`${root}/`) && !indexedPaths.has(current.path)) {
+            operations.push({ operation: "delete", table: "documents", id: current.id });
+        }
+    }
+    for (let index = 0; index < operations.length; index += 500) {
+        await window.RustFrame.db.batch(operations.slice(index, index + 500));
     }
 }
 
@@ -474,33 +656,20 @@ async function importExternalFiles(fileEntries, sourceLabel) {
     render();
 
     try {
-        for (let index = 0; index < supported.length; index += 1) {
-            const fileEntry = supported[index];
-            const destination = buildImportDestination(fileEntry, index);
-            await window.RustFrame.fs.copyFrom(fileEntry.path, destination);
+        const indexed = [];
+        for (const fileEntry of supported) {
+            const text = await window.RustFrame.fs.readText(fileEntry.uri);
+            indexed.push(buildIndexedRecord(fileEntry.uri, fileEntry, text));
         }
-
-        await indexWorkspace(`${sourceLabel} import`);
-        writeLog(
-            `Imported ${supported.length} files from ${sourceLabel} into workspace/imports.\n` +
-            `${state.log}`
-        );
+        await mergeIndexedDocuments(indexed);
+        await refreshDocuments();
+        selectDefaultDocument();
+        await refreshSelectedContent();
+        writeLog(`Added ${supported.length} temporary-grant files from ${sourceLabel}.`);
     } finally {
         state.importBusy = false;
         render();
     }
-}
-
-function buildImportDestination(fileEntry, index) {
-    const extension = normalizeExtension(fileEntry.extension) || "md";
-    const stem = String(fileEntry.name || "imported-note")
-        .replace(/\.[^.]+$/u, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/gu, "-")
-        .replace(/^-+|-+$/gu, "")
-        .slice(0, 48) || "imported-note";
-    const timestamp = new Date().toISOString().replace(/[-:TZ.]/gu, "").slice(0, 14);
-    return window.RustFrame.path.join("imports", `${timestamp}-${index + 1}-${stem}.${extension}`);
 }
 
 function normalizeExtension(value) {
@@ -536,14 +705,23 @@ async function handleClick(event) {
             return;
         }
 
-        if (action === "import-files") {
-            const files = await window.RustFrame.dialog.openFiles({
-                title: "Import archive files",
-                filters: [
-                    { name: "Markdown and text", extensions: ["md", "txt"] }
-                ]
-            });
-            await importExternalFiles(files, "file picker");
+        if (action === "choose-workspace") {
+            await chooseWorkspace();
+            return;
+        }
+
+        if (action === "switch-workspace") {
+            await switchWorkspace(button.dataset.grantId);
+            return;
+        }
+
+        if (action === "backup-db") {
+            await backupDatabase();
+            return;
+        }
+
+        if (action === "restore-db") {
+            await restoreDatabase();
             return;
         }
 
@@ -675,8 +853,7 @@ async function handleClick(event) {
             if (!documentRecord) {
                 return;
             }
-            const absolutePath = state.selectedFileMeta?.absolutePath || documentRecord.path;
-            await window.RustFrame.clipboard.writeText(absolutePath);
+            await window.RustFrame.clipboard.writeText(documentRecord.path);
             writeLog(`Copied source path for "${documentRecord.title}".`);
             return;
         }
@@ -734,8 +911,7 @@ async function handleClick(event) {
         }
 
         if (action === "reader-copy-source-path" && state.readerDocument) {
-            const absolutePath = state.readerFileMeta?.absolutePath || state.readerDocument.path;
-            await window.RustFrame.clipboard.writeText(absolutePath);
+            await window.RustFrame.clipboard.writeText(state.readerDocument.path);
             writeLog(`Copied source path for "${state.readerDocument.title}".`);
         }
     } catch (error) {
@@ -764,6 +940,7 @@ function renderMain() {
     const readerWindows = state.windows.filter((entry) => !entry.isPrimary).length;
     const reviewQueue = state.documents.filter((entry) => entry.status === "queued" || entry.status === "reviewing").length;
     const workspaceFolders = state.workspaceEntries.filter((entry) => entry.isDir);
+    const recent = recentWorkspaces();
 
     APP.innerHTML = `
         <section class="shell-frame masthead">
@@ -771,16 +948,18 @@ function renderMain() {
                 <p class="eyebrow">Research Desk</p>
                 <h1>Review a local archive, store decisions in SQLite, and keep the source files close.</h1>
                 <p class="section-copy">
-                    This flagship app indexes a bundled research workspace, opens the real source files
-                    through the filesystem bridge, supports drag-and-drop intake, and uses reader windows for focused review passes.
+                    Choose any Markdown or text-document folder. Research Desk indexes it natively,
+                    keeps every source file in place, and synchronizes review state across focused reader windows.
                 </p>
                 <div class="action-row">
                     <button class="button button-primary" type="button" data-action="index" ${state.importBusy ? "disabled" : ""}>
                         ${state.importBusy ? "Indexing archive…" : "Index workspace"}
                     </button>
-                    <button class="button" type="button" data-action="import-files" ${state.importBusy ? "disabled" : ""}>Import files</button>
+                    <button class="button" type="button" data-action="choose-workspace" ${state.importBusy ? "disabled" : ""}>Choose workspace</button>
                     <button class="button" type="button" data-action="export-json">Export JSON</button>
                     <button class="button" type="button" data-action="export-csv">Export CSV</button>
+                    <button class="button" type="button" data-action="backup-db">Back up database</button>
+                    <button class="button" type="button" data-action="restore-db">Restore database</button>
                     <button class="ghost-button" type="button" data-action="sync-title">Sync title</button>
                     <button class="ghost-button" type="button" data-action="close-window">Close</button>
                 </div>
@@ -856,6 +1035,18 @@ function renderMain() {
 
                 <div class="section-divider"></div>
 
+                <div class="window-list">
+                    <p class="label">Recent workspaces</p>
+                    ${recent.length ? recent.map((entry) => `
+                        <button class="window-chip" type="button" data-action="switch-workspace" data-grant-id="${escapeHtml(entry.grantId)}">
+                            <small>${escapeHtml(formatDateTime(entry.lastOpenedAt))}</small>
+                            <strong>${escapeHtml(entry.label)}</strong>
+                        </button>
+                    `).join("") : `<p class="section-copy">Choose a folder to add your first recent workspace.</p>`}
+                </div>
+
+                <div class="section-divider"></div>
+
                 <div class="meta-list">
                     <div class="meta-box">
                         <p class="label">Workflow proof</p>
@@ -863,14 +1054,14 @@ function renderMain() {
                         <p class="section-copy">The review state lives in SQLite. The source documents stay in the filesystem root and are read directly when selected.</p>
                     </div>
                     <div class="meta-box">
-                        <p class="label">Shell automation</p>
-                        <strong>Workspace indexing</strong>
-                        <p class="section-copy">The import button runs an allowlisted local indexing command and merges the results into the database.</p>
+                        <p class="label">Native indexing</p>
+                        <strong>No Python or external runtime</strong>
+                        <p class="section-copy">RustFrame walks the selected grant, reads supported files, and commits changes in atomic SQLite batches.</p>
                     </div>
                     <div class="meta-box">
-                        <p class="label">Desktop intake</p>
-                        <strong>File picker and drag drop</strong>
-                        <p class="section-copy">Import local <code>.md</code> and <code>.txt</code> files straight into <code>workspace/imports</code> without leaving the app.</p>
+                        <p class="label">Private by default</p>
+                        <strong>User-selected folder grant</strong>
+                        <p class="section-copy">The frontend retains an opaque <code>grant://</code> URI. Absolute paths stay inside the native runtime.</p>
                     </div>
                 </div>
 
@@ -1192,12 +1383,17 @@ function visibleDocuments() {
 function workspaceProfile() {
     const row = state.settingsByKey.get("workspaceProfile");
     return row?.value || {
-        label: "Bundled Sample Archive",
-        root: "workspace",
-        command: "pending",
+        label: "No workspace selected",
+        root: null,
+        command: "RustFrame native indexer",
         fileCount: 0,
         lastIndexedAt: null
     };
+}
+
+function recentWorkspaces() {
+    const rows = state.settingsByKey.get("recentWorkspaces")?.value;
+    return Array.isArray(rows) ? rows : [];
 }
 
 function normalizeTags(value) {
