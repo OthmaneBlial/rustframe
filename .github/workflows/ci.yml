@@ -88,11 +88,11 @@ jobs:
           (cd "$scratch" && "$cli" new standalone --template vanilla-ts)
           npm --prefix "$scratch/standalone" install "$scratch/$api_tarball"
           env -u RUSTFRAME_RUNTIME_PATH "$cli" --project "$scratch/standalone" eject
-          if rg --fixed-strings "${{ github.workspace }}" "$scratch/standalone/native/Cargo.toml"; then
+          if grep --fixed-strings "${{ github.workspace }}" "$scratch/standalone/native/Cargo.toml"; then
             echo "generated project leaked a repository path" >&2
             exit 1
           fi
-          rg 'package = "rustframe-runtime", version = "=0.1.0"' "$scratch/standalone/native/Cargo.toml"
+          grep --fixed-strings 'package = "rustframe-runtime", version = "=0.1.0"' "$scratch/standalone/native/Cargo.toml"
           mv "$scratch/standalone/native" "$scratch/registry-contract"
           "$cli" --project "$scratch/standalone" validate
           "$cli" --project "$scratch/standalone" build
@@ -108,8 +108,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.88.0
+      - name: Install Linux WebView dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
       - name: Package runtime crate
         run: cargo package -p rustframe-runtime --allow-dirty
       - name: Check CLI release dependency
         shell: bash
-        run: rg 'package = "rustframe-runtime", version = "=0.1.0"' crates/rustframe-cli/Cargo.toml
+        run: grep --fixed-strings 'package = "rustframe-runtime", version = "=0.1.0"' crates/rustframe-cli/Cargo.toml

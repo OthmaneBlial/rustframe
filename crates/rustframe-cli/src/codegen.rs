@@ -58,7 +58,8 @@ pub fn generate(project: &Path, check: bool) -> Result<CodegenOutcome, String> {
         render_typescript(&schema)
     };
     let current = fs::read_to_string(&output).ok();
-    let changed = current.as_deref() != Some(generated.as_str());
+    let current_normalized = current.as_deref().map(|value| value.replace("\r\n", "\n"));
+    let changed = current_normalized.as_deref() != Some(generated.as_str());
 
     if check && changed {
         return Err(format!(
@@ -204,6 +205,36 @@ fn js_type(kind: &str, optional: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generated_type_checks_ignore_platform_line_endings() {
+        let project = tempfile::tempdir().unwrap();
+        fs::create_dir_all(project.path().join("data")).unwrap();
+        fs::write(
+            project.path().join("rustframe.json"),
+            r#"{"database":{"schema":"data/schema.json"},"frontend":{"generatedTypes":"src/rustframe.generated.ts"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            project.path().join("data/schema.json"),
+            r#"{"version":1,"tables":[]}"#,
+        )
+        .unwrap();
+
+        let generated = render_typescript(&Schema {
+            version: 1,
+            tables: Vec::new(),
+        });
+        fs::create_dir_all(project.path().join("src")).unwrap();
+        fs::write(
+            project.path().join("src/rustframe.generated.ts"),
+            generated.replace('\n', "\r\n"),
+        )
+        .unwrap();
+
+        let outcome = generate(project.path(), true).unwrap();
+        assert!(!outcome.changed);
+    }
 
     #[test]
     fn generated_types_are_stable_and_separate_mutation_shapes() {

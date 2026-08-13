@@ -1393,11 +1393,10 @@ fn audit_shell_event(
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::BTreeMap,
-        fs,
-        path::{Path, PathBuf},
-    };
+    use std::{collections::BTreeMap, fs, path::PathBuf};
+
+    #[cfg(unix)]
+    use std::path::Path;
 
     use base64::Engine as _;
     use tempfile::tempdir;

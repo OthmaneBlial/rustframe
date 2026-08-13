@@ -56,7 +56,7 @@ case "$host_format" in
     }
     trap cleanup_deb EXIT
     sudo dpkg --install "$artifact"
-    installed_binary="$(dpkg --listfiles "$package_name" | rg "/(usr/)?bin/${binary_name}$" | head -n 1)"
+    installed_binary="$(dpkg --listfiles "$package_name" | grep -E "/(usr/)?bin/${binary_name}$" | head -n 1)"
     test -n "$installed_binary"
     run_smoke_binary \
       "$installed_binary" "$smoke_root/deb.json" "$smoke_root/deb-data"

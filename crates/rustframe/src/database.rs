@@ -586,6 +586,10 @@ impl DatabaseCapability {
     }
 
     pub fn insert(&self, table: &str, record: Value) -> Result<Value> {
+        self.with_mutation_transaction(|| self.insert_inner(table, record))
+    }
+
+    fn insert_inner(&self, table: &str, record: Value) -> Result<Value> {
         let table = self.table(table)?;
         let timestamp = now_timestamp()?;
         let record = record_object(record, "record")?;
@@ -629,6 +633,10 @@ impl DatabaseCapability {
     }
 
     pub fn update(&self, table: &str, id: i64, patch: Value) -> Result<Value> {
+        self.with_mutation_transaction(|| self.update_inner(table, id, patch))
+    }
+
+    fn update_inner(&self, table: &str, id: i64, patch: Value) -> Result<Value> {
         let table = self.table(table)?;
         let patch = record_object(patch, "patch")?;
         if patch.is_empty() {
@@ -711,6 +719,10 @@ impl DatabaseCapability {
     }
 
     pub fn delete(&self, table: &str, id: i64) -> Result<bool> {
+        self.with_mutation_transaction(|| self.delete_inner(table, id))
+    }
+
+    fn delete_inner(&self, table: &str, id: i64) -> Result<bool> {
         let table = self.table(table)?;
         let sql = format!(
             "DELETE FROM {} WHERE {} = ?1",
@@ -724,6 +736,32 @@ impl DatabaseCapability {
             delete_search_record(&connection, table, id)?;
         }
         Ok(changed > 0)
+    }
+
+    fn with_mutation_transaction<T>(&self, operation: impl FnOnce() -> Result<T>) -> Result<T> {
+        let owns_transaction = self.connection.borrow().is_autocommit();
+        if owns_transaction {
+            self.connection.borrow().execute_batch("BEGIN IMMEDIATE")?;
+        }
+
+        let result = operation();
+        if !owns_transaction {
+            return result;
+        }
+
+        match result {
+            Ok(value) => {
+                if let Err(error) = self.connection.borrow().execute_batch("COMMIT") {
+                    let _ = self.connection.borrow().execute_batch("ROLLBACK");
+                    return Err(error.into());
+                }
+                Ok(value)
+            }
+            Err(error) => {
+                let _ = self.connection.borrow().execute_batch("ROLLBACK");
+                Err(error)
+            }
+        }
     }
 
     /// Executes every mutation in one SQLite transaction. Any error rolls the

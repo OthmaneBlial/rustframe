@@ -160,6 +160,7 @@ pub enum PackageFormat {
     Dmg,
     Nsis,
     Msi,
+    #[value(name = "appimage", alias = "app-image")]
     AppImage,
     Deb,
 }
