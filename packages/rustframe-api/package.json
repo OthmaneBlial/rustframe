@@ -1,6 +1,6 @@
 {
   "name": "rustframe-api",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "description": "Typed frontend API for RustFrame desktop applications",
   "license": "MIT",
   "type": "module",

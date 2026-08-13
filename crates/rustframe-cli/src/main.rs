@@ -6025,9 +6025,10 @@ mod tests {
                 "rust-embed = { version = \"8.11.0\", features = [\"include-exclude\"] }"
             )
         );
-        assert!(
-            cargo.contains("rustframe = { package = \"rustframe-runtime\", version = \"=0.1.0\" }")
-        );
+        assert!(cargo.contains(&format!(
+            "rustframe = {{ package = \"rustframe-runtime\", version = \"={}\" }}",
+            env!("CARGO_PKG_VERSION")
+        )));
         assert!(!cargo.contains("rustframe = { package = \"rustframe-runtime\", path ="));
         assert!(main.contains("#[derive(RustEmbed)]"));
         assert!(main.contains("#[folder = \"..\"]"));

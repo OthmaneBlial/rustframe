@@ -106,4 +106,12 @@ jobs:
       - name: Publish rustframe-api
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm --prefix packages/rustframe-api publish --provenance --access public
+          EXPECTED_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm_tag="latest"
+          if [[ "$EXPECTED_VERSION" == *-* ]]; then
+            npm_tag="next"
+          fi
+          npm --prefix packages/rustframe-api publish --provenance --access public --tag "$npm_tag"

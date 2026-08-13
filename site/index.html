@@ -6,7 +6,7 @@
     <title>RustFrame</title>
     <meta
         name="description"
-        content="RustFrame is a Rust workspace for local-first desktop workflow tools built with plain frontend files, embedded SQLite, and a small native surface."
+        content="Build local-first macOS, Windows, and Linux apps with TypeScript or JavaScript, embedded SQLite, user-approved filesystem access, and real native installers."
     >
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -26,6 +26,7 @@
 
         <nav class="topnav" aria-label="Primary">
             <a href="#overview">Overview</a>
+            <a href="#quickstart">Quickstart</a>
             <a href="#fit">Fit</a>
             <a href="#workflow">Workflow</a>
             <a href="#ship">Ship</a>
@@ -38,32 +39,32 @@
     <main>
         <section class="hero frame reveal" id="overview">
             <div class="hero-copy">
-                <p class="eyebrow">Workflow Wedge</p>
-                <h1>Too native for a tab. Too small for a full desktop project.</h1>
+                <p class="eyebrow">Public v1 release candidate</p>
+                <h1>Desktop tools that keep their data close.</h1>
                 <p class="lede">
-                    RustFrame is the narrow path for frontend-heavy workflow tools that still need
-                    a real desktop window, local SQLite, scoped machine access, and packaging,
-                    without forcing a visible desktop-framework project on day one.
+                    Build local-first macOS, Windows, and Linux applications with the frontend stack
+                    you already know. RustFrame adds native windows, embedded SQLite, user-approved
+                    machine access, typed APIs, and real installers—without making your app a Rust project.
                 </p>
 
                 <div class="hero-actions">
-                    <a class="button button-primary" href="#fit">Check the fit</a>
-                    <a class="button button-ghost" href="docs.html?doc=choosing-rustframe">Read the fit guide</a>
-                    <a class="button button-ghost" href="showcase.html">Browse the showcase</a>
+                    <a class="button button-primary" href="#quickstart">Start building</a>
+                    <a class="button button-ghost" href="docs.html?doc=getting-started">Read the guide</a>
+                    <a class="button button-ghost" href="https://github.com/OthmaneBlial/rustframe">View on GitHub</a>
                 </div>
 
                 <div class="signal-strip">
                     <article>
                         <span>Authoring model</span>
-                        <strong>Plain frontend folder, hidden runner</strong>
+                        <strong>Independent Vite project, hidden native runner</strong>
                     </article>
                     <article>
                         <span>Local-first data</span>
-                        <strong>Embedded SQLite with seeds and migrations</strong>
+                        <strong>Typed SQLite with transactions, backup and restore</strong>
                     </article>
                     <article>
                         <span>Native surface</span>
-                        <strong>Scoped filesystem and allowlisted shell commands</strong>
+                        <strong>Window permissions and opaque filesystem grants</strong>
                     </article>
                     <article>
                         <span>Escape hatch</span>
@@ -73,57 +74,52 @@
             </div>
 
             <aside class="hero-stack">
-                <article class="command-card">
+                <article class="command-card" id="quickstart">
                     <div class="card-head">
-                        <p class="eyebrow">Core Commands</p>
-                        <span class="status-pill">phase 5</span>
+                        <p class="eyebrow">Five commands to a native app</p>
+                        <span class="status-pill">v0.1 RC</span>
                     </div>
-                    <h2>Run the proof app. Inspect the contract. Package when the workflow earns it.</h2>
+                    <h2>Install once. Create anywhere. Ship when the workflow is ready.</h2>
                     <div class="command-list">
-                        <button class="command-chip is-active" type="button" data-command-tab="new">New</button>
-                        <button class="command-chip" type="button" data-command-tab="doctor">Doctor</button>
+                        <button class="command-chip is-active" type="button" data-command-tab="install">Install</button>
+                        <button class="command-chip" type="button" data-command-tab="new">New</button>
                         <button class="command-chip" type="button" data-command-tab="dev">Dev</button>
-                        <button class="command-chip" type="button" data-command-tab="inspect">Inspect</button>
+                        <button class="command-chip" type="button" data-command-tab="validate">Validate</button>
+                        <button class="command-chip" type="button" data-command-tab="build">Build</button>
                         <button class="command-chip" type="button" data-command-tab="package">Package</button>
-                        <button class="command-chip" type="button" data-command-tab="export">Export</button>
-                        <button class="command-chip" type="button" data-command-tab="eject">Eject</button>
                     </div>
-                    <div class="command-panel" data-command-panel="new">
-                        <pre><code>cargo run -p rustframe-cli -- new archive-reviewer</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- new archive-reviewer">Copy</button>
+                    <div class="command-panel" data-command-panel="install">
+                        <pre><code>cargo install rustframe-cli --version 0.1.0-rc.1 --locked</code></pre>
+                        <button class="mini-button" type="button" data-copy="cargo install rustframe-cli --version 0.1.0-rc.1 --locked">Copy</button>
                     </div>
-                    <div class="command-panel is-hidden" data-command-panel="doctor">
-                        <pre><code>cargo run -p rustframe-cli -- doctor</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- doctor">Copy</button>
+                    <div class="command-panel is-hidden" data-command-panel="new">
+                        <pre><code>rustframe new my-tool --template vanilla-ts --package-manager npm --install</code></pre>
+                        <button class="mini-button" type="button" data-copy="rustframe new my-tool --template vanilla-ts --package-manager npm --install">Copy</button>
                     </div>
                     <div class="command-panel is-hidden" data-command-panel="dev">
-                        <pre><code>cargo run -p rustframe-cli -- dev research-desk</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- dev research-desk">Copy</button>
+                        <pre><code>cd my-tool &amp;&amp; rustframe dev</code></pre>
+                        <button class="mini-button" type="button" data-copy="cd my-tool &amp;&amp; rustframe dev">Copy</button>
                     </div>
-                    <div class="command-panel is-hidden" data-command-panel="inspect">
-                        <pre><code>cargo run -p rustframe-cli -- inspect research-desk</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- inspect research-desk">Copy</button>
+                    <div class="command-panel is-hidden" data-command-panel="validate">
+                        <pre><code>rustframe validate</code></pre>
+                        <button class="mini-button" type="button" data-copy="rustframe validate">Copy</button>
+                    </div>
+                    <div class="command-panel is-hidden" data-command-panel="build">
+                        <pre><code>rustframe build</code></pre>
+                        <button class="mini-button" type="button" data-copy="rustframe build">Copy</button>
                     </div>
                     <div class="command-panel is-hidden" data-command-panel="package">
-                        <pre><code>cargo run -p rustframe-cli -- package research-desk --verify</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- package research-desk --verify">Copy</button>
+                        <pre><code>rustframe package --verify</code></pre>
+                        <button class="mini-button" type="button" data-copy="rustframe package --verify">Copy</button>
                     </div>
-                    <div class="command-panel is-hidden" data-command-panel="export">
-                        <pre><code>cargo run -p rustframe-cli -- export research-desk</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- export research-desk">Copy</button>
-                    </div>
-                    <div class="command-panel is-hidden" data-command-panel="eject">
-                        <pre><code>cargo run -p rustframe-cli -- eject research-desk</code></pre>
-                        <button class="mini-button" type="button" data-copy="cargo run -p rustframe-cli -- eject research-desk">Copy</button>
-                    </div>
-                    <p class="section-copy">The CLI now covers host checks, manifest inspection, data resets, verified packaging, and the eject path when the product needs more native ownership.</p>
+                    <p class="section-copy">The CLI finds the nearest <code>rustframe.json</code>, owns the Vite and desktop process lifetimes together, and keeps generated native code under <code>target/rustframe/</code>.</p>
                 </article>
 
                 <figure class="shot-card shot-card-large">
                     <img src="assets/screenshots/research-desk.png" alt="Research Desk screenshot">
                     <figcaption>
                         <strong>Research Desk</strong>
-                        <span>Flagship proof app: bundled archive review, scoped file access, SQLite queueing, and focused reader windows.</span>
+                        <span>Flagship proof app: choose any document folder, index it natively, and keep focused reader windows synchronized.</span>
                     </figcaption>
                 </figure>
 
@@ -133,18 +129,18 @@
                 <div class="package-artifacts">
                         <div class="package-artifact">
                             <strong>Linux</strong>
-                            <code>dist/linux/&lt;app-id&gt;-&lt;version&gt;-linux-&lt;arch&gt;/</code>
+                            <code>AppImage · Debian</code>
                         </div>
                         <div class="package-artifact">
                             <strong>Windows</strong>
-                            <code>dist/windows/&lt;app-id&gt;-&lt;version&gt;-windows-&lt;arch&gt;/</code>
+                            <code>NSIS · MSI</code>
                         </div>
                         <div class="package-artifact">
                             <strong>macOS</strong>
-                            <code>dist/macos/&lt;app-id&gt;-&lt;version&gt;-macos-&lt;arch&gt;/</code>
+                            <code>.app · DMG</code>
                         </div>
                     </div>
-                    <p>Declared relative filesystem roots are copied into these outputs, so a workflow app can ship its local workspace and helper tools with the bundle.</p>
+                    <p>Every format is built, installed, smoke-launched, and uninstalled on its native CI host. Artifacts include checksums, package metadata, and release notes.</p>
                 </article>
             </aside>
         </section>
@@ -197,28 +193,28 @@
                 <div class="workflow-grid">
                     <article class="workflow-step">
                         <span class="step-index">01</span>
-                        <h3>Scope a local archive</h3>
-                        <p>Declare <code>workspace/</code> and <code>tools/</code> in the manifest so the app works against one known archive instead of the whole machine.</p>
+                        <h3>Choose a local archive</h3>
+                        <p>Ask the user for a Markdown or text folder and persist the opaque grant only after explicit consent.</p>
                     </article>
                     <article class="workflow-step">
                         <span class="step-index">02</span>
-                        <h3>Index source files into SQLite</h3>
-                        <p>Store document metadata, status, reviewer notes, and queue state in the runtime-managed local database.</p>
+                        <h3>Index natively into SQLite</h3>
+                        <p>Walk the grant with extension and entry limits. No Python process, absolute-path API, or bundled fake workspace.</p>
                     </article>
                     <article class="workflow-step">
                         <span class="step-index">03</span>
-                        <h3>Open focused reader windows</h3>
-                        <p>Use secondary windows for deep reading while keeping one runtime, one bridge contract, and one shared local dataset.</p>
+                        <h3>Watch incremental changes</h3>
+                        <p>Coalesce create, modify, rename, and delete events while surfacing unsupported or unreadable files honestly.</p>
                     </article>
                     <article class="workflow-step">
                         <span class="step-index">04</span>
-                        <h3>Run a hardened Python indexer</h3>
-                        <p>Allowlist a local indexing command and capture stdout or stderr directly in the UI without exposing a general shell.</p>
+                        <h3>Review in focused windows</h3>
+                        <p>Keep search, tags, notes, status, and pinning synchronized through database events delivered after commit.</p>
                     </article>
                     <article class="workflow-step">
                         <span class="step-index">05</span>
-                        <h3>Export queues or package the tool</h3>
-                        <p>Ship the same workflow as a host-native desktop bundle once it stops being an experiment.</p>
+                        <h3>Back up, restore, and ship</h3>
+                        <p>Create consistent SQLite snapshots, restore behind a safety backup, export queues, and produce native installers.</p>
                     </article>
                 </div>
 
@@ -226,25 +222,24 @@
                     <span class="tile-kicker">Manifest snapshot</span>
                     <h3>The workflow stays explicit in one contract.</h3>
                     <pre><code>{
-  "appId": "research-desk",
-  "security": { "model": "local-first" },
-  "filesystem": {
-    "roots": ["workspace", "tools"]
+  "schemaVersion": 1,
+  "app": {
+    "id": "research-desk",
+    "windows": [{ "id": "main", "route": "/" }]
   },
-  "shell": {
-    "commands": [
-      {
-        "name": "indexWorkspacePy3",
-        "program": "python3",
-        "args": ["index_workspace.py", "../workspace"],
-        "cwd": "tools"
-      }
-    ]
-  }
+  "security": {
+    "model": "local-first",
+    "permissions": [{
+      "window": "main",
+      "allow": ["db:read", "db:write", "fs:grants:read", "fs:grants:watch"]
+    }]
+  },
+  "filesystem": { "roots": [], "persistGrants": true },
+  "shell": { "commands": [] }
 }</code></pre>
                     <p>
-                        This is the pitch in practice: a frontend-first app with local data, scoped file access,
-                        and one explicit automation path. The same relative roots are copied into export and package outputs.
+                        Manifest schema v1 is the native contract. Unknown fields, unsafe paths, undeclared permissions,
+                        weak CSPs, and stale generated database types fail validation before the app ships.
                     </p>
                 </aside>
             </div>
@@ -264,24 +259,24 @@
                 <article class="package-card">
                     <span class="tile-kicker">Package command</span>
                     <h3>Build and verify on the native host.</h3>
-                    <pre><code>cargo run -p rustframe-cli -- package research-desk --verify</code></pre>
-                    <p>The generated or ejected runner becomes a host-native bundle, and the CLI now validates the emitted metadata, scripts, and archive layout as part of the path.</p>
+                    <pre><code>rustframe package --verify</code></pre>
+                    <p>The frontend builds first, then the hidden runner becomes a host-native bundle under <code>dist/packages/</code> with checksums and machine-readable metadata.</p>
                 </article>
                 <article class="package-card">
                     <span class="tile-kicker">Support contract</span>
                     <h3>Production credibility now has an explicit boundary.</h3>
                     <ul class="card-list">
-                        <li>Repo CI verifies packaged bundles on Linux, Windows, and macOS hosts.</li>
+                        <li>Native CI builds, installs, launches, and uninstalls every supported package format.</li>
                         <li>Platform promises and non-promises are now documented instead of implied.</li>
                         <li>Signing, notarization, updates, and release prep have dedicated operator guides.</li>
-                        <li>Declared relative filesystem roots are still copied with the app, so bundled workspaces survive release builds.</li>
+                        <li>Unsigned local output is supported and labeled explicitly in package metadata.</li>
                     </ul>
                 </article>
                 <article class="package-card">
                     <span class="tile-kicker">Current limits</span>
                     <h3>Be honest about what is still early.</h3>
                     <ul class="card-list">
-                        <li>Cross-host validation still needs the matching native host toolchain.</li>
+                        <li>Packaging requires the matching native host toolchain; cross-host installers are not promised.</li>
                         <li>Signing and updates are documented, but they are still release-layer responsibilities outside the runtime.</li>
                         <li>Linux still has the heaviest GTK, WebKitGTK, and display-stack constraints.</li>
                     </ul>
@@ -305,7 +300,7 @@
                     <div class="gallery-copy">
                         <span class="gallery-kicker">Flagship workflow</span>
                         <h3>Research Desk</h3>
-                        <p>A local archive review app that combines SQLite, real source files, allowlisted automation, and multi-window review in one concrete tool.</p>
+                        <p>A user-selected document workflow combining native indexing, filesystem watching, typed SQLite, backups, and synchronized reader windows.</p>
                     </div>
                 </article>
                 <article class="gallery-card">
@@ -348,7 +343,7 @@
     </main>
 
     <footer class="site-footer">
-        <p>RustFrame is being narrowed around one sharp claim: local-first desktop workflow tools with mostly frontend code, embedded SQLite, and a small explicit native surface.</p>
+        <p>RustFrame is the narrow path for local-first desktop workflow tools: mostly frontend code, embedded SQLite, and a small explicit native surface.</p>
     </footer>
 
     <script src="app.js"></script>

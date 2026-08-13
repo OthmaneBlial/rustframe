@@ -34,7 +34,7 @@
   "filesystem": { "roots": [], "persistGrants": true },
   "shell": { "commands": [] },
   "packaging": {
-    "version": "0.1.0",
+    "version": "0.1.0-rc.1",
     "identifier": "dev.rustframe.research-desk",
     "description": "Local-first research archive and review workbench",
     "publisher": "RustFrame",

@@ -1,245 +1,44 @@
-# Runtime And Capabilities
+# Runtime and Capabilities
 
-## Runtime Shape
+RustFrame embeds a Vite-built frontend in a native `wry` WebView and injects a promise-based bridge. Development may use the manifest's loopback `frontend.devUrl`; production serves bundled `app://localhost/` assets and rejects remote navigation.
 
-RustFrame is not trying to be a full Tauri replacement. The current workspace intentionally stays small:
+## Authorization model
 
-- The desktop shell is built around `tao` and `wry`.
-- Frontend assets are served from a custom `app://localhost/` protocol when embedded.
-- Development can switch to an HTTP dev server through `RUSTFRAME_DEV_URL` or a `rustframe:dev-url` meta tag.
-- The runtime injects a small promise bridge onto `window.RustFrame`, not through a localhost IPC server.
+Every IPC request carries a method and structured parameters. The native dispatcher enforces a 1 MiB request limit, validates the method, checks the current window's exact or prefix-scoped permission, applies sensitive-operation rate limits, parses typed parameters, and only then dispatches work. The JavaScript surface mirrors these checks but is not trusted as the boundary.
 
-## App Metadata Comes Primarily From The Manifest
+`local-first` is intended for bundled trusted application code. `networked` cannot receive database, filesystem, or shell permissions. Generated projects include restrictive CSP declarations.
 
-Frontend-only apps can add `apps/<name>/rustframe.json` for typed configuration:
+The manifest `security.csp` is emitted as the native `Content-Security-Policy` response header for embedded production assets. Validation rejects incomplete policies and unsafe script directives; the generated HTML carries the matching meta policy during Vite development.
 
-```json
-{
-  "appId": "hello-rustframe",
-  "window": {
-    "title": "Hello Rustframe",
-    "width": 1280,
-    "height": 820
-  },
-  "security": {
-    "model": "local-first"
-  },
-  "devUrl": "http://127.0.0.1:5173",
-  "packaging": {
-    "version": "0.1.0",
-    "description": "Hello RustFrame desktop package",
-    "linux": {
-      "icon": "assets/icon.svg",
-      "categories": ["Utility"],
-      "keywords": ["workflow", "local-first", "rustframe"]
-    },
-    "windows": {
-      "icon": "assets/icon.ico"
-    },
-    "macos": {
-      "bundleIdentifier": "dev.rustframe.hello-rustframe",
-      "icon": "assets/icon.icns"
-    }
-  },
-  "filesystem": {
-    "roots": ["fixtures"]
-  },
-  "shell": {
-    "commands": [
-      {
-        "name": "listFixtures",
-        "program": "ls",
-        "args": ["-la", "${SOURCE_APP_DIR}/fixtures"]
-      }
-    ]
-  }
-}
-```
+## Public namespaces
 
-That manifest is now the primary typed contract for window settings, development URLs, capabilities, and packaging.
-HTML fallback still works:
+- `db`: info, typed CRUD, filtered list/search/count, atomic batch, backup, and restore.
+- `fs`: opaque URI metadata/read/write, directory listing, bounded recursive walk, user grants, revocation, and watching.
+- `events`: database commits, filesystem changes, restore notification, and temporary drag/drop grants.
+- `window`: current/list/open/close/minimize/maximize/title for declared in-app windows.
+- `dialog`: native open/save flows.
+- `clipboard`: permission-scoped read and write.
+- `shell`: named direct-process commands with fixed/allowlisted arguments, timeout, output limits, controlled environment, and audit records.
+- `path`: platform-neutral URI/path string helpers.
 
-```html
-<title>Hello Rustframe</title>
-<meta name="rustframe:width" content="1280">
-<meta name="rustframe:height" content="820">
-<meta name="rustframe:dev-url" content="http://127.0.0.1:5173">
-```
+The typed surface is published as `rustframe-api`; plain JavaScript retains `window.RustFrame`.
 
-When both HTML metadata and `rustframe.json` set the same window fields, the manifest wins.
-The same manifest also provides Linux, Windows, and macOS packaging metadata for `rustframe-cli package`.
-`apps/research-desk/rustframe.json` is the flagship concrete example: it scopes a bundled `workspace/` and `tools/` directory plus allowlisted Python indexers without introducing an app-owned native project.
+## Filesystem lifecycle
 
-## Platform Validation
+A declared root such as `workspace` is exposed as `root://workspace`. Root IDs come from the final path component, and duplicate IDs are rejected. A selected file or folder becomes an opaque `grant://<id>` URI. Persisted grants are reloaded only when the target still resolves safely. Every operation rechecks the resolved root and grant access mode. Walks support extension filters and entry limits. Watchers coalesce polling changes into create, modify, rename, and delete events and are stopped on revocation or owner-window close.
 
-RustFrame now treats platform coverage as an explicit contract instead of a distant note.
+Open and save dialogs return temporary grants, never absolute paths. Use the returned `uri` for subsequent filesystem calls. `fs.copyFrom` accepts authorized root or grant URIs for its source and destination and enforces read and write permissions separately.
 
-- `rustframe-cli doctor` checks Cargo, Rust, and the host desktop dependencies before you build or package.
-- `rustframe-cli platform-check <name>` validates the generated or ejected runner against the current host row in the Linux/Windows/macOS support matrix.
-- Default matrix rows that require another native host are reported as such instead of being silently ignored or falsely marked as validated.
-- `rustframe-cli package <name> --verify` builds a host-native bundle and validates the emitted metadata, scripts, and archive layout.
+Drag/drop paths are immediately converted into temporary read grants before the event reaches JavaScript.
 
-## Frontend Trust Model
+## Database lifecycle
 
-RustFrame assumes a trusted frontend by default.
+The runtime creates SQLite in the user's application-data directory, applies checked migrations and immutable seeds, and reconciles the validated schema. Batches run in one transaction. Mutation events reach every open window only after commit.
 
-- `security.model = "local-first"` is the default. Configured database, filesystem, and shell bridges are exposed to the frontend.
-- `security.model = "networked"` treats the frontend as less trusted. Only the window bridge stays exposed by default.
-- `security.bridge.database`, `security.bridge.filesystem`, and `security.bridge.shell` can selectively re-enable those namespaces in `networked` mode.
-- The runtime enforces that boundary both in the injected JS bridge and in native IPC dispatch, so raw `window.ipc.postMessage(...)` calls do not bypass it.
-- `window.RustFrame.security` exposes the active trust model and the currently available bridge namespaces.
+Backup uses SQLite's online backup mechanism. Restore validates the embedded app identity and compatible schema, creates a safety backup, replaces state atomically, reapplies required migrations/schema work, and broadcasts a reload event.
 
-If your app loads remote content, embeds third-party scripts, renders user HTML, or has a meaningful XSS surface, use `networked` mode and keep the bridge scope minimal.
+## Generated and ejected runners
 
-## Embedded Assets
+The CLI generates its native runner under `<project>/target/rustframe/runner` and builds into `<project>/target/rustframe/native`. The runner pins `rustframe-runtime` to the CLI-compatible registry version. `rustframe eject` materializes the same contract under `<project>/native`; subsequent commands prefer it.
 
-When you run `dev`, `export`, or `package`, the CLI walks the app asset directory and embeds everything except:
-
-- `dist/` at the app root
-- hidden files and hidden folders
-
-`index.html` is required.
-
-## Native IPC Surface
-
-The shipped bridge exposes these methods according to the active trust model:
-
-### Window
-
-- `window.RustFrame.window.id`
-- `window.RustFrame.window.route`
-- `window.RustFrame.window.isPrimary`
-- `window.RustFrame.window.current()`
-- `window.RustFrame.window.list()`
-- `window.RustFrame.window.open(routeOrOptions, options?)`
-- `window.RustFrame.window.close()`
-- `window.RustFrame.window.minimize()`
-- `window.RustFrame.window.maximize()`
-- `window.RustFrame.window.setTitle(title)`
-
-Secondary windows are still in-app windows:
-
-- `window.open(...)` only accepts in-app routes, not absolute URLs.
-- New windows share the same embedded assets or dev server, the same trust model, and the same filesystem, shell, and database capabilities.
-- Each window keeps its own frontend state and its own JS heap.
-- Database access is shared because all windows talk to the same runtime-owned database capability.
-- `apps/research-desk` uses `/reader?doc=<id>` routes for focused review windows over the same local archive.
-
-### Database
-
-If the app contains `data/schema.json` and the frontend trust settings allow database access, RustFrame exposes:
-
-- `window.RustFrame.db.info()`
-- `window.RustFrame.db.get(table, id)`
-- `window.RustFrame.db.list(table, options)`
-- `window.RustFrame.db.search(table, term, options)`
-- `window.RustFrame.db.count(table, options)`
-- `window.RustFrame.db.insert(table, record)`
-- `window.RustFrame.db.update(table, id, patch)`
-- `window.RustFrame.db.delete(table, id)`
-
-The runtime manages these record fields automatically:
-
-- `id`
-- `createdAt`
-- `updatedAt`
-
-Schema files, seed files, and versioned SQL migration files under `data/migrations/` are embedded into the app binary. The actual SQLite file is created in the user's app-data directory, not inside `dist/`.
-
-Migration files:
-
-- are discovered from `data/migrations/*.sql`
-- are versioned by the numeric prefix in the filename, such as `002-rename-title.sql`
-- run during upgrades before the runtime falls back to additive table reconciliation
-- are the supported path for non-additive changes such as column renames, drops, type changes, and backfills
-
-## Filesystem Capability
-
-The runtime can expose read access to explicit directories through `allow_fs_root(...)`.
-Frontend-only apps now declare those roots through `rustframe.json`.
-
-- `window.RustFrame.fs.readText(path)` only succeeds inside the configured roots.
-- `window.RustFrame.fs.listDir(path)`, `metadata(path)`, `writeText(path, contents)`, `writeBinary(path, base64)`, and `copyFrom(sourcePath, destinationPath)` stay inside the same scoped roots.
-- `window.RustFrame.fs.openPath(path)` opens an allowed file or directory in the host default app.
-- `window.RustFrame.fs.revealPath(path)` opens the host file manager for the allowed file or its parent folder.
-- Parent escapes and absolute paths outside those roots are rejected.
-- Relative roots resolve against the source app folder in debug builds and against the executable directory in release builds.
-- `rustframe-cli export` and `rustframe-cli package` copy declared relative roots beside the executable or inside the host bundle so file-centric apps can ship local workspaces and helper tool directories.
-- `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` can be expanded inside declared values.
-
-The bridge also exposes:
-
-- `window.RustFrame.dialog.openFile(...)`
-- `window.RustFrame.dialog.openFiles(...)`
-- `window.RustFrame.dialog.openDirectory(...)`
-- `window.RustFrame.dialog.saveText(...)`
-- `window.RustFrame.dialog.saveBinary(...)`
-- `window.RustFrame.clipboard.writeText(text)`
-
-The capability demo previously wired this in Rust by hand; frontend-only apps can now do the same through the manifest.
-
-## Shell Capability
-
-The runtime can expose hardened commands through `allow_shell_command_configured(...)`.
-Frontend-only apps declare the same controls through `rustframe.json`.
-
-- `window.RustFrame.shell.exec(name, args)` resolves to structured `stdout`, `stderr`, `exitCode`, truncation flags, `timeoutMs`, and `maxOutputBytes`.
-- Unknown commands are rejected.
-- Frontend-provided extra args are denied by default and must be allowlisted per command.
-- Commands run directly through `std::process::Command`, not through a shell pipeline.
-- Each command can declare `cwd`, `env`, `clearEnv`, `timeoutMs`, and `maxOutputBytes`.
-- `${SOURCE_APP_DIR}`, `${SOURCE_ASSET_DIR}`, and `${EXE_DIR}` can be used inside declared program, arg, cwd, and env values.
-- `rustframe-cli dev <name>` writes shell audit records to `apps/<name>/dist/dev-shell-audit.log`.
-
-## Trust Model
-
-RustFrame only enables the bridge surface that the frontend trust settings and the resolved runtime capabilities allow.
-
-- `local-first` is for apps that own local data and explicit machine access.
-- `networked` is for apps that behave more like a hosted web app and should not assume local filesystem, shell, or database access.
-- When a bridge is disabled, the runtime returns a permission-denied error instead of silently exposing a partial capability.
-
-Typical examples:
-
-- a `networked` frontend calling `window.RustFrame.db.list(...)` receives a database permission-denied error
-- a frontend without filesystem roots calling `window.RustFrame.fs.readText(...)` receives a filesystem permission-denied error
-- a frontend calling a shell command that was not allowlisted receives a shell permission-denied error
-
-## Hidden Runner Generation
-
-Frontend-only apps stay clean because the Rust runner is generated under:
-
-```text
-target/rustframe/apps/<name>/runner/
-```
-
-That runner:
-
-- embeds the app assets
-- injects the canonical `window.RustFrame` bridge at document start
-- carries forward window metadata from `index.html` and optional overrides from `rustframe.json`
-- wires in the database capability when `data/schema.json` exists
-- wires in filesystem roots and shell commands declared in `rustframe.json`
-- feeds Linux, Windows, and macOS package metadata from `rustframe.json` into `rustframe-cli package`
-- is the runner that `rustframe-cli platform-check` validates
-
-## Ejected Runner Path
-
-When an app needs deeper native control, `rustframe-cli eject <name>` creates `apps/<name>/native/`.
-
-That ejected runner:
-
-- depends on the `rustframe` library instead of copying runtime code into the app
-- embeds the app assets directly from the app folder through `rust-embed`
-- becomes the runner used by `dev`, `export`, `platform-check`, and `package` for that app
-- is the place to add extra native crates, deeper `tao` or `wry` setup, menus, tray work, or shortcuts
-
-## Practical Summary
-
-RustFrame's contract is simple on purpose:
-
-- plain HTML, CSS, and JavaScript in the app folder
-- a tiny native bridge
-- optional embedded SQLite
-- optional scoped filesystem access
-- optional allowlisted process execution
+Ejection is for application-specific native customization. Features that Research Desk needs must remain public generic APIs rather than private runner code.

@@ -92,7 +92,8 @@ jobs:
             echo "generated project leaked a repository path" >&2
             exit 1
           fi
-          grep --fixed-strings 'package = "rustframe-runtime", version = "=0.1.0"' "$scratch/standalone/native/Cargo.toml"
+          cli_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' crates/rustframe-cli/Cargo.toml | head -n 1)"
+          grep --fixed-strings "package = \"rustframe-runtime\", version = \"=$cli_version\"" "$scratch/standalone/native/Cargo.toml"
           mv "$scratch/standalone/native" "$scratch/registry-contract"
           "$cli" --project "$scratch/standalone" validate
           "$cli" --project "$scratch/standalone" build
@@ -118,4 +119,6 @@ jobs:
         run: cargo package -p rustframe-runtime --allow-dirty
       - name: Check CLI release dependency
         shell: bash
-        run: grep --fixed-strings 'package = "rustframe-runtime", version = "=0.1.0"' crates/rustframe-cli/Cargo.toml
+        run: |
+          cli_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' crates/rustframe-cli/Cargo.toml | head -n 1)"
+          grep --fixed-strings "package = \"rustframe-runtime\", version = \"=$cli_version\"" crates/rustframe-cli/Cargo.toml

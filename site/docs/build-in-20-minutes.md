@@ -1,105 +1,66 @@
-# Build This In 20 Minutes
+# Build and Package a Local Tool
 
-This walkthrough turns the RustFrame starter into a simple local triage desk without touching runtime internals.
+This tutorial starts from the published CLI and ends with a native package. The project is independent of the RustFrame source repository.
 
-## 1. Check The Host
-
-Run:
+## 1. Install and Check the Host
 
 ```bash
-cargo run -p rustframe-cli -- doctor
+cargo install rustframe-cli --version 0.1.0-rc.1 --locked
+rustframe doctor
 ```
 
-Fix host issues first if the CLI reports missing desktop dependencies.
+Install any native WebView dependencies reported by `doctor` before continuing.
 
-## 2. Create The App
-
-Run:
+## 2. Create a Project
 
 ```bash
-cargo run -p rustframe-cli -- new triage-desk
+rustframe new triage-desk --template vanilla-ts --package-manager npm
+cd triage-desk
+npm install
 ```
 
-The generated app already contains:
+The starter is a Vite application with a versioned `rustframe.json`, a restrictive Content Security Policy, a SQLite schema, and generated TypeScript APIs.
 
-- a workflow queue UI
-- a `work_items` SQLite table
-- seeded records
-- packaging metadata
+## 3. Model the Workflow
 
-## 3. Rename The Workflow Shape
-
-Edit `apps/triage-desk/data/schema.json`.
-
-For example, change `work_items` into `incidents` and replace the generic columns with the fields your team actually needs.
-
-Keep the starter rules:
-
-- text fields for the things you want to search
-- seeds only for first-run defaults
-- migrations later for non-additive changes
-
-## 4. Match The UI To The Job
-
-Edit:
-
-- `apps/triage-desk/index.html`
-- `apps/triage-desk/styles.css`
-- `apps/triage-desk/app.js`
-
-Do the minimum product-specific rewrite:
-
-- rename queue labels
-- swap lanes for your real statuses
-- change the selected-item panel into the detail view you actually need
-
-## 5. Run It
-
-Run:
+Edit `data/schema.json`. Rename the starter table to match the work being tracked and add the searchable fields the tool needs. Then regenerate types:
 
 ```bash
-cargo run -p rustframe-cli -- dev triage-desk
+rustframe codegen
 ```
 
-If you prefer Vite, start from one of the frontend starters under `examples/frontend-starters/` and point RustFrame at the dev server:
+Import `getRustFrame` and the generated table types from `src/rustframe.generated.ts`. Keep seeds for genuine first-run defaults; do not present example activity as user data.
+
+## 4. Develop
 
 ```bash
-cargo run -p rustframe-cli -- dev triage-desk http://127.0.0.1:5173
+rustframe dev
 ```
 
-## 6. Inspect The Resolved Contract
+RustFrame starts the configured Vite command, waits for `frontend.devUrl`, regenerates database types when the schema changes, and closes the frontend process with the desktop runner.
 
-Run:
+## 5. Validate the Public Contract
 
 ```bash
-cargo run -p rustframe-cli -- inspect triage-desk
+rustframe validate
+rustframe inspect
 ```
 
-This confirms the real paths, bridge surface, schema assets, packaging roots, and security model.
+Validation rejects stale generated types, unknown manifest fields, invalid paths and commands, missing assets, and unsupported capability declarations. Use `rustframe inspect --json` in automation.
 
-## 7. Add Native Capabilities Only When Needed
-
-Edit `apps/triage-desk/rustframe.json` when the product genuinely needs them.
-
-Typical next additions:
-
-- filesystem roots for real local files
-- allowlisted shell commands for import or indexing
-- `networked` mode if the frontend stops being fully trusted
-
-## 8. Package And Verify
-
-Run:
+## 6. Build and Package
 
 ```bash
-cargo run -p rustframe-cli -- package triage-desk --verify
+rustframe build
+rustframe package --verify
 ```
 
-That builds the host-native bundle and checks the produced layout, metadata, scripts, and archive.
+`build` runs the frontend build before compiling the hidden native runner. `package` uses cargo-packager to create host-native artifacts under `dist/packages/`, plus checksums, release metadata, and release notes. Local packages are explicitly marked unsigned.
 
-## What You Should Avoid
+Run packaging on each native host for its formats:
 
-- do not edit old seed files after users already ran the app
-- do not expose raw shell access when named commands will do
-- do not give the filesystem bridge the whole machine when one project root is enough
-- do not keep the starter labels if the product has a clearer job shape
+- macOS: `.app` and `.dmg`
+- Windows: NSIS and MSI
+- Linux: AppImage and Debian
+
+Use `rustframe eject` only when the application genuinely needs app-owned Rust code. The normal workflow keeps the runner hidden under `target/rustframe/`.

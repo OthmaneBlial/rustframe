@@ -29,7 +29,7 @@ Eject when the product needs a capability that does not fit the current runtime 
 The command is:
 
 ```bash
-cargo run -p rustframe-cli -- eject <app>
+rustframe eject
 ```
 
 ## Recommended Extension Shape

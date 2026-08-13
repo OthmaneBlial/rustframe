@@ -83,7 +83,7 @@ fn eject_uses_the_registry_runtime_and_no_repository_path() {
 
     let cargo = fs::read_to_string(project.join("native/Cargo.toml")).unwrap();
     assert!(cargo.contains("package = \"rustframe-runtime\""));
-    assert!(cargo.contains("version = \"=0.1.0\""));
+    assert!(cargo.contains(&format!("version = \"={}\"", env!("CARGO_PKG_VERSION"))));
     assert!(!cargo.contains("rustframe = { package = \"rustframe-runtime\", path ="));
     assert!(!cargo.contains("crates/rustframe"));
 }

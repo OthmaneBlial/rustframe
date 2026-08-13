@@ -7,7 +7,7 @@ This tutorial starts with the public CLI and ends with a native package. The pro
 Install Rust 1.88 or newer, Node.js 20 or newer, and your host's native WebView toolchain. Then install the CLI:
 
 ```bash
-cargo install rustframe-cli
+cargo install rustframe-cli --version 0.1.0-rc.1 --locked
 rustframe doctor
 ```
 

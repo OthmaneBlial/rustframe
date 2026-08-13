@@ -5,7 +5,7 @@ This tutorial starts from the published CLI and ends with a native package. The 
 ## 1. Install and Check the Host
 
 ```bash
-cargo install rustframe-cli
+cargo install rustframe-cli --version 0.1.0-rc.1 --locked
 rustframe doctor
 ```
 

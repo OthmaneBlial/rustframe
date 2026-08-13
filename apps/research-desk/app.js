@@ -952,10 +952,10 @@ function renderMain() {
                     keeps every source file in place, and synchronizes review state across focused reader windows.
                 </p>
                 <div class="action-row">
-                    <button class="button button-primary" type="button" data-action="index" ${state.importBusy ? "disabled" : ""}>
+                    <button class="button button-primary" type="button" data-action="choose-workspace" ${state.importBusy ? "disabled" : ""}>${workspace.root ? "Change workspace" : "Choose workspace"}</button>
+                    <button class="button" type="button" data-action="index" ${state.importBusy || !workspace.root ? "disabled" : ""}>
                         ${state.importBusy ? "Indexing archive…" : "Index workspace"}
                     </button>
-                    <button class="button" type="button" data-action="choose-workspace" ${state.importBusy ? "disabled" : ""}>Choose workspace</button>
                     <button class="button" type="button" data-action="export-json">Export JSON</button>
                     <button class="button" type="button" data-action="export-csv">Export CSV</button>
                     <button class="button" type="button" data-action="backup-db">Back up database</button>
@@ -970,17 +970,17 @@ function renderMain() {
                     <article class="status-card">
                         <p class="eyebrow">Workspace</p>
                         <strong>${escapeHtml(workspace.label)}</strong>
-                        <p class="status-detail">Root: <code>${escapeHtml(workspace.root)}</code></p>
+                        <p class="status-detail">${workspace.root ? `Access: <code>${escapeHtml(workspace.root)}</code>` : "No folder access retained"}</p>
                     </article>
                     <article class="status-card">
                         <p class="eyebrow">Last import</p>
                         <strong>${escapeHtml(workspace.lastIndexedAt ? formatDateTime(workspace.lastIndexedAt) : "Not indexed yet")}</strong>
-                        <p class="status-detail">Command: ${escapeHtml(workspace.command || "pending")}</p>
+                        <p class="status-detail">${workspace.lastIndexedAt ? `Indexer: ${escapeHtml(workspace.command || "RustFrame native indexer")}` : "Ready for native indexing"}</p>
                     </article>
                     <article class="status-card">
                         <p class="eyebrow">Database</p>
-                        <strong>${escapeHtml(state.dbInfo.databasePath)}</strong>
-                        <p class="status-detail">Schema version ${escapeHtml(String(state.dbInfo.schemaVersion))}</p>
+                        <strong>Local SQLite</strong>
+                        <p class="status-detail">Schema version ${escapeHtml(String(state.dbInfo.schemaVersion))} · private app data</p>
                     </article>
                     <article class="status-card">
                         <p class="eyebrow">Windows</p>

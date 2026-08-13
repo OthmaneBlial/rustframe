@@ -5,8 +5,8 @@ RustFrame ships one flagship workflow app, one runtime capability demo, a starte
 ## Flagship App
 
 - `apps/research-desk`
-- Local archive review workflow with a bundled sample workspace and a real end-to-end task shape
-- Uses embedded SQLite, scoped filesystem roots, allowlisted Python indexing, reader windows, and queue export
+- Local research workflow over a user-selected Markdown/text folder, with persisted consent, native indexing, incremental watching, and no Python dependency
+- Uses embedded SQLite, opaque filesystem grants, native indexing, reader windows, and queue export
 - This is the first app to run when evaluating whether RustFrame is useful
 
 ## Capability Demo

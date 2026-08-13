@@ -246,13 +246,14 @@ fn ensure_package_json(project: &Path, app_id: &str) -> Result<(), String> {
     if path.exists() {
         return Ok(());
     }
+    let api_dependency = format!("={}", env!("CARGO_PKG_VERSION"));
     let package = json!({
         "name": app_id,
         "private": true,
         "version": "0.1.0",
         "type": "module",
         "scripts": { "dev": "vite", "build": "vite build" },
-        "dependencies": { "rustframe-api": "=0.1.0", "typescript": "^5.9.0", "vite": "^7.0.0" }
+        "dependencies": { "rustframe-api": api_dependency, "typescript": "^5.9.0", "vite": "^7.0.0" }
     });
     fs::write(path, serde_json::to_string_pretty(&package).unwrap() + "\n")
         .map_err(|error| format!("failed to create package.json: {error}"))
@@ -274,9 +275,12 @@ fn migrate_native_dependency(project: &Path) -> Result<(), String> {
     let mut changed = Vec::new();
     for line in source.lines() {
         if line.trim_start().starts_with("rustframe =") {
-            changed.push("rustframe = { package = \"rustframe-runtime\", version = \"=0.1.0\" }");
+            changed.push(format!(
+                "rustframe = {{ package = \"rustframe-runtime\", version = \"={}\" }}",
+                env!("CARGO_PKG_VERSION")
+            ));
         } else {
-            changed.push(line);
+            changed.push(line.to_string());
         }
     }
     fs::write(&path, changed.join("\n") + "\n")

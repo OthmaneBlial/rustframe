@@ -4,6 +4,8 @@ All notable RustFrame changes are documented here. RustFrame follows [Semantic V
 
 ## [Unreleased]
 
+## [0.1.0-rc.1] - 2026-08-13
+
 ### Added
 
 - Standalone Vite project creation for TypeScript, JavaScript, React, Vue, and Svelte.
@@ -21,4 +23,5 @@ All notable RustFrame changes are documented here. RustFrame follows [Semantic V
 
 - Repository-relative generated runner dependencies and the `apps/` parent-directory requirement.
 
-[Unreleased]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0-rc.1...HEAD
+[0.1.0-rc.1]: https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.1

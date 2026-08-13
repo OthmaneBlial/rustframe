@@ -221,7 +221,10 @@ fn manifest(name: &str, title: &str, template: Template, manager: PackageManager
 
 fn package_json(name: &str, template: Template) -> String {
     let mut dependencies = serde_json::Map::new();
-    dependencies.insert("rustframe-api".into(), serde_json::json!("=0.1.0"));
+    dependencies.insert(
+        "rustframe-api".into(),
+        serde_json::json!(format!("={}", env!("CARGO_PKG_VERSION"))),
+    );
     match template {
         Template::ReactTs => {
             dependencies.insert("@vitejs/plugin-react".into(), serde_json::json!("^5.0.0"));

@@ -3768,7 +3768,7 @@ dependencies = [
 
 [[package]]
 name = "rustframe-cli"
-version = "0.1.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "cargo-packager",
  "clap",
@@ -3786,7 +3786,7 @@ dependencies = [
 
 [[package]]
 name = "rustframe-runtime"
-version = "0.1.0"
+version = "0.1.0-rc.1"
 dependencies = [
  "arboard",
  "base64",

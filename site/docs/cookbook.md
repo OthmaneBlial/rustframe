@@ -25,7 +25,7 @@ Use this when the product is mostly a local writing or reading surface over a di
 - Declare a notes root such as `library/`.
 - Store tags, reading status, backlinks, or export history in SQLite.
 - Use the filesystem bridge for the source markdown and the database for app-specific state.
-- Add `dialog.openFile(...)` or `dialog.openDirectory(...)` so users can attach or import new content.
+- Use `fs.requestGrant(...)` so users can attach a file or consent to a document directory without exposing an absolute path.
 
 Good fit:
 
@@ -40,7 +40,7 @@ Use this when the app is mostly a controlled front end over a small set of machi
 
 - Model jobs, runs, and outputs in SQLite.
 - Keep the shell surface narrow: expose named commands with bounded args, explicit `cwd`, and timeout/output limits.
-- Turn on the dev audit log while shaping the command contract.
+- Run through `rustframe dev` while shaping the command contract and inspect the redacted JSONL audit at `target/rustframe/logs/audit.jsonl`.
 - Use `networked` mode if the frontend loads remote content or untrusted HTML.
 
 Good fit:
