@@ -2,6 +2,11 @@
 name = "rustframe"
 version = "0.1.0"
 edition = "2024"
+description = "Runtime for frontend-first, local-first desktop workflow tools"
+license = "MIT"
+repository = "https://github.com/OthmaneBlial/rustframe"
+keywords = ["desktop", "local-first", "sqlite", "wry", "workflow"]
+categories = ["gui", "database"]
 
 [features]
 default = ["desktop"]
