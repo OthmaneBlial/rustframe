@@ -237,8 +237,37 @@ pub struct DbArgs {
 #[derive(Debug, Subcommand)]
 pub enum DbCommand {
     Reset,
-    Backup { destination: Option<PathBuf> },
-    Restore { source: PathBuf },
+    Backup {
+        destination: Option<PathBuf>,
+    },
+    Restore {
+        source: PathBuf,
+    },
+    /// Export a consistent database snapshot with a checksummed manifest.
+    Export {
+        destination: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t = DatabaseExportFormat::Json)]
+        format: DatabaseExportFormat,
+        #[arg(long, default_value_t = 500, value_parser = clap::value_parser!(u32).range(1..=10_000))]
+        batch_size: u32,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum DatabaseExportFormat {
+    Json,
+    Jsonl,
+    Csv,
+}
+
+impl DatabaseExportFormat {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Json => "json",
+            Self::Jsonl => "jsonl",
+            Self::Csv => "csv",
+        }
+    }
 }
 
 #[derive(Debug, Args)]

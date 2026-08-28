@@ -92,6 +92,14 @@ const DOCS = {
         source: "docs/local-first-and-capabilities.md",
         path: "docs/local-first-and-capabilities.md",
     },
+    "portable-data-exports": {
+        title: "Portable data exports",
+        navLabel: "Portable data exports",
+        section: "operations",
+        summary: "Stream a consistent SQLite snapshot to checksummed JSON, JSONL, or CSV.",
+        source: "docs/portable-data-exports.md",
+        path: "docs/portable-data-exports.md",
+    },
     "api-reference": {
         title: "Frontend API reference",
         navLabel: "Frontend API reference",

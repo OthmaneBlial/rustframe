@@ -229,7 +229,7 @@ rustframe capabilities Explain, diff, and deny unreviewed permission expansion
 rustframe codegen      Generate deterministic database types
 rustframe build        Build the frontend, then the hidden native runner
 rustframe package      Produce native packages, checksums, and metadata
-rustframe db ...       Reset, back up, or restore SQLite safely
+rustframe db ...       Reset, back up, restore, or portably export SQLite
 rustframe migrate      Convert a pre-v1 project without rewriting app logic
 rustframe eject        Materialize the native runner
 ```
@@ -294,6 +294,7 @@ Choose Tauri or Electron when you need a broad plugin ecosystem, mobile targets,
 - [Architecture](docs/architecture-overview.md)
 - [Runtime and capabilities](docs/runtime-and-capabilities.md)
 - [Local-first and capability inspection](docs/local-first-and-capabilities.md)
+- [Portable data exports](docs/portable-data-exports.md)
 - [Cookbook](docs/cookbook.md)
 - [Workflow guides](docs/workflow-guides.md)
 - [Generated frontend API reference](docs/api-reference.md)

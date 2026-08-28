@@ -546,6 +546,17 @@ fn run() -> CliResult<()> {
                 database::backup(&project_dir, &name, destination.as_deref())
             }
             DbCommand::Restore { source } => database::restore(&project_dir, &name, &source),
+            DbCommand::Export {
+                destination,
+                format,
+                batch_size,
+            } => database::export(
+                &project_dir,
+                &name,
+                destination.as_deref(),
+                format,
+                batch_size,
+            ),
         },
         CliCommand::Migrate(args) => migration::migrate_project(&project_dir, args.dry_run),
         CliCommand::Eject => command_eject(&project_dir, &name),

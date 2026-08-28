@@ -13,6 +13,7 @@ RustFrame is a Rust workspace for local-first desktop workflow tools that should
 - [Workflow Guides](./workflow-guides.md)
 - [Research Desk Architecture Case Study](./research-desk-architecture.md)
 - [Local-First and Capability Inspection](./local-first-and-capabilities.md)
+- [Portable Data Exports](./portable-data-exports.md)
 - [Frontend API Reference](./api-reference.md)
 - [Manifest Reference](./manifest-reference.md)
 - [Troubleshooting](./troubleshooting.md)

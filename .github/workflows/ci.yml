@@ -97,8 +97,11 @@ jobs:
           cargo build -p rustframe-cli
           "$cli" --project apps/research-desk inspect --local-first --json > "$scratch/research-desk-local-first.json"
           "$cli" --project apps/research-desk capabilities check --deny-expansion --json > "$scratch/research-desk-capabilities.json"
+          "$cli" --project apps/research-desk db export "$scratch/research-desk-export" --format jsonl --batch-size 1
           test -s "$scratch/research-desk-local-first.json"
           test -s "$scratch/research-desk-capabilities.json"
+          test -s "$scratch/research-desk-export/export-manifest.json"
+          (cd "$scratch/research-desk-export" && sha256sum --check SHA256SUMS)
           api_tarball="$(cd packages/rustframe-api && npm pack --pack-destination "$scratch" | tail -n 1)"
           (cd "$scratch" && "$cli" new standalone --template vanilla-ts)
           npm --prefix "$scratch/standalone" install "$scratch/$api_tarball"
