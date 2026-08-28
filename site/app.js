@@ -76,6 +76,14 @@ const DOCS = {
         source: "docs/workflow-guides.md",
         path: "docs/workflow-guides.md",
     },
+    "research-desk-architecture": {
+        title: "Research Desk architecture case study",
+        navLabel: "Research Desk case study",
+        section: "core",
+        summary: "Trace every flagship behavior to public APIs, least-privilege permissions, and repeatable tests.",
+        source: "docs/research-desk-architecture.md",
+        path: "docs/research-desk-architecture.md",
+    },
     "api-reference": {
         title: "Frontend API reference",
         navLabel: "Frontend API reference",

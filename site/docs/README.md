@@ -11,6 +11,7 @@ RustFrame is a Rust workspace for local-first desktop workflow tools that should
 - [Build In 20 Minutes](./build-in-20-minutes.md)
 - [Cookbook](./cookbook.md)
 - [Workflow Guides](./workflow-guides.md)
+- [Research Desk Architecture Case Study](./research-desk-architecture.md)
 - [Frontend API Reference](./api-reference.md)
 - [Manifest Reference](./manifest-reference.md)
 - [Troubleshooting](./troubleshooting.md)

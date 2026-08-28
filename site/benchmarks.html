@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Research Desk Benchmarks — Reproducible RustFrame receipts</title>
+    <meta name="description" content="Inspect reproducible Research Desk package-size, native-init, memory, indexing, and warm-build receipts with full host and methodology disclosure.">
+    <meta name="theme-color" content="#f2efe5">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://othmaneblial.github.io/rustframe/benchmarks.html">
+    <link rel="preload" href="assets/fonts/archivo-black-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="styles.css">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Research Desk benchmark receipts">
+    <meta property="og:description" content="Measured on a named host, tied to a source commit, and reproducible from the RustFrame repository.">
+    <meta property="og:url" content="https://othmaneblial.github.io/rustframe/benchmarks.html">
+    <meta property="og:image" content="https://othmaneblial.github.io/rustframe/assets/social-preview.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"Dataset","name":"Research Desk benchmark receipt","description":"Reproducible package, native initialization, memory, indexing, and warm build measurements for Research Desk.","url":"https://othmaneblial.github.io/rustframe/benchmarks.html","license":"https://github.com/OthmaneBlial/rustframe/blob/main/LICENSE","creator":{"@type":"Organization","name":"RustFrame"}}
+    </script>
+</head>
+<body class="page-benchmarks">
+    <a class="skip-link" href="#benchmark-results">Skip to benchmark results</a>
+    <div class="paper-noise" aria-hidden="true"></div>
+    <header class="site-header" data-site-header>
+        <a class="brand" href="index.html" aria-label="RustFrame home"><span class="brand-mark" aria-hidden="true"><i>R</i><i>F</i></span><span class="brand-copy"><strong>RustFrame</strong><small>Benchmark receipts</small></span></a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle><span>Menu</span><i aria-hidden="true"></i></button>
+        <nav class="site-nav" id="site-nav" aria-label="Primary navigation" data-site-nav><a href="index.html">Home</a><a href="showcase.html">Showcase</a><a href="docs.html?doc=research-desk-architecture">Case study</a><a href="docs.html">Docs</a><a class="nav-github" href="https://github.com/OthmaneBlial/rustframe">GitHub ↗</a></nav>
+    </header>
+
+    <main id="benchmark-results">
+        <section class="benchmark-hero section-shell">
+            <div><p class="section-kicker">Research Desk / receipt 01</p><h1>No magic<br>numbers.</h1></div>
+            <div class="benchmark-intro">
+                <p>Every number below names the host, workload, source commit, and limitation. Re-run the same script instead of trusting a floating performance claim.</p>
+                <div class="benchmark-command"><code>node scripts/benchmark_research_desk.mjs</code><button type="button" data-benchmark-copy aria-label="Copy benchmark command">Copy</button></div>
+                <p class="benchmark-status" data-benchmark-status role="status">Loading the checked-in receipt…</p>
+            </div>
+        </section>
+
+        <section class="benchmark-results section-shell" aria-labelledby="results-title">
+            <header class="section-heading section-heading-side"><div><p class="section-kicker">One host · five disclosed measurements</p><h2 id="results-title">The current receipt.</h2></div><p>Use these values to understand the tested build, not to predict every machine. Raw samples remain in the public JSON.</p></header>
+            <div class="benchmark-grid">
+                <article><span>01 / Package</span><strong data-metric="package">—</strong><p>Uncompressed native application bundle.</p></article>
+                <article><span>02 / Native init</span><strong data-metric="start">—</strong><p>Median fresh-data embedded-runtime smoke start.</p></article>
+                <article><span>03 / Peak memory</span><strong data-metric="memory">—</strong><p>Median maximum resident set during the same starts.</p></article>
+                <article><span>04 / Index parser</span><strong data-metric="indexing">—</strong><p>Exact app parser and fingerprint path; native I/O excluded.</p></article>
+                <article><span>05 / Warm build</span><strong data-metric="rebuild">—</strong><p>Median repeated production Vite build, including npm startup.</p></article>
+            </div>
+            <div class="benchmark-receipt" aria-label="Benchmark environment">
+                <p><span>Host</span><strong data-receipt="host">—</strong></p>
+                <p><span>CPU</span><strong data-receipt="cpu">—</strong></p>
+                <p><span>Runtime</span><strong data-receipt="runtime">—</strong></p>
+                <p><span>Commit</span><a data-receipt="commit" href="https://github.com/OthmaneBlial/rustframe">—</a></p>
+                <p><span>Collected</span><strong data-receipt="date">—</strong></p>
+            </div>
+        </section>
+
+        <section class="benchmark-method section-shell" aria-labelledby="method-title">
+            <header class="section-heading section-heading-side"><div><p class="section-kicker">Read the fine print first</p><h2 id="method-title">Method before marketing.</h2></div><p>The receipt intentionally separates observed product behavior from what still needs a native end-to-end measurement.</p></header>
+            <div class="benchmark-method-grid" data-methodology></div>
+            <aside class="benchmark-limitations"><p class="section-kicker">Limitations carried with the result</p><ul data-limitations></ul></aside>
+            <div class="benchmark-actions"><a class="button button-ink" href="assets/data/research-desk-benchmark.json">Open raw JSON ↓</a><a class="button button-paper" href="https://github.com/OthmaneBlial/rustframe/blob/main/scripts/benchmark_research_desk.mjs">Inspect the harness ↗</a><a class="text-link" href="docs.html?doc=research-desk-architecture">Trace the architecture →</a></div>
+        </section>
+    </main>
+
+    <footer class="site-footer"><a class="brand footer-brand" href="index.html"><span class="brand-mark" aria-hidden="true"><i>R</i><i>F</i></span><span class="brand-copy"><strong>RustFrame</strong><small>Receipts over slogans</small></span></a><div><a href="index.html">Home</a><a href="docs.html">Docs</a><a href="showcase.html">Showcase</a></div><p>Measurements are versioned evidence, never universal promises.</p></footer>
+    <script src="app.js"></script>
+    <script src="benchmarks.js"></script>
+</body>
+</html>

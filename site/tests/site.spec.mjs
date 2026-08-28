@@ -103,3 +103,22 @@ test("showcase renders verified source links and optimized images", async ({ pag
   expect(sourceLinks.every((href) => href?.startsWith("https://github.com/OthmaneBlial/rustframe/"))).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test("benchmark receipt discloses measurements, host, source, and limitations", async ({ page }) => {
+  const errors = captureConsoleErrors(page);
+  await page.goto("/benchmarks.html");
+  await expect(page.locator("[data-benchmark-status]")).toContainText("Receipt loaded");
+  await expect(page.locator("[data-metric]")).toHaveCount(5);
+  await expect(page.locator('[data-metric="package"]')).toContainText("MiB");
+  await expect(page.locator('[data-metric="indexing"]')).toContainText("docs/s");
+  await expect(page.locator("[data-methodology] article")).toHaveCount(4);
+  await expect(page.locator("[data-limitations] li")).toHaveCount(4);
+  await expect(page.locator('[data-receipt="commit"]')).toHaveAttribute("href", /\/commit\/[a-f0-9]{40}$/u);
+  const copyButton = page.getByRole("button", { name: "Copy benchmark command" });
+  await copyButton.click();
+  await expect(copyButton).toHaveText("Copied");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    await page.evaluate(() => window.innerWidth),
+  );
+  expect(errors).toEqual([]);
+});

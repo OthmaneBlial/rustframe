@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "product": "Research Desk",
+  "version": "0.1.0-rc.1",
+  "sourceCommit": "e7b92930a0d46a2be978aed2532da4d94933c130",
+  "collectedAt": "2026-08-28T09:52:43.256Z",
+  "host": {
+    "os": "macOS 26.6 (25G72)",
+    "architecture": "arm64",
+    "cpu": "Apple M2",
+    "logicalCpus": 8,
+    "memoryBytes": 17179869184,
+    "node": "v25.9.0"
+  },
+  "methodology": {
+    "iterations": 5,
+    "packageCommand": "rustframe package --format app --verify",
+    "coldStart": "Packaged embedded-runtime process start with a fresh data directory and smoke receipt on every iteration.",
+    "peakMemory": "Maximum resident set size reported by the host time utility for the same fresh-data process starts.",
+    "indexing": "Exact Research Desk frontmatter, metadata, and fingerprint code over 5,000 deterministic Markdown documents; filesystem IPC and SQLite commit time are excluded.",
+    "warmRebuild": "Repeated production Vite builds after one uncounted priming build; this is a full warm build, not HMR latency."
+  },
+  "metrics": {
+    "packageSize": {
+      "bytes": 5019399,
+      "mebibytes": 4.79,
+      "artifact": "Research Desk.app",
+      "format": "app",
+      "signatureState": "unsigned"
+    },
+    "coldStart": {
+      "medianMs": 70.42,
+      "p95Ms": 717.76,
+      "samplesMs": [
+        717.76,
+        38.11,
+        70.42,
+        49.1,
+        75.92
+      ]
+    },
+    "peakMemory": {
+      "medianBytes": 11993088,
+      "medianMebibytes": 11.44,
+      "samplesBytes": [
+        12042240,
+        11976704,
+        11976704,
+        12042240,
+        11993088
+      ]
+    },
+    "indexing": {
+      "documents": 5000,
+      "corpusBytes": 6744725,
+      "medianMs": 332.71,
+      "documentsPerSecond": 15028,
+      "samplesMs": [
+        373.34,
+        316.2,
+        332.71,
+        316.71,
+        408.04
+      ],
+      "checksum": 351485
+    },
+    "warmReindex": {
+      "documents": 5000,
+      "medianMs": 2.42,
+      "documentsPerSecond": 2066116,
+      "samplesMs": [
+        3.38,
+        1.84,
+        1.21,
+        9.55,
+        2.42
+      ]
+    },
+    "warmRebuild": {
+      "medianMs": 2644.84,
+      "p95Ms": 3062.89,
+      "samplesMs": [
+        2899.81,
+        2382.12,
+        3062.89,
+        2595.88,
+        2644.84
+      ]
+    }
+  },
+  "limitations": [
+    "This is one transparent host receipt, not a universal performance claim.",
+    "Fresh-data start does not flush the operating system file cache.",
+    "The indexing metric isolates the exact application parser and fingerprint path; native filesystem IPC and SQLite transaction time require a separate end-to-end receipt.",
+    "Unsigned local package size is recorded honestly and does not represent a trusted public download."
+  ]
+}

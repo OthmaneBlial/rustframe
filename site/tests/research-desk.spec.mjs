@@ -200,7 +200,8 @@ test("FTS results are highlighted and filter views persist", async ({ page }) =>
   const search = page.getByRole("searchbox", { name: "Search" });
   await search.fill("launch memo");
   await expect(page.locator(".document-card mark").first()).toHaveText(/launch/i);
-  await page.getByRole("button", { name: "reviewing" }).first().click();
+  await page.getByRole("button", { name: "reviewing" }).first().click({ noWaitAfter: true });
+  await expect(page.locator('[data-action="filter-status"][data-status="reviewing"].is-active')).toBeVisible();
   await page.getByRole("button", { name: "Save current view" }).click();
   await expect(page.locator(".saved-filter strong")).toContainText("launch memo");
   await page.getByRole("button", { name: "Reset filters" }).click();

@@ -51,7 +51,7 @@ const chrome = await chromeLauncher.launch({
   chromeFlags: ["--headless", "--no-sandbox", "--disable-gpu"],
 });
 
-const pages = ["/", "/docs.html", "/showcase.html"];
+const pages = ["/", "/docs.html", "/showcase.html", "/benchmarks.html"];
 const reports = [];
 let failed = false;
 try {

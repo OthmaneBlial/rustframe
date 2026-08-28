@@ -9,9 +9,11 @@ RustFrame is an early release candidate. It is deliberately narrower than Tauri 
 - [Product overview](https://othmaneblial.github.io/rustframe/): Positioning, workflow, security model, flagship proof, comparison, and installation.
 - [Documentation](https://othmaneblial.github.io/rustframe/docs.html): Mirrored task guides from the versioned repository source.
 - [Showcase](https://othmaneblial.github.io/rustframe/showcase.html): Flagship application, starter, and reference catalog.
+- [Research Desk benchmarks](https://othmaneblial.github.io/rustframe/benchmarks.html): Versioned package, native-init, memory, indexing, and warm-build receipts with raw samples and limitations.
 - [Source repository](https://github.com/OthmaneBlial/rustframe): Runtime, CLI, frontend bridge, examples, tests, and release workflows.
 - [Threat model](https://othmaneblial.github.io/rustframe/docs.html?doc=threat-model): Explicit guarantees, boundaries, and application-author responsibilities.
 - [Choosing RustFrame](https://othmaneblial.github.io/rustframe/docs.html?doc=choosing-rustframe): Honest framework comparison and non-goals.
+- [Research Desk architecture](https://othmaneblial.github.io/rustframe/docs.html?doc=research-desk-architecture): Flagship behaviors traced to public APIs, permissions, source, and automated tests.
 
 ## Stable facts
 

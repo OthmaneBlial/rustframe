@@ -4,11 +4,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const siteRoot = path.join(repoRoot, "site");
-const htmlPages = ["index.html", "docs.html", "showcase.html"];
+const htmlPages = ["index.html", "docs.html", "showcase.html", "benchmarks.html"];
 const expectedUrls = new Set([
   "https://othmaneblial.github.io/rustframe/",
   "https://othmaneblial.github.io/rustframe/docs.html",
   "https://othmaneblial.github.io/rustframe/showcase.html",
+  "https://othmaneblial.github.io/rustframe/benchmarks.html",
 ]);
 const errors = [];
 
@@ -80,6 +81,27 @@ for (const item of showcase.templates || []) {
     if (!fs.existsSync(path.join(siteRoot, item.screenshot))) fail(`showcase.json: missing ${item.screenshot}`);
     if (!Number.isInteger(item.width) || !Number.isInteger(item.height)) fail(`showcase.json: ${item.id} needs image dimensions`);
   }
+}
+
+const benchmark = JSON.parse(read("assets/data/research-desk-benchmark.json"));
+if (benchmark.schemaVersion !== 1 || benchmark.product !== "Research Desk") {
+  fail("research-desk-benchmark.json: unsupported identity or schema");
+}
+if (!/^[a-f0-9]{40}$/u.test(benchmark.sourceCommit || "")) {
+  fail("research-desk-benchmark.json: source commit is missing or invalid");
+}
+for (const [name, value] of [
+  ["package size", benchmark.metrics?.packageSize?.bytes],
+  ["cold start", benchmark.metrics?.coldStart?.medianMs],
+  ["peak memory", benchmark.metrics?.peakMemory?.medianBytes],
+  ["indexing", benchmark.metrics?.indexing?.documentsPerSecond],
+  ["warm rebuild", benchmark.metrics?.warmRebuild?.medianMs],
+]) {
+  if (!Number.isFinite(value) || value <= 0) fail(`research-desk-benchmark.json: ${name} metric is invalid`);
+}
+const canonicalBenchmark = fs.readFileSync(path.join(repoRoot, "benchmarks/research-desk/latest.json"), "utf8");
+if (canonicalBenchmark !== read("assets/data/research-desk-benchmark.json")) {
+  fail("research-desk-benchmark.json: public receipt differs from the canonical benchmark");
 }
 
 const sitemap = read("sitemap.xml");
