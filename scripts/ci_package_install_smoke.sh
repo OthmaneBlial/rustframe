@@ -188,7 +188,6 @@ $result = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -
 if ($result.ExitCode -ne 0) { throw "MSI uninstall failed with exit code $($result.ExitCode)" }
 if (Test-Path $binary) { throw "MSI uninstall left $binary behind" }
 POWERSHELL
-    smoke_output="$smoke_root/msi.json"
     ;;
 
   *)
