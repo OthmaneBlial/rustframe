@@ -36,6 +36,8 @@ pub enum Command {
     Inspect(InspectArgs),
     /// Explain, diff, and enforce the effective capability policy.
     Capabilities(CapabilitiesArgs),
+    /// Verify downloaded package integrity, native trust, SBOM, and provenance.
+    Release(ReleaseArgs),
     /// Generate deterministic database TypeScript types.
     Codegen(CodegenArgs),
     /// Build the frontend and native runner.
@@ -178,6 +180,58 @@ pub enum CapabilitiesCommand {
         #[arg(long)]
         json: bool,
     },
+}
+
+#[derive(Debug, Args)]
+pub struct ReleaseArgs {
+    #[command(subcommand)]
+    pub command: ReleaseCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ReleaseCommand {
+    /// Verify one downloaded artifact against sibling release metadata.
+    Verify(ReleaseVerifyArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ReleaseVerifyArgs {
+    pub artifact: PathBuf,
+
+    /// Package manifest; inferred from the artifact directory when omitted.
+    #[arg(long, value_name = "PATH")]
+    pub manifest: Option<PathBuf>,
+
+    /// End-user release index; inferred from the artifact directory when omitted.
+    #[arg(long, value_name = "PATH")]
+    pub index: Option<PathBuf>,
+
+    /// SHA256SUMS path; inferred from the artifact directory when omitted.
+    #[arg(long, value_name = "PATH")]
+    pub checksums: Option<PathBuf>,
+
+    /// SPDX JSON SBOM; inferred from package or release metadata when omitted.
+    #[arg(long, value_name = "PATH")]
+    pub sbom: Option<PathBuf>,
+
+    /// Require a non-empty SPDX JSON SBOM.
+    #[arg(long)]
+    pub require_sbom: bool,
+
+    /// Verify a GitHub artifact attestation with `gh`.
+    #[arg(long, value_name = "OWNER/REPO")]
+    pub repository: Option<String>,
+
+    /// Require GitHub provenance verification.
+    #[arg(long, requires = "repository")]
+    pub require_provenance: bool,
+
+    /// Permit an unsigned native package only for explicit local testing.
+    #[arg(long)]
+    pub allow_unsigned_local: bool,
+
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, Args)]

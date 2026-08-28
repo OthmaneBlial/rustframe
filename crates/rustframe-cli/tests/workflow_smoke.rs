@@ -5,6 +5,7 @@ use std::{
 };
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 
 fn cli_binary() -> PathBuf {
@@ -147,4 +148,80 @@ fn reports_local_ownership_and_enforces_a_reviewed_capability_baseline() {
         &project,
         &["capabilities", "check", "--deny-expansion", "--json"],
     );
+}
+
+#[test]
+fn verifies_a_release_without_requiring_a_rustframe_project() {
+    let temp = tempdir().unwrap();
+    let artifact_name = "Owned Desk.AppImage";
+    let artifact = temp.path().join(artifact_name);
+    let contents = b"verified release fixture\n";
+    fs::write(&artifact, contents).unwrap();
+    let digest = format!("{:x}", Sha256::digest(contents));
+    fs::write(
+        temp.path().join("SHA256SUMS"),
+        format!("{digest}  {artifact_name}\n"),
+    )
+    .unwrap();
+    fs::write(
+        temp.path().join("rustframe-package-manifest.json"),
+        format!(
+            "{{\"schemaVersion\":1,\"appId\":\"owned-desk\",\"productName\":\"Owned Desk\",\"version\":\"1.0.0\",\"targetOs\":\"linux\",\"signed\":false,\"signatureState\":\"unsigned\",\"artifacts\":[{{\"format\":\"appimage\",\"path\":\"{artifact_name}\",\"sha256\":\"{digest}\",\"bytes\":{}}}]}}\n",
+            contents.len()
+        ),
+    )
+    .unwrap();
+
+    let output = run(temp.path(), &["release", "verify", artifact_name, "--json"]);
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["kind"], "rustframe.release-verification");
+    assert_eq!(report["trusted"], true);
+    assert_eq!(report["integrity"]["state"], "verified");
+    assert_eq!(report["signature"]["state"], "not-applicable");
+}
+
+#[test]
+fn verifies_an_assembled_release_index_and_spdx_sbom() {
+    let temp = tempdir().unwrap();
+    let artifact_name = "Owned-Desk.AppImage";
+    let artifact = temp.path().join(artifact_name);
+    let contents = b"assembled release fixture\n";
+    fs::write(&artifact, contents).unwrap();
+    let digest = format!("{:x}", Sha256::digest(contents));
+    let sbom_name = "owned-desk.spdx.json";
+    fs::write(
+        temp.path().join(sbom_name),
+        "{\"spdxVersion\":\"SPDX-2.3\",\"name\":\"Owned Desk\"}\n",
+    )
+    .unwrap();
+    fs::write(
+        temp.path().join("SHA256SUMS"),
+        format!("{digest}  {artifact_name}\n"),
+    )
+    .unwrap();
+    fs::write(
+        temp.path().join("owned-desk-release-index.json"),
+        format!(
+            "{{\"schemaVersion\":1,\"product\":\"Owned Desk\",\"version\":\"1.0.0\",\"sourceCommit\":\"{}\",\"downloads\":[{{\"host\":\"Linux\",\"format\":\"appimage\",\"file\":\"{artifact_name}\",\"sha256\":\"{digest}\",\"bytes\":{}}}],\"verification\":[{{\"host\":\"Linux\",\"format\":\"appimage\",\"sbom\":\"{sbom_name}\"}}]}}\n",
+            "a".repeat(40),
+            contents.len()
+        ),
+    )
+    .unwrap();
+
+    let output = run(
+        temp.path(),
+        &[
+            "release",
+            "verify",
+            artifact_name,
+            "--require-sbom",
+            "--json",
+        ],
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["trusted"], true);
+    assert_eq!(report["identity"]["sourceCommit"], "a".repeat(40));
+    assert_eq!(report["sbom"]["state"], "verified");
+    assert_eq!(report["sbom"]["spdxVersion"], "SPDX-2.3");
 }

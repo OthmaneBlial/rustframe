@@ -521,7 +521,7 @@ fn file_sha256(path: &Path) -> CliResult<String> {
     Ok(format!("{:x}", digest.finalize()))
 }
 
-fn artifact_digest(path: &Path) -> CliResult<(String, u64)> {
+pub(crate) fn artifact_digest(path: &Path) -> CliResult<(String, u64)> {
     if path.is_file() {
         return Ok((file_sha256(path)?, file_size(path)?));
     }
@@ -558,17 +558,28 @@ fn collect_files(
     {
         let entry = entry.map_err(|error| format!("failed to inspect artifact entry: {error}"))?;
         let path = entry.path();
-        let metadata = entry
-            .metadata()
+        let file_type = entry
+            .file_type()
             .map_err(|error| format!("failed to inspect '{}': {error}", path.display()))?;
-        if metadata.is_dir() {
+        if file_type.is_symlink() {
+            return Err(format!(
+                "packaging artifact '{}' contains a symbolic link; deterministic verification refuses links",
+                path.display()
+            ));
+        }
+        if file_type.is_dir() {
             collect_files(root, &path, files)?;
-        } else if metadata.is_file() {
+        } else if file_type.is_file() {
             let relative = path
                 .strip_prefix(root)
                 .map(slash_path)
                 .map_err(|error| format!("failed to resolve '{}': {error}", path.display()))?;
             files.push((relative, path));
+        } else {
+            return Err(format!(
+                "packaging artifact '{}' contains an unsupported filesystem entry",
+                path.display()
+            ));
         }
     }
     Ok(())

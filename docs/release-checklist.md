@@ -28,7 +28,7 @@ Research Desk uses a separate, fail-closed path. Push an existing tag matching `
 - Confirm generated projects contain no repository path dependencies.
 - Run `rustframe validate`, `build`, `package --verify`, and `eject` on the standalone project.
 - Inspect package manifests and checksums; make unsigned or signed status explicit.
-- Run `node scripts/verify_release_artifacts.mjs --dir <bundle> --platform <macos|windows|linux> --require-sbom` against downloaded bundles.
+- Run `rustframe release verify <download> --repository OthmaneBlial/rustframe --require-provenance --require-sbom --json` on the native host after transport and retain the report.
 - Install and launch each native artifact, exercise database and filesystem flows, upgrade from the previous release, and uninstall.
 - Test backup and restore with valid, invalid, incompatible, and interrupted inputs without losing active data.
 

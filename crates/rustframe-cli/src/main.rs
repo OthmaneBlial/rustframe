@@ -27,10 +27,13 @@ mod manifest;
 mod migration;
 mod packaging;
 mod project;
+mod release_verification;
 mod runner;
 mod scaffold;
 
-use command::{CapabilitiesCommand, Cli, Command as CliCommand, DbCommand, InspectArgs};
+use command::{
+    CapabilitiesCommand, Cli, Command as CliCommand, DbCommand, InspectArgs, ReleaseCommand,
+};
 use runner::RunnerProject;
 
 type CliResult<T> = Result<T, String>;
@@ -516,12 +519,17 @@ fn run() -> CliResult<()> {
             return command_capabilities_diff(old, new, *json);
         }
     }
+    if let CliCommand::Release(args) = &cli.command {
+        match &args.command {
+            ReleaseCommand::Verify(args) => return release_verification::verify(args),
+        }
+    }
 
     let project_dir = project::resolve_project(cli.project.as_deref())?;
     let name = project::project_name(&project_dir)?;
 
     match cli.command {
-        CliCommand::New(_) | CliCommand::Doctor => unreachable!(),
+        CliCommand::New(_) | CliCommand::Doctor | CliCommand::Release(_) => unreachable!(),
         CliCommand::Dev(args) => command_dev(&project_dir, &name, args.dev_url),
         CliCommand::Validate(args) => command_validate(&project_dir, &name, args.json),
         CliCommand::Inspect(args) => command_inspect_v1(&project_dir, &name, &args),

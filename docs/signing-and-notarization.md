@@ -33,4 +33,6 @@ The workflow fails closed when any credential is absent. It produces one primary
 
 For local checksum QA of an intentionally unsigned macOS or Windows build, pass `--allow-unsigned-local`; the resulting evidence is marked `unsigned-local` and this escape hatch is rejected inside GitHub Actions. It never qualifies an artifact for publication.
 
+For downloaded artifacts, use [`rustframe release verify`](./release-verification.md). It compares the observed artifact digest and byte count with both `SHA256SUMS` and package/release metadata, performs the native-host signature checks above, optionally verifies the GitHub attestation, and validates an SPDX JSON SBOM. It refuses to translate a metadata claim into observed trust.
+
 Signing credentials are intentionally external to `rustframe.json`. Configure them only in the protected native release environment; never commit certificates, passwords, notarization credentials, or exported certificate stores. Built-in auto-update remains outside v1. Ordinary users should never be told to bypass Gatekeeper or Windows security warnings for a stable flagship build.

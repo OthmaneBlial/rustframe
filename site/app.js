@@ -100,6 +100,14 @@ const DOCS = {
         source: "docs/portable-data-exports.md",
         path: "docs/portable-data-exports.md",
     },
+    "release-verification": {
+        title: "Release verification",
+        navLabel: "Release verification",
+        section: "operations",
+        summary: "Verify downloaded checksums, native trust, SPDX evidence, and GitHub provenance.",
+        source: "docs/release-verification.md",
+        path: "docs/release-verification.md",
+    },
     "api-reference": {
         title: "Frontend API reference",
         navLabel: "Frontend API reference",
