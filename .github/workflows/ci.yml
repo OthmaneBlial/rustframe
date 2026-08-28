@@ -74,6 +74,7 @@ jobs:
         run: |
           node --check site/app.js
           node --check site/codegen.js
+          node --test scripts/verify_release_artifacts.test.mjs scripts/assemble_research_desk_release.test.mjs
           node scripts/generate_reference_docs.mjs --check
           node scripts/check_public_contracts.mjs
           node scripts/check_site.mjs

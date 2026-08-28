@@ -20,12 +20,15 @@ Registry publication is intentionally manual. Run the **Publish registry package
 
 After the GitHub release and coordinated registry publication complete, run the **Public artifact smoke** workflow for the exact release tag. It downloads the release CLI instead of building the checkout, resolves `rustframe-api` from npm, creates a standalone project, compiles the registry runtime, and smoke-launches the result on macOS, Windows, and Linux.
 
+Research Desk uses a separate, fail-closed path. Push an existing tag matching `research-desk-v<packaging.version>`, or select that same tag in the Actions ref picker and manually dispatch **Research Desk trusted release** with confirmation `publish-signed-research-desk`. Dispatching from a branch is rejected so GitHub provenance identifies the release source commit. The workflow will not create a release unless Apple and Windows signing credentials are available, all six native formats build, every transported artifact passes a fresh-host signature and install smoke test, and SBOM/provenance/checksum evidence is assembled successfully.
+
 ## App and package verification
 
 - Create a project outside this repository using the release CLI.
 - Confirm generated projects contain no repository path dependencies.
 - Run `rustframe validate`, `build`, `package --verify`, and `eject` on the standalone project.
 - Inspect package manifests and checksums; make unsigned or signed status explicit.
+- Run `node scripts/verify_release_artifacts.mjs --dir <bundle> --platform <macos|windows|linux> --require-sbom` against downloaded bundles.
 - Install and launch each native artifact, exercise database and filesystem flows, upgrade from the previous release, and uninstall.
 - Test backup and restore with valid, invalid, incompatible, and interrupted inputs without losing active data.
 

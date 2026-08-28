@@ -5,6 +5,13 @@ use std::{
     str::FromStr,
 };
 
+#[cfg(target_os = "macos")]
+use std::process::Command;
+
+#[cfg(target_os = "macos")]
+use cargo_packager::config::MacOsConfig;
+#[cfg(target_os = "windows")]
+use cargo_packager::config::WindowsConfig;
 use cargo_packager::{
     Config, PackageFormat,
     config::{AppCategory, Binary, Resource},
@@ -35,6 +42,9 @@ struct PackageManifest<'a> {
     target_os: &'static str,
     target_arch: &'static str,
     signed: bool,
+    signature_state: &'static str,
+    tested_os_version: Option<&'a str>,
+    source_commit: Option<&'a str>,
     linux_categories: &'a [String],
     linux_keywords: &'a [String],
     artifacts: &'a [ArtifactRecord],
@@ -46,6 +56,7 @@ pub struct PackageResult {
     pub manifest_path: PathBuf,
     pub checksums_path: PathBuf,
     pub release_notes_path: PathBuf,
+    pub signed: bool,
 }
 
 pub fn package(
@@ -91,9 +102,15 @@ pub fn package(
     if let Some(icon) = prepare_icon(app, &staging_dir)? {
         config.icons = Some(vec![slash_path(&icon)]);
     }
+    let signed = configure_platform_signing(&mut config)?;
 
     let outputs = cargo_packager::package(&config)
         .map_err(|error| format!("native packaging failed: {error}"))?;
+    let output_paths = outputs
+        .iter()
+        .flat_map(|output| output.paths.iter().cloned())
+        .collect::<Vec<_>>();
+    finalize_platform_signing(&output_paths, signed)?;
     let mut artifacts = Vec::new();
     let mut artifact_paths = Vec::new();
     for output in outputs {
@@ -116,6 +133,8 @@ pub fn package(
     }
 
     let manifest_path = out_dir.join("rustframe-package-manifest.json");
+    let tested_os_version = std::env::var("RUSTFRAME_TESTED_OS_VERSION").ok();
+    let source_commit = std::env::var("GITHUB_SHA").ok();
     let manifest = PackageManifest {
         schema_version: 1,
         app_id: &app.config.app_id,
@@ -123,7 +142,10 @@ pub fn package(
         version: &app.config.packaging.version,
         target_os: std::env::consts::OS,
         target_arch: std::env::consts::ARCH,
-        signed: false,
+        signed,
+        signature_state: if signed { "signed" } else { "unsigned" },
+        tested_os_version: tested_os_version.as_deref(),
+        source_commit: source_commit.as_deref(),
         linux_categories: &app.config.packaging.linux.categories,
         linux_keywords: &app.config.packaging.linux.keywords,
         artifacts: &artifacts,
@@ -153,13 +175,7 @@ pub fn package(
     let release_notes_path = out_dir.join("RELEASE_NOTES.md");
     write_text(
         &release_notes_path,
-        &format!(
-            "# {} {}\n\nNative RustFrame package for {} {}.\n\nThis local build is unsigned. Verify downloaded artifacts against `SHA256SUMS` before installation.\n",
-            app.config.title,
-            app.config.packaging.version,
-            std::env::consts::OS,
-            std::env::consts::ARCH
-        ),
+        &render_release_notes(app, signed, tested_os_version.as_deref()),
     )?;
 
     if verify {
@@ -172,7 +188,152 @@ pub fn package(
         manifest_path,
         checksums_path,
         release_notes_path,
+        signed,
     })
+}
+
+#[cfg(target_os = "macos")]
+fn configure_platform_signing(config: &mut Config) -> CliResult<bool> {
+    let Some(identity) = non_empty_env("RUSTFRAME_MACOS_SIGNING_IDENTITY") else {
+        return Ok(false);
+    };
+    let mut macos = MacOsConfig::default();
+    macos.signing_identity = Some(identity);
+    config.macos = Some(macos);
+    Ok(true)
+}
+
+#[cfg(target_os = "windows")]
+fn configure_platform_signing(config: &mut Config) -> CliResult<bool> {
+    let Some(thumbprint) = non_empty_env("RUSTFRAME_WINDOWS_CERTIFICATE_THUMBPRINT") else {
+        return Ok(false);
+    };
+    let mut windows = WindowsConfig::default();
+    windows.certificate_thumbprint = Some(thumbprint);
+    windows.digest_algorithm = Some("sha256".into());
+    windows.timestamp_url = non_empty_env("RUSTFRAME_WINDOWS_TIMESTAMP_URL");
+    windows.tsp = true;
+    config.windows = Some(windows);
+    Ok(true)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn configure_platform_signing(config: &mut Config) -> CliResult<bool> {
+    let _ = config;
+    Ok(false)
+}
+
+#[cfg(target_os = "macos")]
+fn finalize_platform_signing(artifacts: &[PathBuf], signed: bool) -> CliResult<()> {
+    if !signed {
+        return Ok(());
+    }
+    let apple_id = non_empty_env("APPLE_ID");
+    let apple_password = non_empty_env("APPLE_PASSWORD");
+    let apple_team_id = non_empty_env("APPLE_TEAM_ID");
+    let credentials = match (apple_id, apple_password, apple_team_id) {
+        (Some(apple_id), Some(password), Some(team_id)) => (apple_id, password, team_id),
+        (None, None, None) => return Ok(()),
+        _ => {
+            return Err(
+                "APPLE_ID, APPLE_PASSWORD, and APPLE_TEAM_ID must be provided together".into(),
+            );
+        }
+    };
+
+    for artifact in artifacts.iter().filter(|path| {
+        path.extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("dmg"))
+    }) {
+        let submission = Command::new("xcrun")
+            .args(["notarytool", "submit"])
+            .arg(artifact)
+            .args([
+                "--apple-id",
+                &credentials.0,
+                "--password",
+                &credentials.1,
+                "--team-id",
+                &credentials.2,
+                "--wait",
+                "--output-format",
+                "json",
+            ])
+            .output()
+            .map_err(|error| format!("failed to start Apple notarization: {error}"))?;
+        if !submission.status.success() {
+            return Err(command_failure("Apple notarization", &submission));
+        }
+        let response: serde_json::Value = serde_json::from_slice(&submission.stdout)
+            .map_err(|error| format!("failed to parse Apple notarization response: {error}"))?;
+        if response.get("status").and_then(serde_json::Value::as_str) != Some("Accepted") {
+            return Err(format!(
+                "Apple notarization did not accept '{}': {}",
+                artifact.display(),
+                String::from_utf8_lossy(&submission.stdout).trim()
+            ));
+        }
+
+        for (label, arguments) in [
+            ("Apple ticket stapling", ["stapler", "staple", "-v"]),
+            ("Apple ticket validation", ["stapler", "validate", "-v"]),
+        ] {
+            let result = Command::new("xcrun")
+                .args(arguments)
+                .arg(artifact)
+                .output()
+                .map_err(|error| format!("failed to start {label}: {error}"))?;
+            if !result.status.success() {
+                return Err(command_failure(label, &result));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn finalize_platform_signing(artifacts: &[PathBuf], signed: bool) -> CliResult<()> {
+    let _ = (artifacts, signed);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn command_failure(label: &str, output: &std::process::Output) -> String {
+    let detail = if output.stderr.is_empty() {
+        &output.stdout
+    } else {
+        &output.stderr
+    };
+    format!(
+        "{label} failed with status {}: {}",
+        output.status,
+        String::from_utf8_lossy(detail).trim()
+    )
+}
+
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn render_release_notes(app: &AppProject, signed: bool, tested_os_version: Option<&str>) -> String {
+    let trust = if signed {
+        "This build was signed by the native packager. Release automation must still verify the downloaded signature and attach that result before publication."
+    } else {
+        "This local build is unsigned. It is not a trusted end-user release."
+    };
+    let tested_on = tested_os_version.unwrap_or("local host version not recorded");
+    format!(
+        "# {} {}\n\nNative RustFrame package for {} {}.\n\nSignature state: **{}**.\n\nTested on: `{tested_on}`.\n\n{trust}\n\nVerify downloaded artifacts against `SHA256SUMS` before installation.\n",
+        app.config.title,
+        app.config.packaging.version,
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        if signed { "signed" } else { "unsigned" }
+    )
 }
 
 fn host_formats() -> Vec<PackageFormat> {

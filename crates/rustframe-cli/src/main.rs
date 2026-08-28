@@ -1098,7 +1098,14 @@ fn command_package(workspace: &Path, request: &PackageRequest) -> CliResult<()> 
     println!("Manifest: {}", output.manifest_path.display());
     println!("Checksums: {}", output.checksums_path.display());
     println!("Release notes: {}", output.release_notes_path.display());
-    println!("Signing: unsigned local build");
+    println!(
+        "Signing: {}",
+        if output.signed {
+            "signed by the native packager; platform verification is still required"
+        } else {
+            "unsigned local build"
+        }
+    );
     if request.verify {
         println!("Verification: package artifacts and metadata are present and non-empty");
     }

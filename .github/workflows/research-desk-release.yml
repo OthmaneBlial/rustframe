@@ -1,0 +1,354 @@
+name: Research Desk trusted release
+
+on:
+  push:
+    tags:
+      - "research-desk-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing research-desk-v* tag selected in the Run workflow ref picker
+        required: true
+        type: string
+      confirmation:
+        description: Type "publish-signed-research-desk"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: release
+        name: Validate tag and product version
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          CONFIRMATION: ${{ github.event_name == 'workflow_dispatch' && inputs.confirmation || 'publish-signed-research-desk' }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF_NAME: ${{ github.ref_name }}
+          EVENT_REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = "publish-signed-research-desk"
+          if [[ ! "$REQUESTED_TAG" =~ ^research-desk-v([0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?)$ ]]; then
+            echo "Research Desk tags must use research-desk-v<semver>" >&2
+            exit 1
+          fi
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && { [ "$EVENT_REF_TYPE" != "tag" ] || [ "$EVENT_REF_NAME" != "$REQUESTED_TAG" ]; }; then
+            echo "Manual publication must be dispatched from the same existing tag so provenance identifies the release source commit" >&2
+            exit 1
+          fi
+          git rev-parse --verify "refs/tags/$REQUESTED_TAG^{commit}" >/dev/null
+          version="${REQUESTED_TAG#research-desk-v}"
+          manifest_version="$(jq -r '.packaging.version' apps/research-desk/rustframe.json)"
+          test "$version" = "$manifest_version"
+          echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: preflight
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: macos-app
+            os: macos-latest
+            platform: macos
+            format: app
+          - id: macos-dmg
+            os: macos-latest
+            platform: macos
+            format: dmg
+          - id: windows-nsis
+            os: windows-latest
+            platform: windows
+            format: nsis
+          - id: windows-msi
+            os: windows-latest
+            platform: windows
+            format: msi
+          - id: linux-appimage
+            os: ubuntu-24.04
+            platform: linux
+            format: appimage
+          - id: linux-deb
+            os: ubuntu-24.04
+            platform: linux
+            format: deb
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.tag }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/research-desk/package-lock.json
+
+      - name: Install Linux WebView dependencies
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Require and import Apple Developer ID credentials
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          for required in APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            test -n "${!required:-}" || { echo "missing protected release secret: $required" >&2; exit 1; }
+          done
+          certificate="$RUNNER_TEMP/research-desk-developer-id.p12"
+          keychain="$RUNNER_TEMP/research-desk-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          printf '%s' "$APPLE_CERTIFICATE_BASE64" | base64 -D > "$certificate"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$certificate" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          echo "RUSTFRAME_MACOS_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Require and import Authenticode credentials
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($name in @('WINDOWS_CERTIFICATE_BASE64', 'WINDOWS_CERTIFICATE_PASSWORD', 'WINDOWS_TIMESTAMP_URL')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "missing protected release secret or variable: $name"
+            }
+          }
+          $certificatePath = Join-Path $env:RUNNER_TEMP 'research-desk-authenticode.pfx'
+          [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $certificate = Import-PfxCertificate -FilePath $certificatePath -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          "RUSTFRAME_WINDOWS_CERTIFICATE_THUMBPRINT=$($certificate.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "RUSTFRAME_WINDOWS_TIMESTAMP_URL=$env:WINDOWS_TIMESTAMP_URL" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build, package, install, launch, and uninstall
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RUSTFRAME_RUNTIME_PATH: ${{ github.workspace }}/crates/rustframe
+          RUSTFRAME_ALLOW_INSTALL_SMOKE: "1"
+        run: |
+          set -euo pipefail
+          npm --prefix apps/research-desk ci
+          case "${{ matrix.platform }}" in
+            macos) tested_os="macOS $(sw_vers -productVersion) ($(sw_vers -buildVersion))" ;;
+            windows) tested_os="$(powershell.exe -NoProfile -NonInteractive -Command '[System.Environment]::OSVersion.VersionString' | tr -d '\r')" ;;
+            linux) . /etc/os-release; tested_os="$PRETTY_NAME" ;;
+          esac
+          export RUSTFRAME_TESTED_OS_VERSION="$tested_os / $RUNNER_ARCH"
+          ./scripts/ci_package_verify.sh apps/research-desk "${{ matrix.format }}"
+          ./scripts/ci_package_install_smoke.sh apps/research-desk "${{ matrix.format }}" "Research Desk"
+
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: apps/research-desk/dist/packages
+          format: spdx-json
+          output-file: apps/research-desk/dist/packages/research-desk-${{ matrix.id }}.spdx.json
+          artifact-name: research-desk-${{ matrix.id }}-sbom
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Verify signatures and release evidence before transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify_release_artifacts.mjs \
+            --dir apps/research-desk/dist/packages \
+            --platform "${{ matrix.platform }}" \
+            --require-sbom \
+            --output "apps/research-desk/dist/packages/research-desk-${{ matrix.id }}-evidence.json"
+
+      - name: Archive transport bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf "$RUNNER_TEMP/research-desk-${{ matrix.id }}.tar.gz" -C apps/research-desk/dist/packages .
+
+      - name: Attest the transport bundle
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ runner.temp }}/research-desk-${{ matrix.id }}.tar.gz
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: research-desk-built-${{ matrix.id }}
+          path: ${{ runner.temp }}/research-desk-${{ matrix.id }}.tar.gz
+          if-no-files-found: error
+
+  verify-downloaded:
+    needs: [preflight, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: macos-app
+            os: macos-latest
+            platform: macos
+            format: app
+          - id: macos-dmg
+            os: macos-latest
+            platform: macos
+            format: dmg
+          - id: windows-nsis
+            os: windows-latest
+            platform: windows
+            format: nsis
+          - id: windows-msi
+            os: windows-latest
+            platform: windows
+            format: msi
+          - id: linux-appimage
+            os: ubuntu-24.04
+            platform: linux
+            format: appimage
+          - id: linux-deb
+            os: ubuntu-24.04
+            platform: linux
+            format: deb
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.tag }}
+          persist-credentials: false
+      - name: Install Linux runtime dependencies
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 libwebkit2gtk-4.1-0
+      - uses: actions/download-artifact@v8
+        with:
+          name: research-desk-built-${{ matrix.id }}
+          path: ${{ runner.temp }}/downloaded
+      - name: Extract the downloaded workflow artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p apps/research-desk/dist/packages
+          tar -xzf "$RUNNER_TEMP/downloaded/research-desk-${{ matrix.id }}.tar.gz" -C apps/research-desk/dist/packages
+      - name: Verify downloaded signature, checksums, SBOM, install, and launch
+        shell: bash
+        env:
+          RUSTFRAME_ALLOW_INSTALL_SMOKE: "1"
+        run: |
+          set -euo pipefail
+          node scripts/verify_release_artifacts.mjs \
+            --dir apps/research-desk/dist/packages \
+            --platform "${{ matrix.platform }}" \
+            --require-sbom \
+            --output "apps/research-desk/dist/packages/research-desk-${{ matrix.id }}-evidence.json"
+          ./scripts/ci_package_install_smoke.sh apps/research-desk "${{ matrix.format }}" "Research Desk"
+          tar -czf "$RUNNER_TEMP/research-desk-${{ matrix.id }}-verified.tar.gz" -C apps/research-desk/dist/packages .
+      - uses: actions/upload-artifact@v7
+        with:
+          name: research-desk-verified-${{ matrix.id }}
+          path: ${{ runner.temp }}/research-desk-${{ matrix.id }}-verified.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: [preflight, verify-downloaded]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      actions: read
+      attestations: write
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.preflight.outputs.tag }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: research-desk-verified-*
+          path: ${{ runner.temp }}/verified
+      - name: Assemble end-user release assets
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/staging" "$RUNNER_TEMP/release-assets"
+          while IFS= read -r archive; do
+            label="$(basename "$archive" -verified.tar.gz)"
+            label="${label#research-desk-}"
+            mkdir -p "$RUNNER_TEMP/staging/$label"
+            tar -xzf "$archive" -C "$RUNNER_TEMP/staging/$label"
+          done < <(find "$RUNNER_TEMP/verified" -type f -name '*-verified.tar.gz' | sort)
+          node scripts/assemble_research_desk_release.mjs \
+            --input "$RUNNER_TEMP/staging" \
+            --output "$RUNNER_TEMP/release-assets" \
+            --transport-root "$RUNNER_TEMP/verified" \
+            --tag "$RELEASE_TAG"
+      - name: Attest every public release asset
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ runner.temp }}/release-assets/*
+      - name: Create or update the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -euo pipefail
+          notes="$RUNNER_TEMP/release-notes.md"
+          cp apps/research-desk/RELEASE_NOTES.md "$notes"
+          cat >> "$notes" <<'EOF'
+
+          ## Verification
+
+          Every macOS and Windows artifact is signed, timestamped or notarized, downloaded onto a fresh native runner, signature-verified, installed, launched, and uninstalled before this release is published. Linux artifacts receive the same downloaded install test plus SHA-256, SPDX SBOM, and GitHub provenance evidence.
+          EOF
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --title "Research Desk $RELEASE_VERSION" --notes-file "$notes"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --title "Research Desk $RELEASE_VERSION" --notes-file "$notes"
+          fi
+          gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/release-assets"/* --clobber
