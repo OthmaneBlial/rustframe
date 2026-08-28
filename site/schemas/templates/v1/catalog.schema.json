@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://othmaneblial.github.io/rustframe/schemas/templates/v1/catalog.schema.json",
+  "title": "RustFrame verified template catalog v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "templates"],
+  "properties": {
+    "$schema": { "const": "https://othmaneblial.github.io/rustframe/schemas/templates/v1/catalog.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "templates": { "type": "array", "minItems": 5, "uniqueItems": true, "items": { "type": "object", "additionalProperties": false, "required": ["manifest"], "properties": { "manifest": { "type": "string", "pattern": "^apps/[a-z0-9-]+/\\.rustframe/template\\.json$" } } } }
+  }
+}

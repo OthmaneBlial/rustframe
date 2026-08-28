@@ -1,0 +1,7 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="56" fill="#f8f2e8"/>
+  <path d="M55 38h146v180H55z" fill="#fffaf2" stroke="#34271f" stroke-width="8"/>
+  <path d="M82 83h92M82 115h92M82 147h58" stroke="#b45e29" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="170" cy="171" r="28" fill="#b45e29"/>
+  <title>Daybreak Notes</title>
+</svg>

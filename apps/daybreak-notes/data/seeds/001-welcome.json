@@ -10,15 +10,15 @@
           "pinned": true
         },
         {
-          "title": "Draft the morning brief",
-          "body": "Keep the editorial tone warm, but let the numbers carry the conviction. Avoid slogans unless they earn their place.",
-          "mood": "draft",
-          "pinned": false
-        },
-        {
           "title": "Archive the references",
           "body": "Collect screenshots, launch notes, and copy fragments in one place so they stop leaking across chats and tabs.",
           "mood": "archive",
+          "pinned": false
+        },
+        {
+          "title": "Draft the morning brief",
+          "body": "Turn yesterday's loose fragments into a short brief with one owner and one next decision.",
+          "mood": "draft",
           "pinned": false
         }
       ]

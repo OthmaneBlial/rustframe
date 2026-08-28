@@ -72,15 +72,23 @@ for (const match of css.matchAll(/url\(["']?([^"')]+)["']?\)/gi)) {
 }
 
 const showcase = JSON.parse(read("showcase.json"));
+if (showcase.schemaVersion !== 1) fail("showcase.json: unsupported schema version");
+const verifiedWorkflows = new Set();
 for (const item of showcase.templates || []) {
-  if (!item.id || !item.title || !item.source || !item.category || !item.summary || !item.href) {
+  if (!item.id || !item.title || !item.source || !item.category || !item.provenance || !item.workflow || !item.summary || !item.href) {
     fail(`showcase.json: ${item.id || "unnamed entry"} is incomplete`);
   }
-  if (item.screenshot) {
-    if (!item.screenshot.endsWith(".webp")) fail(`showcase.json: ${item.id} does not use WebP`);
-    if (!fs.existsSync(path.join(siteRoot, item.screenshot))) fail(`showcase.json: missing ${item.screenshot}`);
-    if (!Number.isInteger(item.width) || !Number.isInteger(item.height)) fail(`showcase.json: ${item.id} needs image dimensions`);
-  }
+  if (item.verification?.state === "verified") verifiedWorkflows.add(item.workflow);
+  if (!item.screenshot?.endsWith(".webp")) fail(`showcase.json: ${item.id} does not use WebP`);
+  if (!fs.existsSync(path.join(siteRoot, item.screenshot || ""))) fail(`showcase.json: missing ${item.screenshot}`);
+  if (!Number.isInteger(item.width) || !Number.isInteger(item.height)) fail(`showcase.json: ${item.id} needs image dimensions`);
+  if (!item.alt || item.alt.length < 20) fail(`showcase.json: ${item.id} needs descriptive alt text`);
+  if (!item.author?.name || !item.author?.url || !item.license) fail(`showcase.json: ${item.id} needs author and license metadata`);
+  if (!Array.isArray(item.platforms) || item.platforms.length !== 3) fail(`showcase.json: ${item.id} needs all supported platforms`);
+  if (!item.rustframe?.testedVersion || !item.verification?.lastVerifiedAt) fail(`showcase.json: ${item.id} needs versioned verification metadata`);
+}
+for (const workflow of ["document-desk", "media-review", "offline-inventory", "evidence-tracker", "batch-operations"]) {
+  if (!verifiedWorkflows.has(workflow)) fail(`showcase.json: missing verified ${workflow} workflow`);
 }
 
 const benchmark = JSON.parse(read("assets/data/research-desk-benchmark.json"));

@@ -1,0 +1,7 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="60" fill="#100f1f"/>
+  <path d="M128 34 218 202H38Z" fill="#ff7c6f"/>
+  <path d="m128 34 35 168H93Z" fill="#4fb8ff"/>
+  <circle cx="128" cy="151" r="30" fill="#ffe570"/>
+  <title>Prism Gallery</title>
+</svg>

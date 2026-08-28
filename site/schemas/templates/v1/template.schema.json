@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://othmaneblial.github.io/rustframe/schemas/templates/v1/template.schema.json",
+  "title": "RustFrame community template manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "id", "title", "kind", "provenance", "workflow", "summary", "bestFor", "capabilities", "source", "author", "license", "platforms", "rustframe", "verification", "screenshot"],
+  "properties": {
+    "$schema": { "const": "https://othmaneblial.github.io/rustframe/schemas/templates/v1/template.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "title": { "type": "string", "minLength": 3, "maxLength": 80 },
+    "kind": { "enum": ["flagship", "template", "starter", "reference"] },
+    "provenance": { "enum": ["first-party", "community"] },
+    "workflow": { "enum": ["document-desk", "media-review", "offline-inventory", "evidence-tracker", "batch-operations", "queue-starter", "editorial-planning"] },
+    "summary": { "type": "string", "minLength": 40, "maxLength": 240 },
+    "bestFor": { "type": "array", "minItems": 2, "maxItems": 5, "uniqueItems": true, "items": { "type": "string", "minLength": 3, "maxLength": 60 } },
+    "capabilities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["database", "filesystem", "shell", "window", "multi-window", "clipboard", "file-open"] } },
+    "source": { "type": "object", "additionalProperties": false, "required": ["repository", "path"], "properties": { "repository": { "const": "https://github.com/OthmaneBlial/rustframe" }, "path": { "$ref": "#/$defs/relativePath" } } },
+    "author": { "type": "object", "additionalProperties": false, "required": ["name", "url"], "properties": { "name": { "type": "string", "minLength": 2, "maxLength": 80 }, "url": { "type": "string", "format": "uri" } } },
+    "license": { "type": "object", "additionalProperties": false, "required": ["spdx", "file"], "properties": { "spdx": { "type": "string", "pattern": "^[A-Za-z0-9-.+]+$" }, "file": { "$ref": "#/$defs/relativePath" } } },
+    "platforms": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["macos", "windows", "linux"] } },
+    "rustframe": { "type": "object", "additionalProperties": false, "required": ["minimumVersion", "testedVersion"], "properties": { "minimumVersion": { "$ref": "#/$defs/version" }, "testedVersion": { "$ref": "#/$defs/version" } } },
+    "verification": { "type": "object", "additionalProperties": false, "required": ["state", "profile", "lastVerifiedAt"], "properties": { "state": { "enum": ["verified", "reference", "archived"] }, "profile": { "enum": ["rustframe-static-v1", "rustframe-flagship-v1"] }, "lastVerifiedAt": { "type": "string", "format": "date" } } },
+    "screenshot": { "type": "object", "additionalProperties": false, "required": ["path", "width", "height", "alt"], "properties": { "path": { "type": "string", "pattern": "^site/assets/screenshots/[a-z0-9-]+\\.webp$" }, "width": { "type": "integer", "minimum": 640, "maximum": 4096 }, "height": { "type": "integer", "minimum": 480, "maximum": 4096 }, "alt": { "type": "string", "minLength": 20, "maxLength": 180 } } },
+    "caseStudy": { "type": "string", "format": "uri" }
+  },
+  "$defs": {
+    "relativePath": { "type": "string", "minLength": 1, "not": { "pattern": "(^/|^[A-Za-z]:|(^|/)\\.\\.(/|$)|\\\\)" } },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" }
+  }
+}

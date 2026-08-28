@@ -1,0 +1,35 @@
+{
+  "$schema": "https://othmaneblial.github.io/rustframe/schemas/templates/v1/template.schema.json",
+  "schemaVersion": 1,
+  "id": "research-desk",
+  "title": "Research Desk",
+  "kind": "flagship",
+  "provenance": "first-party",
+  "workflow": "evidence-tracker",
+  "summary": "Review a local archive, index selected documents, track decisions, and export evidence without surrendering the source files.",
+  "bestFor": ["research archives", "evidence review", "document investigations"],
+  "capabilities": ["database", "filesystem", "window", "multi-window", "clipboard", "file-open"],
+  "source": {
+    "repository": "https://github.com/OthmaneBlial/rustframe",
+    "path": "apps/research-desk"
+  },
+  "author": {
+    "name": "Othmane Blial",
+    "url": "https://github.com/OthmaneBlial"
+  },
+  "license": { "spdx": "MIT", "file": "LICENSE" },
+  "platforms": ["macos", "windows", "linux"],
+  "rustframe": { "minimumVersion": "0.1.0-rc.1", "testedVersion": "0.1.0-rc.1" },
+  "verification": {
+    "state": "verified",
+    "profile": "rustframe-flagship-v1",
+    "lastVerifiedAt": "2026-08-28"
+  },
+  "screenshot": {
+    "path": "site/assets/screenshots/research-desk.webp",
+    "width": 2696,
+    "height": 1562,
+    "alt": "Research Desk reviewing a local document archive with indexed evidence and local database status"
+  },
+  "caseStudy": "https://othmaneblial.github.io/rustframe/docs.html?doc=research-desk-architecture"
+}

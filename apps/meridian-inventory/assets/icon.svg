@@ -1,0 +1,7 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="48" fill="#092d31"/>
+  <path d="M42 70h172v142H42z" fill="#d9f06a"/>
+  <path d="M42 70 128 34l86 36-86 38Z" fill="#f3b94f" stroke="#092d31" stroke-width="8"/>
+  <path d="M128 108v104M85 89v123M171 89v123" stroke="#092d31" stroke-width="8"/>
+  <title>Meridian Inventory</title>
+</svg>

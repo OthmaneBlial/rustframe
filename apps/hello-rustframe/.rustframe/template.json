@@ -1,0 +1,34 @@
+{
+  "$schema": "https://othmaneblial.github.io/rustframe/schemas/templates/v1/template.schema.json",
+  "schemaVersion": 1,
+  "id": "workflow-queue-starter",
+  "title": "Workflow Queue Starter",
+  "kind": "starter",
+  "provenance": "first-party",
+  "workflow": "queue-starter",
+  "summary": "Start from a compact local review queue with typed SQLite records, search, lane changes, and clipboard output.",
+  "bestFor": ["review queues", "operator dashboards", "internal triage"],
+  "capabilities": ["database", "window", "clipboard"],
+  "source": {
+    "repository": "https://github.com/OthmaneBlial/rustframe",
+    "path": "apps/hello-rustframe"
+  },
+  "author": {
+    "name": "Othmane Blial",
+    "url": "https://github.com/OthmaneBlial"
+  },
+  "license": { "spdx": "MIT", "file": "LICENSE" },
+  "platforms": ["macos", "windows", "linux"],
+  "rustframe": { "minimumVersion": "0.1.0-rc.1", "testedVersion": "0.1.0-rc.1" },
+  "verification": {
+    "state": "verified",
+    "profile": "rustframe-static-v1",
+    "lastVerifiedAt": "2026-08-28"
+  },
+  "screenshot": {
+    "path": "site/assets/screenshots/hello-rustframe.webp",
+    "width": 1280,
+    "height": 820,
+    "alt": "Workflow Queue Starter with local SQLite records, lane filters, search, ownership, and runtime status"
+  }
+}

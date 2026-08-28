@@ -1,63 +1,89 @@
 # Community Templates
 
-RustFrame should grow template surface only where the workflow shape is already credible.
+RustFrame's template registry is a versioned verification contract, not a gallery of renamed CRUD demos. Every listed template states the job it serves, source, author, license, platforms, RustFrame version, native capabilities, current screenshot, and verification date.
 
-That means:
+The current registry is explicitly **first-party**. It proves the contribution machinery and five useful workflow shapes without implying that an external ecosystem already exists.
 
-- start from real jobs, not renamed CRUD demos
-- map templates to existing reference apps or starters
-- keep the capability story explicit
+## Public contracts
 
-## Current Catalog
+- Catalog: `examples/community-templates/catalog.json`
+- Catalog schema: [`schemas/templates/v1/catalog.schema.json`](../schemas/templates/v1/catalog.schema.json)
+- Template schema: [`schemas/templates/v1/template.schema.json`](../schemas/templates/v1/template.schema.json)
+- Template manifests: `apps/*/.rustframe/template.json`
+- Generated showcase data: `site/showcase.json`
+- Validator and generator: `scripts/validate_template_registry.mjs`
 
-The machine-readable template catalog lives at:
+The immutable schemas are also published at:
 
 ```text
-examples/community-templates/catalog.json
+https://othmaneblial.github.io/rustframe/schemas/templates/v1/catalog.schema.json
+https://othmaneblial.github.io/rustframe/schemas/templates/v1/template.schema.json
 ```
 
-It currently points builders at:
+## Verified workflow set
 
-- the workflow queue starter in `apps/hello-rustframe`
-- the flagship `apps/research-desk`
-- dense status-board and editorial references such as `apps/dispatch-room` and `apps/quill-studio`
-- frontend starters such as `examples/frontend-starters/svelte-vite`
+| Workflow | Template | Source |
+| --- | --- | --- |
+| Document desk | Daybreak Notes | `apps/daybreak-notes` |
+| Media review queue | Prism Gallery | `apps/prism-gallery` |
+| Offline inventory | Meridian Inventory | `apps/meridian-inventory` |
+| Evidence tracker | Research Desk | `apps/research-desk` |
+| Batch operations console | Dispatch Room | `apps/dispatch-room` |
 
-## What Makes A Good Template
+Workflow Queue Starter and Quill Studio remain additional first-party starting points. A template is not "verified" because its card looks finished; its manifest and project must pass the current CLI and fixed verification profile.
 
-A good community template should answer these questions clearly:
+## Manifest v1
 
-- what job is this for?
-- who would adopt it?
-- which runtime capabilities does it use?
-- why is RustFrame a good fit for this workflow?
+The catalog contains only manifest paths:
 
-If the answer is just "it looks nice" or "it has CRUD," it is not enough.
+```json
+{
+  "$schema": "https://othmaneblial.github.io/rustframe/schemas/templates/v1/catalog.schema.json",
+  "schemaVersion": 1,
+  "templates": [
+    { "manifest": "apps/daybreak-notes/.rustframe/template.json" }
+  ]
+}
+```
 
-## Contribution Rules
+Each template manifest records declarative evidence. Unknown properties are rejected. Commands, scripts, CI fragments, absolute paths, and path traversal are not valid metadata.
 
-Prefer templates that are:
+Required evidence includes:
 
-- file-centric
-- local-first
-- workflow-shaped
-- narrow in native capability scope
+- a specific workflow and audience;
+- canonical source path and author credit;
+- SPDX license and real license file;
+- supported platforms and exact RustFrame version tested;
+- declared native capabilities;
+- verification state, fixed profile, and date;
+- an optimized WebP screenshot with checked dimensions and descriptive alt text.
 
-Avoid templates that are:
+## Safe verification
 
-- generic dashboards with fake data only
-- broad framework demos with no clear user task
-- examples that imply unsupported native depth
+Run the complete template gate from the repository root:
 
-## Suggested Contribution Format
+```bash
+./scripts/verify_templates.sh
+```
 
-When adding a new template entry:
+The validator resolves accepted in-repository paths, rejects stale versions and missing evidence, then generates `site/showcase.json`. Only after the declarative catalog passes does the verification script use one of two maintainer-owned profiles:
 
-1. add or update the reference app or starter
-2. add an entry to `examples/community-templates/catalog.json`
-3. describe the workflow fit and capabilities honestly
-4. add a screenshot if the UI materially helps explain the job
+- `rustframe-static-v1` for dependency-free static workflow frontends;
+- `rustframe-flagship-v1` for Research Desk.
 
-## Why This Exists
+The catalog cannot supply the command that CI executes. This prevents a new catalog row from becoming an arbitrary-code hook. Pull-request code still receives normal source review and runs with GitHub's untrusted-fork restrictions.
 
-The template catalog is the ecosystem layer that should help people start faster without pushing RustFrame back into "generic wrapper" positioning.
+## Submit a template or application
+
+1. Open the [template or app submission form](https://github.com/OthmaneBlial/rustframe/issues/new?template=template_submission.yml).
+2. Link an exact public revision, license, author profile, real screenshot, and clean-build evidence.
+3. Explain the user job and least-privilege capabilities. "It has CRUD" or "it looks nice" is not a workflow.
+4. A maintainer reviews the source and reproduction steps before any code is run.
+5. An accepted in-repository template adds its app, `.rustframe/template.json`, WebP screenshot, and one catalog manifest path.
+6. Run `./scripts/verify_templates.sh` and the relevant browser tests.
+
+Community authors retain visible credit in the manifest, showcase, and release notes. Entries move to `reference` or `archived` when their source, license, screenshot, platform proof, or tested RustFrame version becomes stale.
+
+## External showcase gate
+
+The site must continue to label all current entries as first-party. It may describe a community ecosystem only after at least three independently authored applications or templates pass this same public contract. Until then, submissions can be reviewed and discussed without inflating adoption claims.

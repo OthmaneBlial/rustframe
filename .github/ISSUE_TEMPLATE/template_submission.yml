@@ -1,0 +1,96 @@
+name: Template or app submission
+description: Propose a workflow template or real RustFrame application for public verification
+title: "[Template]: "
+labels: ["area-templates", "needs-design"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The showcase is evidence-backed. Submitting this form does not execute your repository or add it automatically.
+  - type: input
+    id: source
+    attributes:
+      label: Public source repository
+      description: Link to the exact public repository and revision that reviewers can inspect.
+      placeholder: https://github.com/owner/project/tree/revision
+    validations:
+      required: true
+  - type: input
+    id: author
+    attributes:
+      label: Author credit
+      description: Name and profile URL that should appear in the registry.
+    validations:
+      required: true
+  - type: input
+    id: license
+    attributes:
+      label: SPDX license and file
+      placeholder: MIT — https://github.com/owner/project/blob/revision/LICENSE
+    validations:
+      required: true
+  - type: textarea
+    id: job
+    attributes:
+      label: Real workflow job
+      description: Who uses this, what decision or operation it supports, and why a desktop local-first tool fits.
+    validations:
+      required: true
+  - type: dropdown
+    id: workflow
+    attributes:
+      label: Closest workflow shape
+      options:
+        - Document desk
+        - Media review
+        - Offline inventory
+        - Evidence tracker
+        - Batch operations
+        - Another specific local workflow
+    validations:
+      required: true
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: Platforms reproduced from a clean checkout
+      options:
+        - label: macOS
+        - label: Windows
+        - label: Linux
+  - type: input
+    id: version
+    attributes:
+      label: RustFrame version tested
+      placeholder: 0.1.0-rc.1
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproducible build evidence
+      description: List the clean-checkout steps and attach or link CI receipts. Reviewers run these manually after source review.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot and alt text
+      description: Attach a real current screen and describe what it proves. Do not use a mockup as runtime evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: Native capabilities and data ownership
+      description: List database, filesystem, shell, window, clipboard, or file-open access and where user data lives.
+    validations:
+      required: true
+  - type: checkboxes
+    id: acknowledgement
+    attributes:
+      label: Submission contract
+      options:
+        - label: I understand catalog metadata cannot contain commands, scripts, secrets, or executable CI instructions.
+          required: true
+        - label: I can grant the project permission to display the submitted screenshot and author credit.
+          required: true

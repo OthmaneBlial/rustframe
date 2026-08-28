@@ -1,0 +1,7 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="44" fill="#f5eddc"/>
+  <path d="M54 54h148v148H54z" fill="#19231d"/>
+  <path d="M84 171c34-2 63-27 84-82-44 11-77 37-84 82Z" fill="#ff6a3d"/>
+  <path d="m88 172 70-69" stroke="#f5eddc" stroke-width="9"/>
+  <title>Quill Studio</title>
+</svg>

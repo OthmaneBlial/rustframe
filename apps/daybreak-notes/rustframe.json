@@ -1,0 +1,39 @@
+{
+  "$schema": "https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json",
+  "schemaVersion": 1,
+  "app": {
+    "id": "daybreak-notes",
+    "title": "Daybreak Notes",
+    "windows": [
+      { "id": "main", "title": "Daybreak Notes", "route": "/", "width": 1360, "height": 900 }
+    ]
+  },
+  "frontend": {
+    "devCommand": "npm run dev",
+    "buildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:5173",
+    "distDir": "dist",
+    "generatedTypes": "rustframe.generated.js"
+  },
+  "security": {
+    "model": "local-first",
+    "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    "permissions": [
+      { "window": "main", "allow": ["db:read", "db:write"] }
+    ]
+  },
+  "database": { "schema": "data/schema.json", "seeds": "data/seeds", "migrations": "data/migrations" },
+  "filesystem": { "roots": [], "persistGrants": true },
+  "shell": { "commands": [] },
+  "packaging": {
+    "version": "0.1.0",
+    "identifier": "dev.rustframe.daybreak-notes",
+    "description": "A local-first document and notes desk",
+    "publisher": "RustFrame",
+    "homepage": "https://github.com/OthmaneBlial/rustframe",
+    "icon": "assets/icon.svg",
+    "linux": { "categories": ["Office"], "keywords": ["documents", "notes", "local-first"] },
+    "windows": {},
+    "macos": {}
+  }
+}

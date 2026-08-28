@@ -1,0 +1,34 @@
+{
+  "$schema": "https://othmaneblial.github.io/rustframe/schemas/templates/v1/template.schema.json",
+  "schemaVersion": 1,
+  "id": "dispatch-room",
+  "title": "Dispatch Room",
+  "kind": "template",
+  "provenance": "first-party",
+  "workflow": "batch-operations",
+  "summary": "Triage operational work, move batches through explicit lanes, and keep severity, owners, and due dates visible.",
+  "bestFor": ["batch operations", "incident triage", "local status boards"],
+  "capabilities": ["database", "window"],
+  "source": {
+    "repository": "https://github.com/OthmaneBlial/rustframe",
+    "path": "apps/dispatch-room"
+  },
+  "author": {
+    "name": "Othmane Blial",
+    "url": "https://github.com/OthmaneBlial"
+  },
+  "license": { "spdx": "MIT", "file": "LICENSE" },
+  "platforms": ["macos", "windows", "linux"],
+  "rustframe": { "minimumVersion": "0.1.0-rc.1", "testedVersion": "0.1.0-rc.1" },
+  "verification": {
+    "state": "verified",
+    "profile": "rustframe-static-v1",
+    "lastVerifiedAt": "2026-08-28"
+  },
+  "screenshot": {
+    "path": "site/assets/screenshots/dispatch-room.webp",
+    "width": 1480,
+    "height": 940,
+    "alt": "Dispatch Room batch operations console with incident composer, severity metrics, filters, and workflow lanes"
+  }
+}

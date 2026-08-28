@@ -661,13 +661,24 @@ async function loadShowcase(grid) {
 function renderShowcaseCard(item) {
     const title = escapeHtml(item.title || "Untitled");
     const category = escapeHtml(item.category || "reference");
+    const provenance = escapeHtml(item.provenance || "unverified");
+    const workflow = escapeHtml(item.workflow || "workflow");
     const source = escapeHtml(item.source || "");
     const summary = escapeHtml(item.summary || "");
     const href = escapeHtml(item.href || "#");
+    const alt = escapeHtml(item.alt || `${item.title || "Template"} interface preview`);
     const bestFor = Array.isArray(item.bestFor) ? item.bestFor : [];
     const capabilities = Array.isArray(item.capabilities) ? item.capabilities : [];
+    const platforms = Array.isArray(item.platforms) ? item.platforms : [];
+    const verification = item.verification && typeof item.verification === "object" ? item.verification : {};
+    const testedVersion = escapeHtml(item.rustframe?.testedVersion || "unverified");
+    const verificationState = escapeHtml(verification.state || "unverified");
+    const verifiedAt = escapeHtml(verification.lastVerifiedAt || "unknown");
+    const authorName = escapeHtml(item.author?.name || "Unknown author");
+    const authorUrl = escapeHtml(item.author?.url || "#");
+    const license = escapeHtml(item.license || "Unspecified");
     const visual = item.screenshot
-        ? `<div class="showcase-visual"><img src="${escapeHtml(item.screenshot)}" width="${Number(item.width) || 1460}" height="${Number(item.height) || 940}" loading="lazy" alt="${title} screenshot"></div>`
+        ? `<div class="showcase-visual"><img src="${escapeHtml(item.screenshot)}" width="${Number(item.width) || 1460}" height="${Number(item.height) || 940}" loading="lazy" alt="${alt}"><span class="showcase-proof" data-state="${verificationState}">${verificationState} · ${verifiedAt}</span></div>`
         : `<div class="showcase-visual showcase-placeholder"><span>${category}</span></div>`;
     const bestForHtml = bestFor.length
         ? `<p class="showcase-meta"><strong>Best for</strong> ${escapeHtml(bestFor.join(", "))}</p>`
@@ -677,19 +688,29 @@ function renderShowcaseCard(item) {
               .map((value) => `<span class="showcase-tag">${escapeHtml(value)}</span>`)
               .join("")}</div>`
         : "";
+    const caseStudy = item.caseStudy
+        ? `<a class="button button-ghost" href="${escapeHtml(item.caseStudy)}">Read case study</a>`
+        : "";
 
     return `
         <article class="showcase-card">
             ${visual}
             <div class="showcase-copy">
-                <span class="gallery-kicker">${category}</span>
+                <span class="gallery-kicker">${workflow} / ${provenance} ${category}</span>
                 <h3>${title}</h3>
                 <p>${summary}</p>
-                <p class="showcase-meta"><strong>Source</strong> <code>${source}</code></p>
                 ${bestForHtml}
                 ${capabilityTags}
+                <div class="showcase-contract" aria-label="Verification contract">
+                    <span><strong>Tested</strong>${testedVersion}</span>
+                    <span><strong>Platforms</strong>${escapeHtml(platforms.join(" · "))}</span>
+                    <span><strong>License</strong>${license}</span>
+                    <span><strong>Author</strong><a href="${authorUrl}" target="_blank" rel="noreferrer">${authorName}</a></span>
+                </div>
+                <p class="showcase-meta"><strong>Source</strong> <code>${source}</code></p>
                 <div class="showcase-actions">
-                    <a class="button button-ghost" href="${href}" target="_blank" rel="noreferrer">Open source</a>
+                    <a class="button button-ghost" data-source-link href="${href}" target="_blank" rel="noreferrer">Open source</a>
+                    ${caseStudy}
                 </div>
             </div>
         </article>

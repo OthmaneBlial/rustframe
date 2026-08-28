@@ -1,121 +1,305 @@
 {
+  "schemaVersion": 1,
   "templates": [
-    {
-      "id": "workflow-starter",
-      "title": "Workflow Queue Starter",
-      "source": "apps/hello-rustframe",
-      "category": "starter",
-      "summary": "A minimal local-first queue app with embedded SQLite, runtime search, and a product-shaped review flow.",
-      "bestFor": [
-        "internal triage desks",
-        "review queues",
-        "operator dashboards"
-      ],
-      "capabilities": [
-        "database",
-        "window"
-      ],
-      "screenshot": "assets/screenshots/hello-rustframe.webp",
-      "width": 1280,
-      "height": 820,
-      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/hello-rustframe"
-    },
     {
       "id": "research-desk",
       "title": "Research Desk",
       "source": "apps/research-desk",
       "category": "flagship",
-      "summary": "A local archive review workflow with scoped filesystem access, allowlisted indexing, queue export, and reader windows.",
+      "provenance": "first-party",
+      "workflow": "evidence-tracker",
+      "summary": "Review a local archive, index selected documents, track decisions, and export evidence without surrendering the source files.",
       "bestFor": [
-        "document review",
         "research archives",
-        "evidence workbenches"
+        "evidence review",
+        "document investigations"
       ],
       "capabilities": [
         "database",
         "filesystem",
-        "shell",
-        "multi-window"
+        "window",
+        "multi-window",
+        "clipboard",
+        "file-open"
       ],
+      "author": {
+        "name": "Othmane Blial",
+        "url": "https://github.com/OthmaneBlial"
+      },
+      "license": "MIT",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "rustframe": {
+        "minimumVersion": "0.1.0-rc.1",
+        "testedVersion": "0.1.0-rc.1"
+      },
+      "verification": {
+        "state": "verified",
+        "profile": "rustframe-flagship-v1",
+        "lastVerifiedAt": "2026-08-28"
+      },
       "screenshot": "assets/screenshots/research-desk.webp",
       "width": 2696,
       "height": 1562,
-      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/research-desk"
+      "alt": "Research Desk reviewing a local document archive with indexed evidence and local database status",
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/research-desk",
+      "caseStudy": "https://othmaneblial.github.io/rustframe/docs.html?doc=research-desk-architecture"
     },
     {
-      "id": "dispatch-room",
-      "title": "Dispatch Room",
-      "source": "apps/dispatch-room",
-      "category": "reference",
-      "summary": "A status-heavy incident workflow that shows how to structure a dense triage board around a local SQLite model.",
+      "id": "daybreak-notes",
+      "title": "Daybreak Notes",
+      "source": "apps/daybreak-notes",
+      "category": "template",
+      "provenance": "first-party",
+      "workflow": "document-desk",
+      "summary": "Capture working notes, pin the material that matters, and move documents through a calm offline editorial desk.",
       "bestFor": [
-        "incident triage",
-        "ops coordination",
-        "status boards"
+        "document workbenches",
+        "field notes",
+        "editorial research"
       ],
       "capabilities": [
         "database",
         "window"
       ],
-      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/dispatch-room"
+      "author": {
+        "name": "Othmane Blial",
+        "url": "https://github.com/OthmaneBlial"
+      },
+      "license": "MIT",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "rustframe": {
+        "minimumVersion": "0.1.0-rc.1",
+        "testedVersion": "0.1.0-rc.1"
+      },
+      "verification": {
+        "state": "verified",
+        "profile": "rustframe-static-v1",
+        "lastVerifiedAt": "2026-08-28"
+      },
+      "screenshot": "assets/screenshots/daybreak-notes.webp",
+      "width": 1360,
+      "height": 900,
+      "alt": "Daybreak Notes document desk with note composer, mood filters, pinned notes, and local storage status",
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/daybreak-notes"
     },
     {
       "id": "prism-gallery",
       "title": "Prism Gallery",
       "source": "apps/prism-gallery",
-      "category": "reference",
-      "summary": "A media-forward reference layout for asset review and library-style browsing.",
+      "category": "template",
+      "provenance": "first-party",
+      "workflow": "media-review",
+      "summary": "Review visual assets, compare collection state, record ratings, and keep creative approvals in a local media queue.",
       "bestFor": [
-        "asset libraries",
         "media review",
-        "creative approvals"
+        "creative approvals",
+        "asset libraries"
       ],
       "capabilities": [
         "database",
         "window"
       ],
+      "author": {
+        "name": "Othmane Blial",
+        "url": "https://github.com/OthmaneBlial"
+      },
+      "license": "MIT",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "rustframe": {
+        "minimumVersion": "0.1.0-rc.1",
+        "testedVersion": "0.1.0-rc.1"
+      },
+      "verification": {
+        "state": "verified",
+        "profile": "rustframe-static-v1",
+        "lastVerifiedAt": "2026-08-28"
+      },
       "screenshot": "assets/screenshots/prism-gallery.webp",
       "width": 1460,
       "height": 940,
+      "alt": "Prism Gallery media review queue with colorful asset cards, palette filters, ratings, and approval state",
       "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/prism-gallery"
+    },
+    {
+      "id": "meridian-inventory",
+      "title": "Meridian Inventory",
+      "source": "apps/meridian-inventory",
+      "category": "template",
+      "provenance": "first-party",
+      "workflow": "offline-inventory",
+      "summary": "Track stock, locations, suppliers, and reorder pressure from an offline warehouse desk backed by local SQLite.",
+      "bestFor": [
+        "offline inventory",
+        "warehouse desks",
+        "equipment catalogs"
+      ],
+      "capabilities": [
+        "database",
+        "window"
+      ],
+      "author": {
+        "name": "Othmane Blial",
+        "url": "https://github.com/OthmaneBlial"
+      },
+      "license": "MIT",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "rustframe": {
+        "minimumVersion": "0.1.0-rc.1",
+        "testedVersion": "0.1.0-rc.1"
+      },
+      "verification": {
+        "state": "verified",
+        "profile": "rustframe-static-v1",
+        "lastVerifiedAt": "2026-08-28"
+      },
+      "screenshot": "assets/screenshots/meridian-inventory.webp",
+      "width": 1440,
+      "height": 920,
+      "alt": "Meridian Inventory offline warehouse desk with stock pressure, reorder filters, SKU locations, and suppliers",
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/meridian-inventory"
+    },
+    {
+      "id": "dispatch-room",
+      "title": "Dispatch Room",
+      "source": "apps/dispatch-room",
+      "category": "template",
+      "provenance": "first-party",
+      "workflow": "batch-operations",
+      "summary": "Triage operational work, move batches through explicit lanes, and keep severity, owners, and due dates visible.",
+      "bestFor": [
+        "batch operations",
+        "incident triage",
+        "local status boards"
+      ],
+      "capabilities": [
+        "database",
+        "window"
+      ],
+      "author": {
+        "name": "Othmane Blial",
+        "url": "https://github.com/OthmaneBlial"
+      },
+      "license": "MIT",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "rustframe": {
+        "minimumVersion": "0.1.0-rc.1",
+        "testedVersion": "0.1.0-rc.1"
+      },
+      "verification": {
+        "state": "verified",
+        "profile": "rustframe-static-v1",
+        "lastVerifiedAt": "2026-08-28"
+      },
+      "screenshot": "assets/screenshots/dispatch-room.webp",
+      "width": 1480,
+      "height": 940,
+      "alt": "Dispatch Room batch operations console with incident composer, severity metrics, filters, and workflow lanes",
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/dispatch-room"
+    },
+    {
+      "id": "workflow-queue-starter",
+      "title": "Workflow Queue Starter",
+      "source": "apps/hello-rustframe",
+      "category": "starter",
+      "provenance": "first-party",
+      "workflow": "queue-starter",
+      "summary": "Start from a compact local review queue with typed SQLite records, search, lane changes, and clipboard output.",
+      "bestFor": [
+        "review queues",
+        "operator dashboards",
+        "internal triage"
+      ],
+      "capabilities": [
+        "database",
+        "window",
+        "clipboard"
+      ],
+      "author": {
+        "name": "Othmane Blial",
+        "url": "https://github.com/OthmaneBlial"
+      },
+      "license": "MIT",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "rustframe": {
+        "minimumVersion": "0.1.0-rc.1",
+        "testedVersion": "0.1.0-rc.1"
+      },
+      "verification": {
+        "state": "verified",
+        "profile": "rustframe-static-v1",
+        "lastVerifiedAt": "2026-08-28"
+      },
+      "screenshot": "assets/screenshots/hello-rustframe.webp",
+      "width": 1280,
+      "height": 820,
+      "alt": "Workflow Queue Starter with local SQLite records, lane filters, search, ownership, and runtime status",
+      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/hello-rustframe"
     },
     {
       "id": "quill-studio",
       "title": "Quill Studio",
       "source": "apps/quill-studio",
       "category": "reference",
-      "summary": "An editorial workflow template for teams that need structured story status, assignment, and review state.",
+      "provenance": "first-party",
+      "workflow": "editorial-planning",
+      "summary": "Plan assignments, deadlines, channels, and story movement in an editorial workflow that keeps every decision local.",
       "bestFor": [
-        "editorial desks",
-        "content planning",
-        "story pipelines"
+        "editorial planning",
+        "content pipelines",
+        "assignment desks"
       ],
       "capabilities": [
         "database",
         "window"
       ],
+      "author": {
+        "name": "Othmane Blial",
+        "url": "https://github.com/OthmaneBlial"
+      },
+      "license": "MIT",
+      "platforms": [
+        "macos",
+        "windows",
+        "linux"
+      ],
+      "rustframe": {
+        "minimumVersion": "0.1.0-rc.1",
+        "testedVersion": "0.1.0-rc.1"
+      },
+      "verification": {
+        "state": "verified",
+        "profile": "rustframe-static-v1",
+        "lastVerifiedAt": "2026-08-28"
+      },
       "screenshot": "assets/screenshots/quill-studio.webp",
       "width": 1460,
       "height": 940,
+      "alt": "Quill Studio editorial planning desk with assignments, channels, deadlines, filters, and story status lanes",
       "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/quill-studio"
-    },
-    {
-      "id": "svelte-vite-starter",
-      "title": "Svelte Vite Starter",
-      "source": "examples/frontend-starters/svelte-vite",
-      "category": "frontend-starter",
-      "summary": "A dev-server starter for teams that want Svelte while RustFrame still owns the desktop runtime.",
-      "bestFor": [
-        "Svelte teams",
-        "dev-server workflows",
-        "component-first apps"
-      ],
-      "capabilities": [
-        "database",
-        "window",
-        "dev-server"
-      ],
-      "href": "https://github.com/OthmaneBlial/rustframe/tree/main/examples/frontend-starters/svelte-vite"
     }
   ]
 }

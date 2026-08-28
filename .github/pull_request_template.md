@@ -2,6 +2,8 @@
 
 Describe the user-visible outcome and the public contracts affected.
 
+Accepted issue: <!-- #123. Use a Discussion first when the design is not accepted yet. -->
+
 ## Verification
 
 - [ ] Formatting is clean.
@@ -10,6 +12,8 @@ Describe the user-visible outcome and the public contracts affected.
 - [ ] Standalone projects contain no repository-relative dependency.
 - [ ] Platform gaps and packaging/signing status are stated.
 - [ ] Public changes include tests, changelog notes, and migration guidance.
+- [ ] Generated schemas, documentation, screenshots, or registry files are current.
+- [ ] The issue's acceptance criteria and non-goals are preserved.
 
 ## Security
 

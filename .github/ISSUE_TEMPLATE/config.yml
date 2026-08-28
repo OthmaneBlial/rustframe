@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Questions and early ideas
+    url: https://github.com/OthmaneBlial/rustframe/discussions
+    about: Ask for help, share a workflow, or refine a proposal before it becomes an issue.
   - name: Private security report
     url: https://github.com/OthmaneBlial/rustframe/security/advisories/new
     about: Report vulnerabilities without public disclosure.

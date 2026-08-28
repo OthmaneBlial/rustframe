@@ -91,16 +91,22 @@ test("documentation supports deep links, full-text search, and paging", async ({
 test("showcase renders verified source links and optimized images", async ({ page }) => {
   const errors = captureConsoleErrors(page);
   await page.goto("/showcase.html");
-  await expect(page.locator(".showcase-card")).toHaveCount(6);
-  await expect(page.locator(".showcase-visual img")).toHaveCount(4);
+  await expect(page.locator(".showcase-card")).toHaveCount(7);
+  await expect(page.locator(".showcase-visual img")).toHaveCount(7);
+  await expect(page.locator('.showcase-proof[data-state="verified"]')).toHaveCount(7);
+  await expect(page.locator(".showcase-contract")).toHaveCount(7);
   const images = await page.locator(".showcase-visual img").evaluateAll((nodes) =>
     nodes.map((node) => node.getAttribute("src")),
   );
   expect(images.every((source) => source?.endsWith(".webp"))).toBe(true);
-  const sourceLinks = await page.locator(".showcase-actions a").evaluateAll((nodes) =>
+  const sourceLinks = await page.locator("[data-source-link]").evaluateAll((nodes) =>
     nodes.map((node) => node.getAttribute("href")),
   );
   expect(sourceLinks.every((href) => href?.startsWith("https://github.com/OthmaneBlial/rustframe/"))).toBe(true);
+  const workflows = await page.locator(".gallery-kicker").allTextContents();
+  for (const workflow of ["document-desk", "media-review", "offline-inventory", "evidence-tracker", "batch-operations"]) {
+    expect(workflows.some((label) => label.includes(workflow))).toBe(true);
+  }
   expect(errors).toEqual([]);
 });
 

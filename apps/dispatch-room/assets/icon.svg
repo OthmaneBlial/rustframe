@@ -1,0 +1,8 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="48" fill="#101414"/>
+  <path d="M38 62h180v132H38z" fill="#e8ff67" stroke="#f4f0df" stroke-width="8"/>
+  <path d="M38 104h180M102 62v132" stroke="#101414" stroke-width="8"/>
+  <circle cx="70" cy="83" r="9" fill="#ff5b35"/>
+  <text x="160" y="158" text-anchor="middle" font-family="monospace" font-size="58" font-weight="700" fill="#101414">DR</text>
+  <title>Dispatch Room</title>
+</svg>

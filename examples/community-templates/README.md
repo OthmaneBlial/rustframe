@@ -1,22 +1,13 @@
 # Community Templates
 
-This folder is the ecosystem catalog for workflow shapes that are worth cloning, adapting, and sharing back.
+`catalog.json` is the versioned, declarative index for RustFrame's verified workflow templates. Each row points to an `apps/*/.rustframe/template.json`; metadata is not duplicated here and cannot contain executable commands.
 
-The goal is not to add more random demos. The goal is to point builders at workflow-shaped starting points with a clear reason to exist.
+Run the full contract with:
 
-Files:
+```bash
+./scripts/verify_templates.sh
+```
 
-- `catalog.json`
-  - machine-readable template metadata that can power docs, a showcase page, or community contribution tooling later
+The gate validates source ownership, author credit, SPDX license, platforms, capabilities, current RustFrame version, screenshots, fixed verification profiles, and the five required workflow shapes. It also regenerates and checks `site/showcase.json`.
 
-Template entries should describe:
-
-- the workflow job
-- the closest source app or starter in this repo
-- the native capabilities involved
-- the audience and fit
-
-Contribution rule:
-
-- only add templates that prove a job shape people can actually adopt
-- avoid generic CRUD clones with renamed labels
+Read [`docs/community-templates.md`](../../docs/community-templates.md) before proposing an entry. The current catalog is first-party and must not be presented as evidence of an external ecosystem.
