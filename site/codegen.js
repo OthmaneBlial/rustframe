@@ -108,7 +108,7 @@
             packaging: { version: "0.1.0", identifier: "dev.rustframe.workbench-starter", description: "Local-first RustFrame workbench starter", icon: "assets/icon.svg", linux: { categories: ["Utility"], keywords: ["local-first", "rustframe"] }, windows: {}, macos: {} },
         };
         return {
-            "workbench-starter/package.json": JSON.stringify({ name: "workbench-starter", private: true, version: "0.1.0", type: "module", scripts: { dev: "vite", build: "vite build", typecheck: "tsc --noEmit" }, dependencies: { "rustframe-api": "=0.1.0-rc.1", typescript: "^5.9.0", vite: "^7.0.0" } }, null, 2) + "\n",
+            "workbench-starter/package.json": JSON.stringify({ name: "workbench-starter", private: true, version: "0.1.0", type: "module", scripts: { dev: "vite", build: "vite build", typecheck: "tsc --noEmit" }, dependencies: { "rustframe-api": "=0.1.0-rc.2", typescript: "^5.9.0", vite: "^7.0.0" } }, null, 2) + "\n",
             "workbench-starter/rustframe.json": JSON.stringify(manifest, null, 2) + "\n",
             "workbench-starter/data/schema.json": JSON.stringify(schema, null, 2) + "\n",
             "workbench-starter/src/rustframe.generated.ts": generated,
@@ -116,7 +116,7 @@
             "workbench-starter/src/style.css": `:root{font-family:system-ui;color:#171915;background:#f2efe5}body{margin:0}main{width:min(720px,calc(100vw - 48px));margin:10vh auto;padding:40px;border:2px solid;box-shadow:8px 8px 0}h1{font-size:clamp(42px,8vw,82px);line-height:.9}button{padding:12px 16px;border:2px solid;background:#c7f65b;font-weight:700}pre{overflow:auto}\n`,
             "workbench-starter/index.html": `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Workbench Starter</title></head><body><div id="app"></div><script type="module" src="/src/main.ts"></script></body></html>\n`,
             "workbench-starter/assets/icon.svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="18" fill="#11130f"/><path fill="#ff4d00" d="M64 0h64v128H64z"/><text x="14" y="82" fill="#f2efe5" font-family="monospace" font-size="48" font-weight="700">RF</text></svg>\n`,
-            "workbench-starter/README.md": `# Workbench Starter\n\nGenerated from the validated schema in the RustFrame website.\n\n> Registry status: rustframe-api@0.1.0-rc.1 must be publicly available before npm install can complete.\n\n\`\`\`bash\nnpm install\nrustframe doctor\nrustframe dev\n\`\`\`\n`,
+            "workbench-starter/README.md": `# Workbench Starter\n\nGenerated from the validated schema in the RustFrame website.\n\n> Registry status: rustframe-api@0.1.0-rc.2 must be publicly available before npm install can complete.\n\n\`\`\`bash\nnpm install\nrustframe doctor\nrustframe dev\n\`\`\`\n`,
         };
     }
 

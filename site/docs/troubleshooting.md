@@ -34,7 +34,7 @@ RustFrame's native development and verification hosts are Linux, Windows, and ma
 | `rustframe` is not found | The installer directory is not on `PATH` | Reopen the terminal, then run the installer’s printed PATH command. |
 | Rust is missing | The stock native runner is compiled on the host | Install Rust 1.88 or newer, then rerun `rustframe doctor`. |
 | Linux WebView check fails | GTK or WebKit development packages are absent | Run the exact distribution command printed by `doctor`; package names differ by distribution. |
-| The frontend package cannot install | `rustframe-api@0.1.0-rc.1` has not completed its initial npm publication | Check the release status. Do not substitute a repository path in a public-project test. |
+| The frontend package cannot install | `rustframe-api@0.1.0-rc.2` has not completed its initial npm publication | Check the release status. Do not substitute a repository path in a public-project test. |
 
 ## Create and validate
 

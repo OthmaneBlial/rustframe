@@ -10,19 +10,20 @@ macOS or Linux:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.sh | sh
+  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.2/rustframe-cli-installer.sh | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.2/rustframe-cli-installer.ps1 | iex"
 ```
 
 Build-from-source alternative:
 
 ```bash
-cargo install rustframe-cli --version 0.1.0-rc.1 --locked
+cargo install --git https://github.com/OthmaneBlial/rustframe \
+  --tag v0.1.0-rc.2 rustframe-cli --locked
 ```
 
 Then run `rustframe doctor` for host-specific checks. Use `rustframe doctor --json` for stable host-check codes and remediation links. The initial `rustframe-api` npm publication is still a release-candidate gate; until it is public, generated projects cannot complete a registry-only `npm install`.

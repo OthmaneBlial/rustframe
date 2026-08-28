@@ -19,7 +19,7 @@
   },
   "license": { "spdx": "MIT", "file": "LICENSE" },
   "platforms": ["macos", "windows", "linux"],
-  "rustframe": { "minimumVersion": "0.1.0-rc.1", "testedVersion": "0.1.0-rc.1" },
+  "rustframe": { "minimumVersion": "0.1.0-rc.1", "testedVersion": "0.1.0-rc.2" },
   "verification": {
     "state": "verified",
     "profile": "rustframe-static-v1",

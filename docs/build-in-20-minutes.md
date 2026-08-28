@@ -8,11 +8,11 @@ Install the prebuilt CLI on macOS or Linux:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.sh | sh
+  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.2/rustframe-cli-installer.sh | sh
 rustframe doctor
 ```
 
-Windows users can run the release's `rustframe-cli-installer.ps1`. `cargo install rustframe-cli --version 0.1.0-rc.1 --locked` remains the build-from-source alternative. The initial `rustframe-api` npm publication must be complete before the registry-only project install below can succeed.
+Windows users can run the release's `rustframe-cli-installer.ps1`. `cargo install --git https://github.com/OthmaneBlial/rustframe --tag v0.1.0-rc.2 rustframe-cli --locked` remains the build-from-source alternative. The initial `rustframe-api` npm publication must be complete before the registry-only project install below can succeed.
 
 Install any native WebView dependencies reported by `doctor` before continuing.
 

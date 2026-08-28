@@ -868,7 +868,7 @@ async function exportDiagnosticBundle() {
     const payload = {
         format: "rustframe-diagnostic-bundle-v1",
         generatedAt: new Date().toISOString(),
-        app: { id: "research-desk", version: "0.1.0-rc.1", route: ROUTE_PATH },
+        app: { id: "research-desk", version: "0.1.0-rc.2", route: ROUTE_PATH },
         runtime: {
             security: window.RustFrame.security,
             database: state.dbInfo,

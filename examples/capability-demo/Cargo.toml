@@ -9,4 +9,4 @@ repository.workspace = true
 
 [dependencies]
 rust-embed = "8.11.0"
-rustframe = { package = "rustframe-runtime", version = "=0.1.0-rc.1", path = "../../crates/rustframe" }
+rustframe = { package = "rustframe-runtime", version = "=0.1.0-rc.2", path = "../../crates/rustframe" }

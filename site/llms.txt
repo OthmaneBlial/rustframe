@@ -2,7 +2,7 @@
 
 > RustFrame is a Rust-powered desktop runtime and CLI for frontend teams building local-first workflow tools with TypeScript or JavaScript, embedded SQLite, consent-scoped file access, and native installers.
 
-RustFrame is an early release candidate. It is deliberately narrower than Tauri or Electron and does not claim a broad native plugin ecosystem. The Rust crates and native release artifacts are public. The rustframe-api npm package is pending its initial 2FA-authorized publication.
+RustFrame is an early release candidate. It is deliberately narrower than Tauri or Electron and does not claim a broad native plugin ecosystem. Framework CLI artifacts are published through GitHub Releases; the crates.io candidate remains 0.1.0-rc.1. The rustframe-api npm package is pending its initial 2FA-authorized publication.
 
 ## Primary pages
 
@@ -22,4 +22,4 @@ RustFrame is an early release candidate. It is deliberately narrower than Tauri 
 - Default data model: local SQLite with no telemetry by default
 - Filesystem model: user-approved opaque grants checked by native IPC
 - Manifest schema v1: https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json
-- Current candidate documented by this site: 0.1.0-rc.1
+- Current candidate documented by this site: 0.1.0-rc.2

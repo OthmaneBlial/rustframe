@@ -6,7 +6,7 @@ on:
       tag:
         description: GitHub release tag whose public artifacts should be tested
         required: true
-        default: v0.1.0-rc.1
+        default: v0.1.0-rc.2
         type: string
   release:
     types: [published]

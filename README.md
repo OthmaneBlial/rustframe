@@ -18,7 +18,7 @@ Build local-first macOS, Windows, and Linux applications with the frontend stack
 
 </div>
 
-> **Release candidate:** `0.1.0-rc.1` is the first public v1 candidate. The Rust crates and native artifacts are public. The `rustframe-api` npm package is still awaiting its initial 2FA-authorized publication, so a generated project's dependency install is not yet a supported public path.
+> **Release candidate:** `0.1.0-rc.2` is the second public v1 candidate. Framework CLI artifacts are published through GitHub Releases; the crates.io candidate remains `0.1.0-rc.1`. The `rustframe-api` npm package is still awaiting its initial 2FA-authorized publication, so a generated project's dependency install is not yet a supported public path.
 
 ## From empty folder to desktop app
 
@@ -26,19 +26,20 @@ Install [Rust 1.88+](https://www.rust-lang.org/tools/install) and [Node.js 20+](
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.sh | sh
+  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.2/rustframe-cli-installer.sh | sh
 ```
 
 On Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.2/rustframe-cli-installer.ps1 | iex"
 ```
 
 Building the CLI from source remains available:
 
 ```bash
-cargo install rustframe-cli --version 0.1.0-rc.1 --locked
+cargo install --git https://github.com/OthmaneBlial/rustframe \
+  --tag v0.1.0-rc.2 rustframe-cli --locked
 ```
 
 Then create the project:
