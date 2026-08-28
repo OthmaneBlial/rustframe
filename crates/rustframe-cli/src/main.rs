@@ -22,6 +22,7 @@ mod codegen;
 mod command;
 mod database;
 mod diagnostics;
+mod diagnostics_bundle;
 mod local_first;
 mod manifest;
 mod migration;
@@ -32,7 +33,8 @@ mod runner;
 mod scaffold;
 
 use command::{
-    CapabilitiesCommand, Cli, Command as CliCommand, DbCommand, InspectArgs, ReleaseCommand,
+    CapabilitiesCommand, Cli, Command as CliCommand, DbCommand, DiagnosticsCommand, InspectArgs,
+    ReleaseCommand,
 };
 use runner::RunnerProject;
 
@@ -511,8 +513,8 @@ fn run() -> CliResult<()> {
     if let CliCommand::New(args) = &cli.command {
         return command_new_v1(args);
     }
-    if matches!(cli.command, CliCommand::Doctor) {
-        return command_doctor(&[]);
+    if let CliCommand::Doctor(args) = &cli.command {
+        return command_doctor(args.json);
     }
     if let CliCommand::Capabilities(args) = &cli.command {
         if let CapabilitiesCommand::Diff { old, new, json } = &args.command {
@@ -529,11 +531,16 @@ fn run() -> CliResult<()> {
     let name = project::project_name(&project_dir)?;
 
     match cli.command {
-        CliCommand::New(_) | CliCommand::Doctor | CliCommand::Release(_) => unreachable!(),
-        CliCommand::Dev(args) => command_dev(&project_dir, &name, args.dev_url),
+        CliCommand::New(_) | CliCommand::Doctor(_) | CliCommand::Release(_) => unreachable!(),
+        CliCommand::Dev(args) => command_dev(&project_dir, &name, args.dev_url, args.open_devtools),
         CliCommand::Validate(args) => command_validate(&project_dir, &name, args.json),
         CliCommand::Inspect(args) => command_inspect_v1(&project_dir, &name, &args),
         CliCommand::Capabilities(args) => command_capabilities(&project_dir, &name, args.command),
+        CliCommand::Diagnostics(args) => match args.command {
+            DiagnosticsCommand::Export { destination } => {
+                diagnostics_bundle::export(&project_dir, &name, destination.as_deref())
+            }
+        },
         CliCommand::Codegen(args) => command_codegen(&project_dir, args.check),
         CliCommand::Build(args) => command_build(&project_dir, &name, args.release),
         CliCommand::Package(args) => command_package(
@@ -682,35 +689,155 @@ fn command_new(name: &str) -> CliResult<()> {
     Ok(())
 }
 
-fn command_doctor(args: &[String]) -> CliResult<()> {
-    if let Some(argument) = args.first() {
-        return Err(format!("doctor does not accept arguments: '{argument}'"));
-    }
-
+fn command_doctor(as_json: bool) -> CliResult<()> {
     let checks = collect_host_checks();
-
-    println!("RustFrame doctor");
-    println!();
-    println!("Host:");
-    print_checks(&checks);
-
     let failures = checks
         .iter()
         .filter(|check| check.status == CheckStatus::Failed)
         .count();
 
-    if failures == 0 {
-        println!();
+    if as_json {
+        let report = build_doctor_report(&checks);
         println!(
-            "Host looks ready. Run `rustframe inspect` inside a project, then `rustframe package --verify` to validate native artifacts."
+            "{}",
+            serde_json::to_string_pretty(&report)
+                .map_err(|error| format!("failed to render doctor report: {error}"))?
         );
+    } else {
+        println!("RustFrame doctor");
+        println!();
+        println!("Host:");
+        print_checks(&checks);
+    }
+
+    if failures == 0 {
+        if !as_json {
+            println!();
+            println!(
+                "Host looks ready. Run `rustframe inspect` inside a project, then `rustframe package --verify` to validate native artifacts."
+            );
+        }
         Ok(())
     } else {
         Err(format!("doctor found {failures} failing host check(s)"))
     }
 }
 
-fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResult<()> {
+fn build_doctor_report(checks: &[CheckLine]) -> serde_json::Value {
+    let failures = checks
+        .iter()
+        .filter(|check| check.status == CheckStatus::Failed)
+        .count();
+    json!({
+        "schemaVersion": 1,
+        "kind": "rustframe.doctor",
+        "ready": failures == 0,
+        "cli": {
+            "version": env!("CARGO_PKG_VERSION"),
+            "installSource": detect_install_source(),
+            "executable": env::current_exe().ok().map(|path| slash_path(&path))
+        },
+        "host": {
+            "os": env::consts::OS,
+            "architecture": env::consts::ARCH
+        },
+        "checks": checks.iter().map(doctor_check_json).collect::<Vec<_>>()
+    })
+}
+
+fn doctor_check_json(check: &CheckLine) -> serde_json::Value {
+    let (code, remediation_command, remediation_anchor) = match check.label.as_str() {
+        "Cargo" => (
+            "RF-DOCTOR-001",
+            Some("Install Rust with rustup, then reopen the terminal."),
+            "rust-and-cargo",
+        ),
+        "Rust toolchain" => (
+            "RF-DOCTOR-002",
+            Some("rustup toolchain install 1.88.0"),
+            "rust-and-cargo",
+        ),
+        "Host triple" => ("RF-DOCTOR-003", Some("rustc -vV"), "rust-and-cargo"),
+        "pkg-config" => (
+            "RF-DOCTOR-LINUX-001",
+            Some("sudo apt-get install pkg-config"),
+            "linux-webkitgtk",
+        ),
+        "GTK 3 dev files" => (
+            "RF-DOCTOR-LINUX-002",
+            Some("sudo apt-get install libgtk-3-dev"),
+            "linux-webkitgtk",
+        ),
+        "WebKitGTK dev files" => (
+            "RF-DOCTOR-LINUX-003",
+            Some("sudo apt-get install libwebkit2gtk-4.1-dev"),
+            "linux-webkitgtk",
+        ),
+        "Xcode command line tools" => (
+            "RF-DOCTOR-MACOS-001",
+            Some("xcode-select --install"),
+            "macos-xcode-tools",
+        ),
+        "Rustup active toolchain" => (
+            "RF-DOCTOR-WINDOWS-001",
+            Some("rustup default stable-x86_64-pc-windows-msvc"),
+            "windows-msvc",
+        ),
+        "MSVC compiler" => (
+            "RF-DOCTOR-WINDOWS-002",
+            Some("Install Visual Studio Build Tools with Desktop development with C++."),
+            "windows-msvc",
+        ),
+        _ => ("RF-DOCTOR-HOST-001", None, "supported-hosts"),
+    };
+    json!({
+        "code": code,
+        "label": check.label,
+        "status": match check.status {
+            CheckStatus::Ok => "ok",
+            CheckStatus::Warning => "warning",
+            CheckStatus::Failed => "failed"
+        },
+        "detail": check.detail,
+        "remediation": {
+            "command": remediation_command,
+            "url": format!(
+                "https://othmaneblial.github.io/rustframe/docs.html?doc=troubleshooting#{remediation_anchor}"
+            )
+        }
+    })
+}
+
+fn detect_install_source() -> String {
+    if let Ok(value) = env::var("RUSTFRAME_INSTALL_SOURCE") {
+        let value = value.trim();
+        if !value.is_empty() {
+            return value.to_string();
+        }
+    }
+    let executable = env::current_exe()
+        .ok()
+        .map(|path| slash_path(&path).to_ascii_lowercase())
+        .unwrap_or_default();
+    if executable.contains("/.cargo/bin/") {
+        "cargo".into()
+    } else if executable.contains("/homebrew/") || executable.contains("/cellar/") {
+        "homebrew".into()
+    } else if executable.contains("/scoop/") {
+        "scoop".into()
+    } else {
+        "standalone".into()
+    }
+}
+
+fn command_dev(
+    workspace: &Path,
+    name: &str,
+    dev_url: Option<String>,
+    open_devtools: bool,
+) -> CliResult<()> {
+    let started = Instant::now();
+    println!("RustFrame dev: checking native host prerequisites...");
     ensure_host_requirements("dev")?;
     let app = load_app_project(workspace, name)?;
     let active_dev_url = dev_url.or_else(|| app.config.dev_url.clone());
@@ -718,8 +845,10 @@ fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResu
     let stop_codegen = Arc::new(AtomicBool::new(false));
     let mut codegen_thread = None;
     if app.config.schema_version == 1 {
+        println!("RustFrame dev: synchronizing generated database types...");
         codegen::generate(workspace, false)?;
         if let Some(frontend_command) = &app.config.frontend.dev_command {
+            println!("RustFrame dev: starting frontend server (`{frontend_command}`)...");
             frontend = Some(spawn_shell_command(
                 workspace,
                 frontend_command,
@@ -749,6 +878,7 @@ fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResu
         }));
     }
     print_capability_warnings(&app);
+    println!("RustFrame dev: preparing the cached native runner...");
     let runner = resolve_runner_project(workspace, &app)?;
     let audit_log_path = app.app_dir.join("target/rustframe/logs/audit.jsonl");
     if let Some(parent) = audit_log_path.parent() {
@@ -774,6 +904,10 @@ fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResu
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
+    if open_devtools {
+        command.env("RUSTFRAME_OPEN_DEVTOOLS", "1");
+    }
+
     if let Some(url) = active_dev_url {
         command.env("RUSTFRAME_DEV_URL", url);
     }
@@ -786,6 +920,10 @@ fn command_dev(workspace: &Path, name: &str, dev_url: Option<String>) -> CliResu
     }
 
     configure_process_group(&mut command);
+    println!(
+        "RustFrame dev: launching the native window after {:.2}s (Cargo reuses target/rustframe/native)...",
+        started.elapsed().as_secs_f64()
+    );
     let interrupted = Arc::new(AtomicBool::new(false));
     let interrupt_flag = Arc::clone(&interrupted);
     let status = ctrlc::set_handler(move || {
@@ -3126,14 +3264,19 @@ fn render_template(template: &str, replacements: &[(&str, String)]) -> String {
     rendered
 }
 
-fn write_text_file(path: &Path, contents: &str) -> CliResult<()> {
+fn write_text_file(path: &Path, contents: &str) -> CliResult<bool> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
             format!("failed to create directory '{}': {error}", parent.display())
         })?;
     }
 
+    if fs::read(path).is_ok_and(|existing| existing == contents.as_bytes()) {
+        return Ok(false);
+    }
+
     fs::write(path, contents)
+        .map(|()| true)
         .map_err(|error| format!("failed to write '{}': {error}", path.display()))
 }
 
@@ -5126,7 +5269,7 @@ mod tests {
         parse_platform_check_args, platform_target_spec, prepare_ejected_runner,
         prepare_generated_runner, read_app_config, relative_path, render_asset_match_arms,
         render_database_chain, render_template, resolve_current_app_name_from,
-        resolve_runner_project, slash_path, sync_declared_fs_roots,
+        resolve_runner_project, slash_path, sync_declared_fs_roots, write_text_file,
     };
 
     fn write_workspace_manifest(root: &Path) {
@@ -5135,6 +5278,15 @@ mod tests {
             "[workspace]\nmembers = []\n# crates/rustframe\n",
         )
         .unwrap();
+    }
+
+    #[test]
+    fn generated_files_are_not_rewritten_when_contents_are_unchanged() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("runner/src/main.rs");
+        assert!(write_text_file(&path, "fn main() {}\n").unwrap());
+        assert!(!write_text_file(&path, "fn main() {}\n").unwrap());
+        assert!(write_text_file(&path, "fn main() { println!(\"changed\"); }\n").unwrap());
     }
 
     fn default_packaging_config(title: &str) -> AppPackagingConfig {

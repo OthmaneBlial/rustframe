@@ -25,9 +25,11 @@ Build-from-source alternative:
 cargo install rustframe-cli --version 0.1.0-rc.1 --locked
 ```
 
-Then run `rustframe doctor` for host-specific checks. The initial `rustframe-api` npm publication is still a release-candidate gate; until it is public, generated projects cannot complete a registry-only `npm install`.
+Then run `rustframe doctor` for host-specific checks. Use `rustframe doctor --json` for stable host-check codes and remediation links. The initial `rustframe-api` npm publication is still a release-candidate gate; until it is public, generated projects cannot complete a registry-only `npm install`.
 
 Linux needs GTK 3 and WebKitGTK development packages, Windows needs the MSVC toolchain, and macOS needs Xcode command-line tools.
+
+During development, `rustframe dev --open-devtools` opens the primary WebView inspector. It is a debug-only switch and does not change packaged releases.
 
 ## 2. Create a project
 

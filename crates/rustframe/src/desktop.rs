@@ -542,6 +542,7 @@ impl WindowManager {
             })
             .with_url(&url);
         let webview = build_webview(builder, &window)?;
+        maybe_open_devtools(&webview, is_primary);
 
         self.windows.insert(
             native_window_id,
@@ -709,6 +710,19 @@ impl WindowManager {
         let _ = self.state_store.update(&managed.record);
     }
 }
+
+#[cfg(debug_assertions)]
+fn maybe_open_devtools(webview: &wry::WebView, is_primary: bool) {
+    let requested = env::var("RUSTFRAME_OPEN_DEVTOOLS")
+        .ok()
+        .is_some_and(|value| matches!(value.as_str(), "1" | "true"));
+    if requested && is_primary {
+        webview.open_devtools();
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn maybe_open_devtools(_webview: &wry::WebView, _is_primary: bool) {}
 
 #[derive(Default)]
 pub struct RustFrameBuilder {

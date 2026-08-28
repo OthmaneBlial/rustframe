@@ -9,6 +9,26 @@ rustframe validate
 
 ## Install and host checks
 
+### Rust and Cargo
+
+Install Rust 1.88 or newer with rustup and reopen the terminal. `rustframe doctor --json` reports `RF-DOCTOR-001` through `RF-DOCTOR-003` for Cargo, the compiler, and the resolved host triple.
+
+### Linux WebKitGTK
+
+Install `pkg-config`, GTK 3 development files, and a WebKitGTK 4.1 development package. Debian and Ubuntu use `libgtk-3-dev` and `libwebkit2gtk-4.1-dev`; use the exact package names from your distribution rather than copying this command to an unrelated system.
+
+### macOS Xcode tools
+
+Run `xcode-select --install`, then verify `xcode-select -p`. Signing credentials are a separate protected release concern and are not required for normal local development.
+
+### Windows MSVC
+
+Use an MSVC Rust toolchain and install Visual Studio Build Tools with the Desktop development with C++ workload. Open a Developer PowerShell when `cl.exe` is installed but missing from the current shell.
+
+### Supported hosts
+
+RustFrame's native development and verification hosts are Linux, Windows, and macOS. Cross-compilation does not replace a native-host install, launch, signature, and uninstall receipt.
+
 | Symptom | Why it happens | Next action |
 | --- | --- | --- |
 | `rustframe` is not found | The installer directory is not on `PATH` | Reopen the terminal, then run the installer’s printed PATH command. |
@@ -75,4 +95,4 @@ rustframe package
 
 ## Report a reproducible problem
 
-Include the RustFrame version, host and architecture, the failing command, redacted `doctor --json` output, and the smallest manifest that reproduces the problem. Never attach private file paths, document contents, signing credentials, or npm tokens.
+Run `rustframe diagnostics export`, review the redacted JSON, and include it with the smallest manifest that reproduces the problem. Never attach private file paths, document contents, signing credentials, or npm tokens. See [Developer loop and diagnostics](./developer-loop.md) for the exact bundle contract.

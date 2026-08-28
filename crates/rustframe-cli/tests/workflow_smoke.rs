@@ -225,3 +225,29 @@ fn verifies_an_assembled_release_index_and_spdx_sbom() {
     assert_eq!(report["sbom"]["state"], "verified");
     assert_eq!(report["sbom"]["spdxVersion"], "SPDX-2.3");
 }
+
+#[test]
+fn emits_stable_machine_readable_doctor_and_redacted_diagnostics() {
+    let temp = tempdir().unwrap();
+    let doctor = run(temp.path(), &["doctor", "--json"]);
+    let doctor: Value = serde_json::from_slice(&doctor.stdout).unwrap();
+    assert_eq!(doctor["kind"], "rustframe.doctor");
+    assert_eq!(doctor["schemaVersion"], 1);
+    assert!(doctor["checks"].as_array().unwrap().iter().all(|check| {
+        check["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("RF-DOCTOR-"))
+            && check["remediation"]["url"].as_str().is_some()
+    }));
+
+    run(temp.path(), &["new", "support-desk"]);
+    let project = temp.path().join("support-desk");
+    run(&project, &["diagnostics", "export", "support-bundle.json"]);
+    let bundle_source = fs::read_to_string(project.join("support-bundle.json")).unwrap();
+    let bundle: Value = serde_json::from_str(&bundle_source).unwrap();
+    assert_eq!(bundle["kind"], "rustframe.diagnostics-bundle");
+    assert_eq!(bundle["redacted"], true);
+    assert_eq!(bundle["validation"]["state"], "ok");
+    assert!(!bundle_source.contains(project.to_string_lossy().as_ref()));
+    assert!(bundle_source.contains("<PROJECT_DIR>"));
+}

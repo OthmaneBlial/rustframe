@@ -108,6 +108,14 @@ const DOCS = {
         source: "docs/release-verification.md",
         path: "docs/release-verification.md",
     },
+    "developer-loop": {
+        title: "Developer loop and diagnostics",
+        navLabel: "Developer loop",
+        section: "operations",
+        summary: "Keep rebuilds warm, open the debug inspector, and export redacted support evidence.",
+        source: "docs/developer-loop.md",
+        path: "docs/developer-loop.md",
+    },
     "api-reference": {
         title: "Frontend API reference",
         navLabel: "Frontend API reference",

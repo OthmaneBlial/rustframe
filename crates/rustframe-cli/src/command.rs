@@ -27,7 +27,7 @@ pub enum Command {
     /// Create an independent Vite project.
     New(NewArgs),
     /// Check the Rust and native desktop toolchain.
-    Doctor,
+    Doctor(OutputArgs),
     /// Run the frontend dev server and desktop runner together.
     Dev(DevArgs),
     /// Validate the manifest, assets, schema, and generated types.
@@ -38,6 +38,8 @@ pub enum Command {
     Capabilities(CapabilitiesArgs),
     /// Verify downloaded package integrity, native trust, SBOM, and provenance.
     Release(ReleaseArgs),
+    /// Export a redacted support bundle for the current project.
+    Diagnostics(DiagnosticsArgs),
     /// Generate deterministic database TypeScript types.
     Codegen(CodegenArgs),
     /// Build the frontend and native runner.
@@ -126,6 +128,10 @@ pub struct DevArgs {
     /// Override frontend.devUrl for this run.
     #[arg(long, value_name = "URL")]
     pub dev_url: Option<String>,
+
+    /// Open the primary WebView inspector after the development window starts.
+    #[arg(long)]
+    pub open_devtools: bool,
 }
 
 #[derive(Debug, Args)]
@@ -232,6 +238,22 @@ pub struct ReleaseVerifyArgs {
 
     #[arg(long)]
     pub json: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct DiagnosticsArgs {
+    #[command(subcommand)]
+    pub command: DiagnosticsCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DiagnosticsCommand {
+    /// Write host, validation, ownership, policy, and recent audit evidence as JSON.
+    Export {
+        /// Output JSON path; defaults under target/rustframe/diagnostics/.
+        #[arg(value_name = "DESTINATION")]
+        destination: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Args)]
