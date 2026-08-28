@@ -225,6 +225,220 @@ a {
     transform: none;
 }
 
+.button:focus-visible,
+.chip:focus-visible,
+.ghost-button:focus-visible,
+.status-button:focus-visible,
+.window-chip:focus-visible,
+.saved-filter button:focus-visible {
+    outline: 3px solid var(--cool);
+    outline-offset: 3px;
+}
+
+.button-danger {
+    border-color: rgba(240, 140, 125, 0.52);
+    background: rgba(240, 140, 125, 0.12);
+    color: #ffd8d2;
+}
+
+.index-progress {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.7fr) auto;
+    gap: 14px;
+    align-items: center;
+    padding: 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-md);
+    background: rgba(8, 11, 16, 0.64);
+}
+
+.index-progress div {
+    display: grid;
+    gap: 4px;
+}
+
+.index-progress span {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.index-progress progress {
+    width: 100%;
+    height: 10px;
+    accent-color: var(--accent);
+}
+
+.consent-panel {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+    gap: clamp(22px, 4vw, 56px);
+    padding: clamp(24px, 5vw, 64px);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-xl);
+    background:
+        linear-gradient(135deg, rgba(214, 173, 104, 0.12), transparent 52%),
+        rgba(18, 23, 31, 0.96);
+    box-shadow: var(--shadow);
+}
+
+.consent-copy {
+    display: grid;
+    align-content: start;
+    gap: 16px;
+}
+
+.consent-copy h2,
+.privacy-heading h2 {
+    margin: 0;
+    font-family: "Baskerville", "Iowan Old Style", serif;
+    font-size: clamp(2rem, 4vw, 3.7rem);
+    line-height: 0.96;
+    letter-spacing: -0.03em;
+}
+
+.consent-copy p,
+.consent-steps p,
+.data-map p,
+.danger-zone p,
+.delete-confirmation p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.65;
+}
+
+.consent-copy .button {
+    width: fit-content;
+}
+
+.consent-steps {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.consent-steps li {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 16px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.consent-steps li:first-child {
+    padding-top: 0;
+}
+
+.consent-steps li:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.consent-steps li > span {
+    color: var(--accent);
+    font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+}
+
+.consent-steps div {
+    display: grid;
+    gap: 6px;
+}
+
+.privacy-overlay {
+    position: fixed;
+    z-index: 20;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(5, 7, 11, 0.84);
+    backdrop-filter: blur(14px);
+}
+
+.privacy-panel {
+    width: min(980px, 100%);
+    max-height: calc(100vh - 36px);
+    overflow: auto;
+    display: grid;
+    gap: 24px;
+    padding: clamp(22px, 4vw, 42px);
+}
+
+.privacy-heading,
+.danger-zone {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.privacy-heading > div,
+.danger-zone > div {
+    display: grid;
+    gap: 8px;
+}
+
+.data-map {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.data-map article {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: rgba(8, 11, 16, 0.62);
+}
+
+.data-map span {
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.72rem;
+}
+
+.data-map code {
+    overflow-wrap: anywhere;
+    color: var(--cool);
+}
+
+.privacy-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+}
+
+.privacy-actions > div {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+}
+
+.danger-zone,
+.delete-confirmation {
+    padding: 18px;
+    border: 1px solid rgba(240, 140, 125, 0.35);
+    border-radius: var(--radius-lg);
+    background: rgba(240, 140, 125, 0.07);
+}
+
+.delete-confirmation {
+    display: grid;
+    gap: 12px;
+}
+
+.delete-confirmation h3 {
+    margin: 0;
+    font-family: "Baskerville", "Iowan Old Style", serif;
+    font-size: 1.65rem;
+}
+
 .status-meta {
     display: grid;
     gap: 12px;
@@ -349,6 +563,65 @@ a {
 
 .chip.is-muted {
     color: var(--muted);
+}
+
+.saved-filter-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.saved-filter-list {
+    display: grid;
+    gap: 8px;
+}
+
+.saved-filter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.saved-filter button {
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+}
+
+.saved-filter > button:first-child {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 11px 12px;
+    text-align: left;
+}
+
+.saved-filter strong,
+.saved-filter small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.saved-filter small {
+    color: var(--muted);
+}
+
+.saved-filter-remove {
+    border-left: 1px solid var(--line) !important;
+    font-size: 1.3rem;
+    color: var(--muted) !important;
+}
+
+mark {
+    padding: 0 0.12em;
+    border-radius: 0.18em;
+    background: #f4d38f;
+    color: #17120c;
 }
 
 .document-list {
@@ -629,6 +902,18 @@ a {
     }
 }
 
+@media (max-width: 960px) {
+    .consent-panel,
+    .data-map,
+    .privacy-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .index-progress {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 820px) {
     .app-shell {
         width: calc(100vw - 18px);
@@ -672,5 +957,16 @@ a {
 
     .document-card-head {
         flex-direction: column;
+    }
+
+    .privacy-heading,
+    .danger-zone {
+        flex-direction: column;
+    }
+
+    .privacy-heading .ghost-button,
+    .danger-zone .button,
+    .consent-copy .button {
+        width: 100%;
     }
 }

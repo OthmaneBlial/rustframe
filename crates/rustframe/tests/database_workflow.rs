@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::PathBuf;
 
 use serde_json::json;
 use tempfile::tempdir;
@@ -28,6 +29,91 @@ fn schema() -> DatabaseSchema {
         "#,
     )
     .unwrap()
+}
+
+fn research_desk_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../apps/research-desk")
+}
+
+#[test]
+fn research_desk_upgrade_preserves_rows_and_rejects_unsafe_rollback() {
+    let temp = tempdir().unwrap();
+    let data_dir = temp.path().join("research-desk-data");
+    let project = research_desk_root();
+    let v1 = DatabaseSchema::from_json(
+        &fs::read_to_string(project.join("tests/fixtures/schema-v1.json")).unwrap(),
+    )
+    .unwrap();
+    let v2 =
+        DatabaseSchema::from_json(&fs::read_to_string(project.join("data/schema.json")).unwrap())
+            .unwrap();
+    let migration_source =
+        fs::read_to_string(project.join("data/migrations/002-add-content-fingerprint.sql"))
+            .unwrap();
+    let migration = DatabaseMigrationFile::from_sql(
+        "data/migrations/002-add-content-fingerprint.sql",
+        &migration_source,
+    )
+    .unwrap();
+
+    let first = DatabaseCapability::open(DatabaseOpenConfig {
+        app_id: "research_desk_fixture".into(),
+        data_dir: Some(data_dir.clone()),
+        schema: v1.clone(),
+        migration_files: Vec::new(),
+        seed_files: Vec::new(),
+    })
+    .unwrap();
+    let inserted = first
+        .insert(
+            "documents",
+            json!({
+                "path": "grant://fixture/launch.md",
+                "title": "Launch evidence",
+                "collection": "Launch",
+                "kind": "brief",
+                "status": "reviewing",
+                "priority": "critical",
+                "tags": ["launch"],
+                "readingMinutes": 2,
+                "lineCount": 12,
+                "fileSize": 256,
+                "note": "Keep this decision",
+                "pinned": true
+            }),
+        )
+        .unwrap();
+    let inserted_id = inserted["id"].as_i64().unwrap();
+    drop(first);
+
+    let upgraded = DatabaseCapability::open(DatabaseOpenConfig {
+        app_id: "research_desk_fixture".into(),
+        data_dir: Some(data_dir.clone()),
+        schema: v2,
+        migration_files: vec![migration],
+        seed_files: Vec::new(),
+    })
+    .unwrap();
+    assert_eq!(upgraded.info().schema_version, 2);
+    let preserved = upgraded.get("documents", inserted_id).unwrap().unwrap();
+    assert_eq!(preserved["note"], "Keep this decision");
+    assert_eq!(preserved["pinned"], true);
+    assert!(preserved["contentFingerprint"].is_null());
+    drop(upgraded);
+
+    let rollback_error = DatabaseCapability::open(DatabaseOpenConfig {
+        app_id: "research_desk_fixture".into(),
+        data_dir: Some(data_dir),
+        schema: v1,
+        migration_files: Vec::new(),
+        seed_files: Vec::new(),
+    })
+    .unwrap_err();
+    assert!(
+        rollback_error
+            .to_string()
+            .contains("database on disk is at schema version 2, but embedded schema version is 1")
+    );
 }
 
 #[test]

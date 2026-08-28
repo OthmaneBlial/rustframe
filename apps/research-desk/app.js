@@ -5,6 +5,7 @@ const ROUTE_PARAMS = new URLSearchParams(ROUTE_QUERY);
 const STATUS_ORDER = ["queued", "reviewing", "ready", "archived"];
 const PRIORITY_ORDER = ["critical", "watch", "reference"];
 let latestSearchRequestId = 0;
+let filterSaveTimer = null;
 
 const state = {
     mode: ROUTE_PATH === "/reader" ? "reader" : "main",
@@ -24,6 +25,12 @@ const state = {
     collection: "all",
     status: "all",
     importBusy: false,
+    indexCancelRequested: false,
+    indexProgress: null,
+    indexErrors: [],
+    savedFilters: [],
+    privacyPanelOpen: false,
+    deleteConfirmationOpen: false,
     activeWatcherId: null,
     log: "Research Desk is booting."
 };
@@ -35,6 +42,7 @@ window.requestAnimationFrame(() => {
 
 APP.addEventListener("click", handleClick);
 APP.addEventListener("input", handleInput);
+document.addEventListener("keydown", handleKeyboardShortcut);
 
 if (window.RustFrame?.events?.onFileDrop) {
     window.RustFrame.events.onFileDrop((payload) => {
@@ -74,6 +82,7 @@ boot().catch((error) => {
 async function boot() {
     state.dbInfo = await window.RustFrame.db.info();
     await loadSettings();
+    restoreSavedFilterState();
 
     if (state.mode === "main") {
         await refreshDocuments();
@@ -122,6 +131,103 @@ async function loadSettings() {
     state.settingsByKey = new Map(rows.map((row) => [row.key, row]));
 }
 
+function restoreSavedFilterState() {
+    const saved = state.settingsByKey.get("savedFilters")?.value;
+    state.savedFilters = Array.isArray(saved) ? saved.filter(isValidSavedFilter).slice(0, 8) : [];
+    const active = state.settingsByKey.get("activeFilter")?.value;
+    if (isValidSavedFilter(active)) {
+        state.search = active.search;
+        state.collection = active.collection;
+        state.status = active.status;
+    }
+}
+
+function isValidSavedFilter(value) {
+    return Boolean(value)
+        && typeof value === "object"
+        && typeof value.search === "string"
+        && typeof value.collection === "string"
+        && typeof value.status === "string";
+}
+
+function currentFilterState() {
+    return {
+        search: state.search,
+        collection: state.collection,
+        status: state.status
+    };
+}
+
+function scheduleActiveFilterSave() {
+    window.clearTimeout(filterSaveTimer);
+    filterSaveTimer = window.setTimeout(() => {
+        void saveSetting("activeFilter", currentFilterState());
+    }, 180);
+}
+
+async function saveCurrentFilter() {
+    const filter = currentFilterState();
+    const duplicate = state.savedFilters.find((entry) =>
+        entry.search === filter.search
+        && entry.collection === filter.collection
+        && entry.status === filter.status
+    );
+    if (duplicate) {
+        writeLog(`The saved view "${duplicate.label}" already matches these filters.`);
+        return;
+    }
+
+    const parts = [
+        filter.search ? `“${filter.search}”` : "All text",
+        filter.status === "all" ? null : filter.status,
+        filter.collection === "all" ? null : filter.collection
+    ].filter(Boolean);
+    const entry = {
+        ...filter,
+        id: `view-${Date.now()}`,
+        label: parts.join(" · ").slice(0, 72),
+        savedAt: new Date().toISOString()
+    };
+    state.savedFilters = [entry, ...state.savedFilters].slice(0, 8);
+    await saveSetting("savedFilters", state.savedFilters);
+    writeLog(`Saved the current filters as "${entry.label}".`);
+    render();
+}
+
+async function applySavedFilter(id) {
+    const filter = state.savedFilters.find((entry) => entry.id === id);
+    if (!filter) return;
+    state.search = filter.search;
+    state.collection = filter.collection;
+    state.status = filter.status;
+    await saveSetting("activeFilter", currentFilterState());
+    await refreshVisibleDocuments();
+    selectDefaultDocument();
+    await refreshSelectedContent();
+    writeLog(`Applied saved view "${filter.label}".`);
+    render();
+}
+
+async function deleteSavedFilter(id) {
+    const removed = state.savedFilters.find((entry) => entry.id === id);
+    state.savedFilters = state.savedFilters.filter((entry) => entry.id !== id);
+    await saveSetting("savedFilters", state.savedFilters);
+    writeLog(removed ? `Removed saved view "${removed.label}".` : "Saved view was already removed.");
+    render();
+}
+
+async function clearActiveFilters() {
+    state.search = "";
+    state.collection = "all";
+    state.status = "all";
+    await saveSetting("activeFilter", currentFilterState());
+    await refreshVisibleDocuments();
+    selectDefaultDocument();
+    await refreshSelectedContent();
+    writeLog("Reset search, collection, and status filters.");
+    render();
+}
+
 async function refreshDocuments() {
     state.documents = await window.RustFrame.db.list("documents", {
         orderBy: [
@@ -166,13 +272,14 @@ function selectDefaultDocument() {
 async function refreshVisibleDocuments() {
     const requestId = ++latestSearchRequestId;
     const filters = buildActiveFilters();
+    const searchTerm = state.search.trim();
 
-    if (!state.search) {
+    if (!searchTerm) {
         state.visibleDocuments = filterDocumentsLocally(filters);
         return;
     }
 
-    const results = await window.RustFrame.db.search("documents", state.search, {
+    const results = await window.RustFrame.db.search("documents", searchTerm, {
         filters,
         orderBy: [
             { field: "pinned", direction: "desc" },
@@ -230,15 +337,31 @@ async function indexWorkspace(reason) {
         return;
     }
     state.importBusy = true;
+    state.indexCancelRequested = false;
+    state.indexErrors = [];
+    state.indexProgress = { phase: "discovering", completed: 0, total: 0, skipped: 0 };
     render();
 
     try {
         const indexed = await scanWorkspace(profile.root);
-        await mergeIndexedDocuments(indexed);
+        if (indexed.cancelled) {
+            writeLog(
+                `Indexing canceled safely after ${indexed.completed} of ${indexed.total} files.\n` +
+                "No partial database changes were committed."
+            );
+            return;
+        }
+        state.indexProgress = { ...state.indexProgress, phase: "committing" };
+        render();
+        const changes = await mergeIndexedDocuments(indexed.records, {
+            root: profile.root,
+            seenPaths: indexed.seenPaths,
+            removeMissing: true
+        });
         await saveSetting("workspaceProfile", {
             ...profile,
             command: "RustFrame native indexer",
-            fileCount: indexed.length,
+            fileCount: indexed.total,
             lastIndexedAt: new Date().toISOString()
         });
 
@@ -248,12 +371,16 @@ async function indexWorkspace(reason) {
         await refreshWindows();
         await loadWorkspaceEntries();
         writeLog(
-            `Indexed ${indexed.length} documents using RustFrame filesystem APIs.\n` +
+            `Indexed ${indexed.total} documents using RustFrame filesystem APIs.\n` +
+            `Changes: ${changes.inserted} added, ${changes.updated} updated, ${changes.renamed} renamed, ${changes.deleted} removed, ${indexed.skipped} unchanged.\n` +
+            `${indexed.errors.length} recoverable read error${indexed.errors.length === 1 ? "" : "s"}.\n` +
             `Reason: ${reason}\n` +
             `Workspace: ${profile.label}`
         );
     } finally {
         state.importBusy = false;
+        state.indexCancelRequested = false;
+        state.indexProgress = null;
         render();
     }
 }
@@ -361,12 +488,37 @@ async function scanWorkspace(root) {
         limit: 10000
     });
     const files = entries.filter((entry) => entry.isFile);
+    const existing = new Map(state.documents.map((record) => [record.path, record]));
     const records = [];
-    for (const entry of files) {
+    const errors = [];
+    const seenPaths = new Set(files.map((entry) => entry.uri));
+    let skipped = 0;
+    state.indexProgress = { phase: "reading", completed: 0, total: files.length, skipped };
+    render();
+
+    for (let index = 0; index < files.length; index += 1) {
+        const entry = files[index];
+        if (state.indexCancelRequested) {
+            return { records, errors, seenPaths, skipped, completed: index, total: files.length, cancelled: true };
+        }
+
+        const current = existing.get(entry.uri);
+        const unchanged = current
+            && Number(current.fileSize) === Number(entry.size)
+            && String(current.sourceModifiedAt || "") === String(entry.modifiedAt || "")
+            && Boolean(current.contentFingerprint);
+        if (unchanged) {
+            skipped += 1;
+            state.indexProgress = { phase: "reading", completed: index + 1, total: files.length, skipped };
+            updateIndexProgress();
+            continue;
+        }
+
         try {
             const text = await window.RustFrame.fs.readText(entry.uri);
             records.push(buildIndexedRecord(root, entry, text));
         } catch (error) {
+            errors.push({ uri: redactUri(entry.uri), error: formatError(error) });
             records.push({
                 path: entry.uri,
                 title: entry.name,
@@ -379,11 +531,23 @@ async function scanWorkspace(root) {
                 readingMinutes: 1,
                 lineCount: 0,
                 fileSize: entry.size,
-                sourceModifiedAt: entry.modifiedAt || ""
+                sourceModifiedAt: entry.modifiedAt || "",
+                contentFingerprint: ""
             });
         }
+        state.indexProgress = { phase: "reading", completed: index + 1, total: files.length, skipped };
+        updateIndexProgress();
     }
-    return records.sort((left, right) => left.path.localeCompare(right.path));
+    state.indexErrors = errors;
+    return {
+        records: records.sort((left, right) => left.path.localeCompare(right.path)),
+        errors,
+        seenPaths,
+        skipped,
+        completed: files.length,
+        total: files.length,
+        cancelled: false
+    };
 }
 
 function buildIndexedRecord(root, entry, text) {
@@ -407,7 +571,8 @@ function buildIndexedRecord(root, entry, text) {
         readingMinutes: Math.max(1, Number(metadata.readingMinutes) || Math.round(wordCount / 220)),
         lineCount: text.split(/\r?\n/u).length,
         fileSize: entry.size,
-        sourceModifiedAt: entry.modifiedAt || ""
+        sourceModifiedAt: entry.modifiedAt || "",
+        contentFingerprint: fingerprintText(text)
     };
 }
 
@@ -428,19 +593,26 @@ function humanizeLabel(value) {
     return String(value || "Unsorted").replace(/[-_]+/gu, " ").replace(/\b\w/gu, (letter) => letter.toUpperCase());
 }
 
-async function mergeIndexedDocuments(indexedDocuments) {
+async function mergeIndexedDocuments(indexedDocuments, options = {}) {
     const existing = await window.RustFrame.db.list("documents");
     const existingByPath = new Map(existing.map((row) => [row.path, row]));
+    const root = options.root ?? workspaceProfile().root;
+    const seenPaths = options.seenPaths ?? new Set(indexedDocuments.map((entry) => entry.path));
+    const removeMissing = options.removeMissing ?? false;
 
     const operations = [];
-    const indexedPaths = new Set();
+    const changes = { inserted: 0, updated: 0, renamed: 0, deleted: 0 };
+    const renamedByNewPath = detectRenamedDocuments(existing, indexedDocuments, root, seenPaths, removeMissing);
+    const renamedIds = new Set([...renamedByNewPath.values()].map((row) => row.id));
     for (const documentRecord of indexedDocuments) {
         const normalized = normalizeIndexedDocument(documentRecord);
-        indexedPaths.add(normalized.path);
-        const current = existingByPath.get(normalized.path);
+        const current = existingByPath.get(normalized.path) || renamedByNewPath.get(normalized.path);
 
         if (current) {
+            const renamed = current.path !== normalized.path;
+            changes[renamed ? "renamed" : "updated"] += 1;
             operations.push({ operation: "update", table: "documents", id: current.id, patch: {
+                path: normalized.path,
                 title: normalized.title,
                 collection: normalized.collection,
                 kind: normalized.kind,
@@ -452,9 +624,11 @@ async function mergeIndexedDocuments(indexedDocuments) {
                 readingMinutes: normalized.readingMinutes,
                 lineCount: normalized.lineCount,
                 fileSize: normalized.fileSize,
-                sourceModifiedAt: normalized.sourceModifiedAt
+                sourceModifiedAt: normalized.sourceModifiedAt,
+                contentFingerprint: normalized.contentFingerprint
             }});
         } else {
+            changes.inserted += 1;
             operations.push({ operation: "insert", table: "documents", record: {
                 ...normalized,
                 note: "",
@@ -462,15 +636,54 @@ async function mergeIndexedDocuments(indexedDocuments) {
             }});
         }
     }
-    const root = workspaceProfile().root;
-    for (const current of existing) {
-        if (root && current.path.startsWith(`${root}/`) && !indexedPaths.has(current.path)) {
-            operations.push({ operation: "delete", table: "documents", id: current.id });
+    if (removeMissing) {
+        for (const current of existing) {
+            if (root && current.path.startsWith(`${root}/`) && !seenPaths.has(current.path) && !renamedIds.has(current.id)) {
+                changes.deleted += 1;
+                operations.push({ operation: "delete", table: "documents", id: current.id });
+            }
         }
     }
     for (let index = 0; index < operations.length; index += 500) {
         await window.RustFrame.db.batch(operations.slice(index, index + 500));
     }
+    return changes;
+}
+
+function detectRenamedDocuments(existing, indexedDocuments, root, seenPaths, removeMissing) {
+    const matches = new Map();
+    if (!removeMissing || !root) return matches;
+
+    const existingPaths = new Set(existing.map((row) => row.path));
+    const missing = existing.filter((row) => row.path.startsWith(`${root}/`) && !seenPaths.has(row.path));
+    const added = indexedDocuments.filter((row) => !existingPaths.has(row.path));
+    const oldBySignature = new Map();
+    for (const row of missing) {
+        for (const signature of renameSignatures(row)) {
+            const candidates = oldBySignature.get(signature) || [];
+            candidates.push(row);
+            oldBySignature.set(signature, candidates);
+        }
+    }
+
+    const claimedIds = new Set();
+    for (const row of added) {
+        const candidates = renameSignatures(row)
+            .map((signature) => (oldBySignature.get(signature) || []).filter((entry) => !claimedIds.has(entry.id)))
+            .find((entries) => entries.length === 1) || [];
+        if (candidates.length === 1 && (row.contentFingerprint || row.sourceModifiedAt)) {
+            matches.set(row.path, candidates[0]);
+            claimedIds.add(candidates[0].id);
+        }
+    }
+    return matches;
+}
+
+function renameSignatures(row) {
+    return [
+        row.contentFingerprint ? `content|${row.contentFingerprint}` : null,
+        row.sourceModifiedAt ? `metadata|${Number(row.fileSize) || 0}|${String(row.sourceModifiedAt)}` : null
+    ].filter(Boolean);
 }
 
 function normalizeIndexedDocument(record) {
@@ -487,8 +700,18 @@ function normalizeIndexedDocument(record) {
         readingMinutes: Math.max(1, Number(record.readingMinutes) || 1),
         lineCount: Math.max(0, Number(record.lineCount) || 0),
         fileSize: Math.max(0, Number(record.fileSize) || 0),
-        sourceModifiedAt: String(record.sourceModifiedAt || "").trim()
+        sourceModifiedAt: String(record.sourceModifiedAt || "").trim(),
+        contentFingerprint: String(record.contentFingerprint || "").trim()
     };
+}
+
+function fingerprintText(value) {
+    let hash = 0x811c9dc5;
+    for (const character of String(value || "")) {
+        hash ^= character.codePointAt(0);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return `fnv1a32:${hash.toString(16).padStart(8, "0")}`;
 }
 
 async function saveSetting(key, value) {
@@ -636,6 +859,143 @@ async function exportVisibleDocumentsAsCsv() {
     }
 }
 
+async function exportVisibleDocumentsAsJsonl() {
+    const rows = visibleExportRecords();
+    const jsonl = `${rows.map((row) => JSON.stringify(row)).join("\n")}${rows.length ? "\n" : ""}`;
+    const dateLabel = new Date().toISOString().slice(0, 10);
+    const saved = await window.RustFrame.dialog.saveText({
+        title: "Export visible research queue as JSONL",
+        defaultName: `research-desk-export-${dateLabel}.jsonl`,
+        filters: [{ name: "JSON Lines", extensions: ["jsonl"] }],
+        contents: jsonl
+    });
+    writeLog(saved ? `Exported ${rows.length} visible documents to ${saved.path}.` : "Export canceled.");
+}
+
+async function exportEverything() {
+    const grants = await window.RustFrame.fs.listGrants();
+    const payload = {
+        format: "research-desk-full-export-v1",
+        exportedAt: new Date().toISOString(),
+        database: state.dbInfo,
+        documents: state.documents,
+        settings: [...state.settingsByKey.values()],
+        filesystemGrants: grants
+    };
+    const dateLabel = new Date().toISOString().slice(0, 10);
+    const saved = await window.RustFrame.dialog.saveText({
+        title: "Export all Research Desk data",
+        defaultName: `research-desk-everything-${dateLabel}.json`,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        contents: `${JSON.stringify(payload, null, 2)}\n`
+    });
+    writeLog(saved
+        ? `Exported all ${state.documents.length} records, settings, and grant metadata to ${saved.path}.`
+        : "Full data export canceled.");
+}
+
+async function exportDiagnosticBundle() {
+    const grants = await window.RustFrame.fs.listGrants();
+    const payload = {
+        format: "rustframe-diagnostic-bundle-v1",
+        generatedAt: new Date().toISOString(),
+        app: { id: "research-desk", version: "0.1.0-rc.1", route: ROUTE_PATH },
+        runtime: {
+            security: window.RustFrame.security,
+            database: state.dbInfo,
+            windows: state.windows
+        },
+        state: {
+            documentCount: state.documents.length,
+            visibleCount: visibleDocuments().length,
+            settingKeys: [...state.settingsByKey.keys()],
+            grantCount: grants.length,
+            grants,
+            activeFilter: currentFilterState(),
+            lastIndexErrors: state.indexErrors,
+            lastLog: state.log
+        }
+    };
+    const redacted = redactPrivateValue(payload);
+    const saved = await window.RustFrame.dialog.saveText({
+        title: "Save redacted diagnostic bundle",
+        defaultName: `research-desk-diagnostics-${new Date().toISOString().slice(0, 10)}.json`,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        contents: `${JSON.stringify(redacted, null, 2)}\n`
+    });
+    writeLog(saved
+        ? `Saved a diagnostic bundle with filesystem paths and grant identifiers redacted to ${saved.path}.`
+        : "Diagnostic export canceled.");
+}
+
+async function revokeCurrentWorkspace() {
+    const profile = workspaceProfile();
+    if (!profile.grantId) {
+        writeLog("There is no retained workspace grant to revoke.");
+        return;
+    }
+    if (state.activeWatcherId) {
+        await window.RustFrame.fs.unwatch(state.activeWatcherId);
+        state.activeWatcherId = null;
+    }
+    const revoked = await window.RustFrame.fs.revokeGrant(profile.grantId);
+    const recent = recentWorkspaces().filter((entry) => entry.grantId !== profile.grantId);
+    await saveSetting("recentWorkspaces", recent);
+    await saveSetting("workspaceProfile", {
+        label: "No workspace selected",
+        root: null,
+        command: "RustFrame native indexer",
+        fileCount: 0,
+        lastIndexedAt: null,
+        revokedAt: new Date().toISOString(),
+        previousLabel: profile.label
+    });
+    await loadSettings();
+    state.workspaceEntries = [];
+    state.selectedContent = "Folder access was revoked. Indexed metadata and review notes remain in SQLite until you export or delete them.";
+    writeLog(revoked
+        ? `Revoked access to "${profile.label}". Source files were not changed; indexed metadata remains local.`
+        : `The grant for "${profile.label}" was already unavailable. Source files were not changed.`);
+    render();
+}
+
+async function deleteAllLocalData() {
+    const backup = await window.RustFrame.db.backup({
+        suggestedName: `research-desk-before-delete-${new Date().toISOString().slice(0, 10)}.db`
+    });
+    if (backup.cancelled) {
+        writeLog("Deletion canceled because the safety backup was not saved. No local data changed.");
+        return;
+    }
+
+    const profile = workspaceProfile();
+    if (state.activeWatcherId) {
+        await window.RustFrame.fs.unwatch(state.activeWatcherId);
+        state.activeWatcherId = null;
+    }
+    if (profile.grantId) {
+        await window.RustFrame.fs.revokeGrant(profile.grantId);
+    }
+    const operations = [
+        ...state.documents.map((row) => ({ operation: "delete", table: "documents", id: row.id })),
+        ...[...state.settingsByKey.values()].map((row) => ({ operation: "delete", table: "settings", id: row.id }))
+    ];
+    for (let index = 0; index < operations.length; index += 500) {
+        await window.RustFrame.db.batch(operations.slice(index, index + 500));
+    }
+    state.documents = [];
+    state.visibleDocuments = [];
+    state.settingsByKey = new Map();
+    state.savedFilters = [];
+    state.workspaceEntries = [];
+    state.selectedId = null;
+    state.selectedContent = "";
+    state.privacyPanelOpen = false;
+    state.deleteConfirmationOpen = false;
+    writeLog("Deleted Research Desk records, settings, and retained workspace access. Original source files were not touched. A safety backup was saved first.");
+    render();
+}
+
 async function importExternalFiles(fileEntries, sourceLabel) {
     const provided = Array.isArray(fileEntries) ? fileEntries : [];
     if (!provided.length) {
@@ -679,7 +1039,8 @@ function normalizeExtension(value) {
 async function handleInput(event) {
     if (event.target.id === "search-input") {
         try {
-            state.search = event.target.value.trim();
+            state.search = event.target.value;
+            scheduleActiveFilterSave();
             await refreshVisibleDocuments();
             selectDefaultDocument();
             await refreshSelectedContent();
@@ -688,6 +1049,26 @@ async function handleInput(event) {
             writeLog(formatError(error));
             render();
         }
+    }
+}
+
+function handleKeyboardShortcut(event) {
+    if (state.mode !== "main") return;
+    const target = event.target;
+    const isTyping = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
+    if ((event.key === "/" && !isTyping) || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) {
+        event.preventDefault();
+        APP.querySelector("#search-input")?.focus();
+        return;
+    }
+
+    if (event.key === "Escape" && (state.privacyPanelOpen || state.deleteConfirmationOpen)) {
+        event.preventDefault();
+        state.privacyPanelOpen = false;
+        state.deleteConfirmationOpen = false;
+        render();
+        APP.querySelector('[data-action="show-data"]')?.focus();
     }
 }
 
@@ -702,6 +1083,12 @@ async function handleClick(event) {
     try {
         if (action === "index") {
             await indexWorkspace("manual refresh");
+            return;
+        }
+
+        if (action === "cancel-index") {
+            state.indexCancelRequested = true;
+            updateIndexProgress();
             return;
         }
 
@@ -730,8 +1117,83 @@ async function handleClick(event) {
             return;
         }
 
+        if (action === "export-jsonl") {
+            await exportVisibleDocumentsAsJsonl();
+            return;
+        }
+
         if (action === "export-csv") {
             await exportVisibleDocumentsAsCsv();
+            return;
+        }
+
+        if (action === "export-everything") {
+            await exportEverything();
+            return;
+        }
+
+        if (action === "export-diagnostics") {
+            await exportDiagnosticBundle();
+            return;
+        }
+
+        if (action === "show-data") {
+            state.privacyPanelOpen = true;
+            state.deleteConfirmationOpen = false;
+            render();
+            APP.querySelector("#privacy-panel-title")?.focus();
+            return;
+        }
+
+        if (action === "close-data-panel") {
+            state.privacyPanelOpen = false;
+            state.deleteConfirmationOpen = false;
+            render();
+            APP.querySelector('[data-action="show-data"]')?.focus();
+            return;
+        }
+
+        if (action === "open-delete-confirmation") {
+            state.deleteConfirmationOpen = true;
+            render();
+            APP.querySelector("#delete-panel-title")?.focus();
+            return;
+        }
+
+        if (action === "cancel-delete") {
+            state.deleteConfirmationOpen = false;
+            render();
+            APP.querySelector('[data-action="open-delete-confirmation"]')?.focus();
+            return;
+        }
+
+        if (action === "confirm-delete") {
+            await deleteAllLocalData();
+            return;
+        }
+
+        if (action === "revoke-workspace") {
+            await revokeCurrentWorkspace();
+            return;
+        }
+
+        if (action === "save-filter") {
+            await saveCurrentFilter();
+            return;
+        }
+
+        if (action === "apply-saved-filter") {
+            await applySavedFilter(button.dataset.filterId);
+            return;
+        }
+
+        if (action === "delete-saved-filter") {
+            await deleteSavedFilter(button.dataset.filterId);
+            return;
+        }
+
+        if (action === "clear-filters") {
+            await clearActiveFilters();
             return;
         }
 
@@ -750,6 +1212,7 @@ async function handleClick(event) {
 
         if (action === "filter-status") {
             state.status = button.dataset.status || "all";
+            scheduleActiveFilterSave();
             await refreshVisibleDocuments();
             selectDefaultDocument();
             await refreshSelectedContent();
@@ -759,6 +1222,7 @@ async function handleClick(event) {
 
         if (action === "filter-collection") {
             state.collection = button.dataset.collection || "all";
+            scheduleActiveFilterSave();
             await refreshVisibleDocuments();
             selectDefaultDocument();
             await refreshSelectedContent();
@@ -956,13 +1420,19 @@ function renderMain() {
                     <button class="button" type="button" data-action="index" ${state.importBusy || !workspace.root ? "disabled" : ""}>
                         ${state.importBusy ? "Indexing archive…" : "Index workspace"}
                     </button>
-                    <button class="button" type="button" data-action="export-json">Export JSON</button>
-                    <button class="button" type="button" data-action="export-csv">Export CSV</button>
-                    <button class="button" type="button" data-action="backup-db">Back up database</button>
-                    <button class="button" type="button" data-action="restore-db">Restore database</button>
-                    <button class="ghost-button" type="button" data-action="sync-title">Sync title</button>
-                    <button class="ghost-button" type="button" data-action="close-window">Close</button>
+                    <button class="button" type="button" data-action="show-data">My data &amp; privacy</button>
+                    ${workspace.grantId ? `<button class="ghost-button" type="button" data-action="revoke-workspace" ${state.importBusy ? "disabled" : ""}>Revoke folder access</button>` : ""}
                 </div>
+                ${state.indexProgress ? `
+                    <div class="index-progress" aria-live="polite">
+                        <div>
+                            <strong>${state.indexProgress.phase === "committing" ? "Committing one atomic SQLite batch" : "Reading changed files only"}</strong>
+                            <span id="index-progress-label">${state.indexProgress.completed} of ${state.indexProgress.total} files · ${state.indexProgress.skipped} unchanged</span>
+                        </div>
+                        <progress id="index-progress" max="${Math.max(1, state.indexProgress.total)}" value="${state.indexProgress.completed}"></progress>
+                        ${state.indexProgress.phase === "reading" ? `<button class="ghost-button" type="button" data-action="cancel-index">Cancel indexing</button>` : ""}
+                    </div>
+                ` : ""}
             </article>
 
             <aside class="status-meta">
@@ -990,6 +1460,9 @@ function renderMain() {
                 </div>
             </aside>
         </section>
+
+        ${!workspace.root ? renderConsentPanel() : ""}
+        ${state.privacyPanelOpen ? renderPrivacyPanel() : ""}
 
         <section class="metric-grid">
             <article class="metric panel"><span>Documents</span><strong>${escapeHtml(String(state.documents.length))}</strong><p>Indexed archive records</p></article>
@@ -1031,6 +1504,22 @@ function renderMain() {
                             `).join("")}
                         </div>
                     </div>
+                </div>
+
+                <div class="saved-filter-toolbar">
+                    <button class="chip" type="button" data-action="save-filter">Save current view</button>
+                    <button class="chip is-muted" type="button" data-action="clear-filters">Reset filters</button>
+                </div>
+                <div class="saved-filter-list" aria-label="Saved filter views">
+                    ${state.savedFilters.length ? state.savedFilters.map((filter) => `
+                        <div class="saved-filter">
+                            <button type="button" data-action="apply-saved-filter" data-filter-id="${escapeHtml(filter.id)}">
+                                <strong>${escapeHtml(filter.label)}</strong>
+                                <small>${escapeHtml(formatDateTime(filter.savedAt))}</small>
+                            </button>
+                            <button class="saved-filter-remove" type="button" data-action="delete-saved-filter" data-filter-id="${escapeHtml(filter.id)}" aria-label="Remove saved view ${escapeHtml(filter.label)}">×</button>
+                        </div>
+                    `).join("") : `<p class="section-copy">Save a search and filter combination for one-click recall.</p>`}
                 </div>
 
                 <div class="section-divider"></div>
@@ -1093,7 +1582,7 @@ function renderMain() {
 
                 <div class="log-list">
                     <p class="label">Runtime log</p>
-                    <pre class="log-box">${escapeHtml(state.log)}</pre>
+                    <pre class="log-box" aria-live="polite">${escapeHtml(state.log)}</pre>
                 </div>
             </aside>
 
@@ -1124,6 +1613,105 @@ function renderMain() {
                     </div>
                 `}
             </section>
+        </section>
+    `;
+}
+
+function renderConsentPanel() {
+    return `
+        <section class="consent-panel" aria-labelledby="consent-title">
+            <div class="consent-copy">
+                <p class="eyebrow">First run · explicit consent</p>
+                <h2 id="consent-title">Your archive stays where it is.</h2>
+                <p>Research Desk asks for one read-only folder grant. It does not scan your home folder, upload files, or modify source documents.</p>
+                <button class="button button-primary" type="button" data-action="choose-workspace">Choose a folder to review</button>
+            </div>
+            <ol class="consent-steps">
+                <li><span>01</span><div><strong>You choose the boundary</strong><p>Only Markdown and text files inside the selected folder are visible to this app.</p></div></li>
+                <li><span>02</span><div><strong>RustFrame stores an opaque grant</strong><p>The web UI receives a <code>grant://</code> URI, never an unrestricted filesystem path.</p></div></li>
+                <li><span>03</span><div><strong>You stay in control</strong><p>Export everything, revoke access, or safely delete app data without touching the original archive.</p></div></li>
+            </ol>
+        </section>
+    `;
+}
+
+function renderPrivacyPanel() {
+    const workspace = workspaceProfile();
+    return `
+        <section class="privacy-overlay" role="dialog" aria-modal="true" aria-labelledby="privacy-panel-title">
+            <div class="privacy-panel panel">
+                <div class="privacy-heading">
+                    <div>
+                        <p class="eyebrow">Data control center</p>
+                        <h2 id="privacy-panel-title" tabindex="-1">See, export, back up, or erase your local data.</h2>
+                    </div>
+                    <button class="ghost-button" type="button" data-action="close-data-panel" aria-label="Close data control center">Close</button>
+                </div>
+
+                <div class="data-map">
+                    <article>
+                        <span>SQLite records</span>
+                        <strong>${escapeHtml(String(state.documents.length))} documents · ${escapeHtml(String(state.settingsByKey.size))} settings</strong>
+                        <code>${escapeHtml(state.dbInfo.databasePath)}</code>
+                    </article>
+                    <article>
+                        <span>Source archive</span>
+                        <strong>${escapeHtml(workspace.root ? workspace.label : "No retained access")}</strong>
+                        <code>${escapeHtml(workspace.root || "No grant:// URI retained")}</code>
+                    </article>
+                    <article>
+                        <span>Network storage</span>
+                        <strong>None</strong>
+                        <p>No sync account, telemetry endpoint, or cloud database is configured.</p>
+                    </article>
+                </div>
+
+                <div class="privacy-actions">
+                    <div>
+                        <p class="label">Visible queue</p>
+                        <div class="action-row">
+                            <button class="button" type="button" data-action="export-json">JSON</button>
+                            <button class="button" type="button" data-action="export-jsonl">JSONL</button>
+                            <button class="button" type="button" data-action="export-csv">CSV</button>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="label">Everything</p>
+                        <div class="action-row">
+                            <button class="button button-primary" type="button" data-action="export-everything">Export all app data</button>
+                            <button class="button" type="button" data-action="backup-db">Back up SQLite</button>
+                            <button class="button" type="button" data-action="restore-db">Restore backup</button>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="label">Support</p>
+                        <div class="action-row">
+                            <button class="button" type="button" data-action="export-diagnostics">Save redacted diagnostics</button>
+                            ${workspace.grantId ? `<button class="button" type="button" data-action="revoke-workspace">Revoke folder access</button>` : ""}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="danger-zone">
+                    <div>
+                        <p class="label">Danger zone</p>
+                        <strong>Delete Research Desk local data</strong>
+                        <p>This removes SQLite records, settings, and retained access. It never deletes source files.</p>
+                    </div>
+                    <button class="button button-danger" type="button" data-action="open-delete-confirmation">Review deletion</button>
+                </div>
+
+                ${state.deleteConfirmationOpen ? `
+                    <div class="delete-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="delete-panel-title">
+                        <h3 id="delete-panel-title" tabindex="-1">Back up, then delete local app data?</h3>
+                        <p>Research Desk will first require you to save a SQLite safety backup. Canceling that dialog cancels deletion. It never deletes source files.</p>
+                        <div class="action-row">
+                            <button class="button button-danger" type="button" data-action="confirm-delete">Save backup &amp; delete</button>
+                            <button class="ghost-button" type="button" data-action="cancel-delete">Keep my data</button>
+                        </div>
+                    </div>
+                ` : ""}
+            </div>
         </section>
     `;
 }
@@ -1247,8 +1835,8 @@ function renderPreview(documentRecord) {
         <div class="preview-shell">
             <div class="preview-header">
                 <p class="eyebrow">Selected document</p>
-                <h2>${escapeHtml(documentRecord.title)}</h2>
-                <p class="section-copy">${escapeHtml(documentRecord.summary || "No summary available.")}</p>
+                <h2>${renderHighlightedText(documentRecord.title)}</h2>
+                <p class="section-copy">${renderHighlightedText(documentRecord.summary || "No summary available.")}</p>
             </div>
 
             <div class="badge-row">
@@ -1331,7 +1919,7 @@ function renderDocumentCard(documentRecord) {
             <div class="document-card-head">
                 <div>
                     <p class="eyebrow">${escapeHtml(documentRecord.collection)}</p>
-                    <h3>${escapeHtml(documentRecord.title)}</h3>
+                    <h3>${renderHighlightedText(documentRecord.title)}</h3>
                 </div>
                 ${documentRecord.pinned ? renderTag("Pinned", "") : ""}
             </div>
@@ -1342,11 +1930,11 @@ function renderDocumentCard(documentRecord) {
                 ${renderTag(documentRecord.kind, "")}
             </div>
 
-            <p>${escapeHtml(documentRecord.summary || "No summary available.")}</p>
+            <p>${renderHighlightedText(documentRecord.summary || "No summary available.")}</p>
 
             <div class="document-meta">
-                <span>${escapeHtml(documentRecord.reviewer || "Unassigned")} · ${escapeHtml(String(documentRecord.readingMinutes))} min read</span>
-                <span>${escapeHtml(normalizeTags(documentRecord.tags).join(" · ") || "No tags")}</span>
+                <span>${renderHighlightedText(documentRecord.reviewer || "Unassigned")} · ${escapeHtml(String(documentRecord.readingMinutes))} min read</span>
+                <span>${renderHighlightedText(normalizeTags(documentRecord.tags).join(" · ") || "No tags")}</span>
             </div>
 
             <div class="document-actions">
@@ -1525,6 +2113,51 @@ function writeLog(message) {
     });
 }
 
+function updateIndexProgress() {
+    const progress = state.indexProgress;
+    if (!progress) return;
+    const progressElement = APP.querySelector("#index-progress");
+    const labelElement = APP.querySelector("#index-progress-label");
+    const cancelButton = APP.querySelector('[data-action="cancel-index"]');
+    if (progressElement) {
+        progressElement.max = Math.max(1, progress.total);
+        progressElement.value = progress.completed;
+    }
+    if (labelElement) {
+        labelElement.textContent = state.indexCancelRequested
+            ? "Finishing the current file before canceling…"
+            : `${progress.completed} of ${progress.total} files · ${progress.skipped} unchanged`;
+    }
+    if (cancelButton) {
+        cancelButton.disabled = state.indexCancelRequested;
+        cancelButton.textContent = state.indexCancelRequested ? "Cancel requested" : "Cancel indexing";
+    }
+}
+
+function redactUri(value) {
+    const text = String(value || "");
+    if (text.startsWith("grant://")) return "grant://<redacted>";
+    if (/^(?:[A-Za-z]:\\|\/)/u.test(text)) return "<redacted-path>";
+    return text;
+}
+
+function redactPrivateValue(value, key = "") {
+    if (Array.isArray(value)) return value.map((entry) => redactPrivateValue(entry, key));
+    if (value && typeof value === "object") {
+        return Object.fromEntries(Object.entries(value).map(([entryKey, entryValue]) => [
+            entryKey,
+            redactPrivateValue(entryValue, entryKey)
+        ]));
+    }
+    if (typeof value === "string") {
+        if (/path|root|uri|grant.?id|data.?dir/iu.test(key)) return redactUri(value);
+        return value
+            .replace(/grant:\/\/[^\s"']+/gu, "grant://<redacted>")
+            .replace(/(?:[A-Za-z]:\\|\/Users\/|\/home\/)[^\s"']+/gu, "<redacted-path>");
+    }
+    return value;
+}
+
 function formatDateTime(value) {
     if (!value) {
         return "Unavailable";
@@ -1555,6 +2188,21 @@ function formatError(error) {
     }
 
     return String(error);
+}
+
+function renderHighlightedText(value) {
+    const text = String(value ?? "");
+    const terms = [...new Set((state.search.toLowerCase().match(/[\p{L}\p{N}_-]+/gu) || [])
+        .filter((term) => term.length > 1))];
+    if (!terms.length) return escapeHtml(text);
+    const expression = new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "giu");
+    return text.split(expression).map((part) =>
+        terms.includes(part.toLowerCase()) ? `<mark>${escapeHtml(part)}</mark>` : escapeHtml(part)
+    ).join("");
+}
+
+function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function escapeHtml(value) {

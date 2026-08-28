@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 1,
   "tables": [
     {
       "name": "documents",
@@ -17,7 +17,6 @@
         { "name": "lineCount", "type": "integer", "required": true, "default": 0 },
         { "name": "fileSize", "type": "integer", "required": true, "default": 0 },
         { "name": "sourceModifiedAt", "type": "text" },
-        { "name": "contentFingerprint", "type": "text" },
         { "name": "note", "type": "text" },
         { "name": "pinned", "type": "boolean", "required": true, "default": false }
       ],

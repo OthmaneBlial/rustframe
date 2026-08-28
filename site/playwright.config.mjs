@@ -12,11 +12,18 @@ export default defineConfig({
     trace: "retain-on-failure",
     permissions: ["clipboard-read", "clipboard-write"],
   },
-  webServer: {
-    command: "python3 -m http.server 4318 --bind 127.0.0.1 --directory .",
-    port: 4318,
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      command: "python3 -m http.server 4318 --bind 127.0.0.1 --directory .",
+      port: 4318,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: "python3 -m http.server 4316 --bind 127.0.0.1 --directory ../apps/research-desk",
+      port: 4316,
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile-chromium", use: { browserName: "chromium", viewport: { width: 390, height: 844 } } },
