@@ -1,6 +1,6 @@
 <div align="center">
 
-# RustFrame
+<img src="site/assets/rustframe-wordmark.svg" width="520" alt="RustFrame — local workflow kit">
 
 ### Desktop tools that keep their data close.
 

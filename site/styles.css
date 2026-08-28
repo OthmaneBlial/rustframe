@@ -57,11 +57,11 @@ code,pre{font-family:var(--font-mono)}
 .section-heading>p:last-child{max-width:720px;margin:0;color:var(--muted);font-size:clamp(18px,2vw,24px);line-height:1.45}
 .section-heading-side{grid-template-columns:minmax(0,1.3fr) minmax(280px,.7fr);align-items:end}.section-heading-side>p{padding-bottom:8px}
 
-.hero{position:relative;display:grid;grid-template-columns:minmax(0,.88fr) minmax(520px,1.12fr);min-height:calc(100vh - 74px);padding-top:clamp(48px,7vw,100px);padding-bottom:clamp(64px,8vw,116px)}
+.hero{position:relative;display:grid;grid-template-columns:minmax(620px,1.12fr) minmax(480px,.88fr);min-height:calc(100vh - 74px);padding-top:clamp(48px,7vw,100px);padding-bottom:clamp(64px,8vw,116px)}
 .hero-copy{position:relative;z-index:3;align-self:center;padding:0 clamp(22px,5vw,76px)}
 .release-stamp{position:absolute;right:24px;top:-40px;display:grid;min-width:150px;padding:14px;border:2px solid var(--ink);background:var(--acid);box-shadow:4px 4px 0 var(--ink);font-family:var(--font-mono);text-transform:uppercase;transform:rotate(2deg)}
 .release-stamp span,.release-stamp small{font-size:9px;letter-spacing:.12em}.release-stamp strong{margin:3px 0;font-size:14px}
-.hero h1{max-width:900px;margin:0;font-family:var(--font-display);font-size:clamp(54px,7.6vw,130px);font-weight:400;letter-spacing:-.07em;line-height:.82;text-transform:uppercase}.hero h1 em{color:var(--blue);font-style:normal}
+.hero h1{max-width:900px;margin:0;font-family:var(--font-display);font-size:clamp(54px,6.2vw,106px);font-weight:400;letter-spacing:-.07em;line-height:.82;text-transform:uppercase}.hero h1 em{color:var(--blue);font-style:normal}
 .hero-lede{max-width:650px;margin:32px 0 0;color:var(--ink-soft);font-size:clamp(19px,2vw,27px);line-height:1.4}
 .hero-actions,.button-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
 .button{display:inline-flex;align-items:center;justify-content:space-between;gap:22px;min-height:52px;padding:0 18px;border:2px solid var(--ink);font:600 12px/1 var(--font-mono);letter-spacing:.035em;text-transform:uppercase;transition:transform .15s ease,box-shadow .15s ease,background .15s ease;cursor:pointer}

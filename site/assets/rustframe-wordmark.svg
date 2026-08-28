@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 184" role="img" aria-labelledby="title description">
+  <title id="title">RustFrame</title>
+  <desc id="description">RustFrame local workflow kit logo</desc>
+  <g transform="translate(34 24) rotate(-2 68 68)">
+    <rect x="4" y="4" width="132" height="132" fill="#11130f"/>
+    <path fill="#ff4d00" d="M70 4h66v132H70z"/>
+    <path fill="none" stroke="#f2efe5" stroke-width="3" d="M14 14h112v112H14z" opacity=".5"/>
+    <text x="22" y="92" fill="#f2efe5" font-family="Arial Black,Arial,sans-serif" font-size="48" font-weight="900">R</text>
+    <text x="87" y="92" fill="#11130f" font-family="Arial Black,Arial,sans-serif" font-size="48" font-weight="900">F</text>
+  </g>
+  <g fill="#11130f">
+    <text x="198" y="88" font-family="Arial Black,Arial,sans-serif" font-size="58" font-weight="900" letter-spacing="-2">RustFrame</text>
+    <text x="200" y="126" font-family="IBM Plex Mono,Menlo,monospace" font-size="20" font-weight="600" letter-spacing="5">LOCAL WORKFLOW KIT</text>
+  </g>
+</svg>

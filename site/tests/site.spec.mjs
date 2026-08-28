@@ -36,6 +36,28 @@ test("homepage proof and controls stay functional", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("desktop hero headline stays clear of the product proof", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith("desktop"), "desktop-only composition contract");
+  for (const width of [1181, 1280, 1365, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+
+    const spacing = await page.evaluate(() => {
+      const heading = document.querySelector(".hero h1");
+      const proof = document.querySelector(".proof-terminal");
+      if (!heading || !proof) throw new Error("Hero composition is incomplete");
+
+      const textRange = document.createRange();
+      textRange.selectNodeContents(heading);
+      const headline = textRange.getBoundingClientRect();
+      const terminal = proof.getBoundingClientRect();
+      return { gap: terminal.left - headline.right };
+    });
+
+    expect(spacing.gap, `hero spacing at ${width}px`).toBeGreaterThanOrEqual(16);
+  }
+});
+
 test("mobile navigation is keyboard complete and does not overflow", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile"), "mobile-only contract");
   const errors = captureConsoleErrors(page);
