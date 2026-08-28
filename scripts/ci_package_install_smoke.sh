@@ -14,8 +14,8 @@ fi
 project_path="$1"
 host_format="$2"
 product_name="$3"
-package_dir="$project_path/dist/packages"
 binary_name="$(basename "$project_path")"
+package_dir="$(cd "$project_path/dist/packages" && pwd)"
 smoke_root="$(mktemp -d)"
 
 find_artifact() {
@@ -141,10 +141,8 @@ if (-not (Test-Path $binary)) { throw "NSIS did not install $binary" }
 $env:RUSTFRAME_SMOKE_TEST = '1'
 $env:RUSTFRAME_SMOKE_OUTPUT = $env:RUSTFRAME_INSTALL_SMOKE_OUTPUT
 $env:RUSTFRAME_SMOKE_DATA_DIR = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'nsis-data'
-$smokeArguments = @(
-  "--rustframe-smoke-output=$($env:RUSTFRAME_SMOKE_OUTPUT)",
-  "--rustframe-smoke-data-dir=$($env:RUSTFRAME_SMOKE_DATA_DIR)"
-)
+$smokeArguments = '--rustframe-smoke-output="{0}" --rustframe-smoke-data-dir="{1}"' -f `
+  $env:RUSTFRAME_SMOKE_OUTPUT, $env:RUSTFRAME_SMOKE_DATA_DIR
 $app = Start-Process -FilePath $binary -ArgumentList $smokeArguments -Wait -PassThru
 if ($app.ExitCode -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed NSIS application smoke failed' }
 $result = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
@@ -185,10 +183,8 @@ if (-not (Test-Path $binary)) { throw "MSI did not install $binary" }
 $env:RUSTFRAME_SMOKE_TEST = '1'
 $env:RUSTFRAME_SMOKE_OUTPUT = $env:RUSTFRAME_INSTALL_SMOKE_OUTPUT
 $env:RUSTFRAME_SMOKE_DATA_DIR = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'msi-data'
-$smokeArguments = @(
-  "--rustframe-smoke-output=$($env:RUSTFRAME_SMOKE_OUTPUT)",
-  "--rustframe-smoke-data-dir=$($env:RUSTFRAME_SMOKE_DATA_DIR)"
-)
+$smokeArguments = '--rustframe-smoke-output="{0}" --rustframe-smoke-data-dir="{1}"' -f `
+  $env:RUSTFRAME_SMOKE_OUTPUT, $env:RUSTFRAME_SMOKE_DATA_DIR
 $app = Start-Process -FilePath $binary -ArgumentList $smokeArguments -Wait -PassThru
 if ($app.ExitCode -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed MSI application smoke failed' }
 $arguments = @('/x', $installer, '/qn', '/norestart')
