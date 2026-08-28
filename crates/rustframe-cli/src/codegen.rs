@@ -262,6 +262,6 @@ mod tests {
             serde_json::from_str(include_str!("../../../site/examples/schema.json")).unwrap();
         let expected = include_str!("../../../site/examples/rustframe.generated.ts");
 
-        assert_eq!(render_typescript(&schema), expected);
+        assert_eq!(render_typescript(&schema), expected.replace("\r\n", "\n"));
     }
 }
