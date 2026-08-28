@@ -17,6 +17,7 @@ product_name="$3"
 binary_name="$(basename "$project_path")"
 package_dir="$(cd "$project_path/dist/packages" && pwd)"
 smoke_root="$(mktemp -d)"
+receipt_output="$package_dir/rustframe-offline-${host_format}-receipt.json"
 
 find_artifact() {
   local pattern="$1"
@@ -42,12 +43,11 @@ run_smoke_binary() {
 
 write_offline_receipt() {
   local input="$1"
-  local output="$package_dir/rustframe-offline-${host_format}-receipt.json"
   node scripts/assert_offline_smoke.mjs \
     --input "$input" \
     --format "$host_format" \
-    --output "$output"
-  test -s "$output"
+    --output "$receipt_output"
+  test -s "$receipt_output"
 }
 
 case "$host_format" in
@@ -124,11 +124,14 @@ case "$host_format" in
     smoke_windows="$(cygpath -w "$smoke_root")"
     smoke_output="$package_dir/.rustframe-nsis-smoke.json"
     smoke_output_windows="$(cygpath -w "$smoke_output")"
+    receipt_output_windows="$(cygpath -w "$receipt_output")"
     RUSTFRAME_INSTALLER="$artifact_windows" \
     RUSTFRAME_PRODUCT_NAME="$product_name" \
     RUSTFRAME_BINARY_NAME="${binary_name}.exe" \
     RUSTFRAME_INSTALL_SMOKE_ROOT="$smoke_windows" \
     RUSTFRAME_INSTALL_SMOKE_OUTPUT="$smoke_output_windows" \
+    RUSTFRAME_INSTALL_SMOKE_RECEIPT="$receipt_output_windows" \
+    RUSTFRAME_INSTALL_SMOKE_FORMAT="$host_format" \
       powershell.exe -NoLogo -NoProfile -NonInteractive -Command - <<'POWERSHELL'
 $ErrorActionPreference = 'Stop'
 $installer = $env:RUSTFRAME_INSTALLER
@@ -145,11 +148,17 @@ $smokeArguments = '--rustframe-smoke-output="{0}" --rustframe-smoke-data-dir="{1
   $env:RUSTFRAME_SMOKE_OUTPUT, $env:RUSTFRAME_SMOKE_DATA_DIR
 $app = Start-Process -FilePath $binary -ArgumentList $smokeArguments -Wait -PassThru
 if ($app.ExitCode -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed NSIS application smoke failed' }
+node scripts/assert_offline_smoke.mjs --input $env:RUSTFRAME_SMOKE_OUTPUT --format $env:RUSTFRAME_INSTALL_SMOKE_FORMAT --output $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT)) { throw 'NSIS offline receipt generation failed' }
 $result = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
 if ($result.ExitCode -ne 0) { throw "NSIS uninstall failed with exit code $($result.ExitCode)" }
 Start-Sleep -Seconds 2
 if (Test-Path $binary) { throw "NSIS uninstall left $binary behind" }
+if (-not (Test-Path $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT)) { throw 'NSIS uninstall removed the transported smoke receipt' }
+Remove-Item $env:RUSTFRAME_SMOKE_OUTPUT -Force
 POWERSHELL
+    test -s "$receipt_output"
+    smoke_verified=1
     ;;
 
   msi)
@@ -158,11 +167,14 @@ POWERSHELL
     smoke_windows="$(cygpath -w "$smoke_root")"
     smoke_output="$package_dir/.rustframe-msi-smoke.json"
     smoke_output_windows="$(cygpath -w "$smoke_output")"
+    receipt_output_windows="$(cygpath -w "$receipt_output")"
     RUSTFRAME_INSTALLER="$artifact_windows" \
     RUSTFRAME_PRODUCT_NAME="$product_name" \
     RUSTFRAME_BINARY_NAME="${binary_name}.exe" \
     RUSTFRAME_INSTALL_SMOKE_ROOT="$smoke_windows" \
     RUSTFRAME_INSTALL_SMOKE_OUTPUT="$smoke_output_windows" \
+    RUSTFRAME_INSTALL_SMOKE_RECEIPT="$receipt_output_windows" \
+    RUSTFRAME_INSTALL_SMOKE_FORMAT="$host_format" \
       powershell.exe -NoLogo -NoProfile -NonInteractive -Command - <<'POWERSHELL'
 $ErrorActionPreference = 'Stop'
 $installer = $env:RUSTFRAME_INSTALLER
@@ -187,11 +199,17 @@ $smokeArguments = '--rustframe-smoke-output="{0}" --rustframe-smoke-data-dir="{1
   $env:RUSTFRAME_SMOKE_OUTPUT, $env:RUSTFRAME_SMOKE_DATA_DIR
 $app = Start-Process -FilePath $binary -ArgumentList $smokeArguments -Wait -PassThru
 if ($app.ExitCode -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed MSI application smoke failed' }
+node scripts/assert_offline_smoke.mjs --input $env:RUSTFRAME_SMOKE_OUTPUT --format $env:RUSTFRAME_INSTALL_SMOKE_FORMAT --output $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT)) { throw 'MSI offline receipt generation failed' }
 $arguments = @('/x', $installer, '/qn', '/norestart')
 $result = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -PassThru
 if ($result.ExitCode -ne 0) { throw "MSI uninstall failed with exit code $($result.ExitCode)" }
 if (Test-Path $binary) { throw "MSI uninstall left $binary behind" }
+if (-not (Test-Path $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT)) { throw 'MSI uninstall removed the transported smoke receipt' }
+Remove-Item $env:RUSTFRAME_SMOKE_OUTPUT -Force
 POWERSHELL
+    test -s "$receipt_output"
+    smoke_verified=1
     ;;
 
   *)
@@ -200,7 +218,6 @@ POWERSHELL
     ;;
 esac
 
-write_offline_receipt "$smoke_output"
-if [[ "$host_format" == "nsis" || "$host_format" == "msi" ]]; then
-  rm -f "$smoke_output"
+if [[ "${smoke_verified:-0}" != "1" ]]; then
+  write_offline_receipt "$smoke_output"
 fi
