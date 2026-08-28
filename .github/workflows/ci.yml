@@ -76,7 +76,7 @@ jobs:
           node --check site/codegen.js
           node --check site/benchmarks.js
           node --test apps/research-desk/indexing.test.mjs
-          node --test scripts/assert_offline_smoke.test.mjs scripts/verify_release_artifacts.test.mjs scripts/assemble_research_desk_release.test.mjs
+          node --test scripts/assert_offline_smoke.test.mjs scripts/bridge_contract.test.mjs scripts/verify_release_artifacts.test.mjs scripts/assemble_research_desk_release.test.mjs
           node scripts/generate_reference_docs.mjs --check
           node scripts/check_public_contracts.mjs
           node scripts/check_site.mjs

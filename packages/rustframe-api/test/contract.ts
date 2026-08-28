@@ -43,6 +43,9 @@ async function compilePublicContract(): Promise<void> {
   if (selection) await client.fs.listDir(selection.uri);
   client.events.onDatabaseChange((event: DatabaseChangeEvent) => event.tables);
   client.events.onFilesystemChange((event: FilesystemChangeEvent) => event.uri);
+  client.events.onFileDrop(({ files }) => files.map((file) => file.uri));
+  client.app.openedFiles().map((file) => file.uri);
+  client.app.onOpenFiles(({ files }) => files.map((file) => file.name));
   await client.window.open({ id: "reader-1", route: "/reader", title: "Reader" });
   await client.clipboard.writeText(records.at(0)?.title ?? "");
   void inserted;

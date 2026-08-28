@@ -1,6 +1,7 @@
 (function () {
     const pending = new Map();
     const fileDropListeners = new Set();
+    const openFilesListeners = new Set();
     const databaseChangeListeners = new Set();
     const filesystemChangeListeners = new Set();
     const restoreListeners = new Set();
@@ -29,6 +30,7 @@
             database: asBoolean(config.database, true),
             filesystem: asBoolean(config.filesystem, true),
             shell: asBoolean(config.shell, true),
+            openedFiles: Object.freeze(Array.isArray(config.openedFiles) ? [...config.openedFiles] : []),
             currentWindow: Object.freeze({
                 id: typeof currentWindow.id === "string" ? currentWindow.id : "main",
                 route: typeof currentWindow.route === "string" ? currentWindow.route : "/",
@@ -36,6 +38,7 @@
             })
         });
     })();
+    const openedFiles = [...bridgeConfig.openedFiles];
 
     function normalizeError(payload) {
         const error = payload && typeof payload === "object"
@@ -151,6 +154,12 @@
         window.dispatchEvent(new CustomEvent("rustframe:file-drop", { detail: payload }));
     }
 
+    function emitOpenFiles(payload) {
+        const files = payload && Array.isArray(payload.files) ? payload.files : [];
+        openedFiles.push(...files);
+        emitEvent(openFilesListeners, "rustframe:open-files", Object.freeze({ files }));
+    }
+
     function emitEvent(listeners, name, payload) {
         listeners.forEach((listener) => {
             try {
@@ -181,11 +190,22 @@
     window.RustFrame = Object.freeze({
         __resolveFromNative: resolveFromNative,
         __emitFileDrop: emitFileDrop,
+        __emitOpenFiles: emitOpenFiles,
         __emitDatabaseChange: (payload) => emitEvent(databaseChangeListeners, "rustframe:database-change", payload),
         __emitFilesystemChange: (payload) => emitEvent(filesystemChangeListeners, "rustframe:filesystem-change", payload),
         __emitRestore: (payload) => emitEvent(restoreListeners, "rustframe:restore", payload),
         invoke,
         security: bridgeConfig,
+        app: Object.freeze({
+            openedFiles: () => [...openedFiles],
+            onOpenFiles: (listener) => {
+                if (typeof listener !== "function") {
+                    throw new TypeError("RustFrame.app.onOpenFiles expects a function");
+                }
+                openFilesListeners.add(listener);
+                return () => openFilesListeners.delete(listener);
+            }
+        }),
         window: Object.freeze({
             id: bridgeConfig.currentWindow.id,
             route: bridgeConfig.currentWindow.route,

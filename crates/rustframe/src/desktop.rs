@@ -2,14 +2,15 @@ use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, VecDeque},
     env, fs,
-    io::Write,
+    io::{Read, Write},
+    net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
         mpsc,
     },
-    thread,
+    thread::{self, JoinHandle},
     time::{Duration, Instant, SystemTime},
 };
 
@@ -44,6 +45,331 @@ const MAX_OPEN_WINDOWS: usize = 16;
 const MAX_IPC_REQUEST_BYTES: usize = crate::DEFAULT_MAX_IPC_REQUEST_BYTES;
 const WINDOW_STATE_FILE_NAME: &str = "window-state.json";
 const FILESYSTEM_GRANTS_FILE_NAME: &str = "filesystem-grants.json";
+const SINGLE_INSTANCE_ENDPOINT_FILE_NAME: &str = "single-instance.json";
+#[cfg(target_os = "macos")]
+const SINGLE_INSTANCE_LOCK_FILE_NAME: &str = "single-instance.lock";
+const MAX_OPEN_FILE_COUNT: usize = 64;
+const MAX_SINGLE_INSTANCE_MESSAGE_BYTES: u64 = 64 * 1024;
+const SINGLE_INSTANCE_CONNECT_RETRIES: usize = 40;
+const SINGLE_INSTANCE_RETRY_DELAY: Duration = Duration::from_millis(50);
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SingleInstanceEndpoint {
+    schema_version: u32,
+    port: u16,
+    token: String,
+    pid: u32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SingleInstanceRequest {
+    schema_version: u32,
+    token: String,
+    files: Vec<String>,
+}
+
+struct SingleInstanceCoordinator {
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+    guard: Option<single_instance::SingleInstance>,
+    endpoint_path: Option<PathBuf>,
+    primary: bool,
+}
+
+impl SingleInstanceCoordinator {
+    fn acquire(app_id: Option<&str>, data_dir: Option<&Path>) -> Result<Self> {
+        let Some(app_id) = app_id else {
+            return Ok(Self::disabled());
+        };
+
+        #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+        {
+            let endpoint_path = resolve_runtime_data_path(
+                Some(app_id),
+                data_dir,
+                SINGLE_INSTANCE_ENDPOINT_FILE_NAME,
+            )
+            .ok_or_else(|| {
+                RuntimeError::InvalidConfiguration(
+                    "single-instance routing requires an application data directory".into(),
+                )
+            })?;
+            if let Some(parent) = endpoint_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            let lock_name = single_instance_lock_name(app_id, &endpoint_path);
+            let guard = single_instance::SingleInstance::new(&lock_name).map_err(|error| {
+                RuntimeError::InvalidConfiguration(format!(
+                    "unable to acquire the single-instance lock for '{app_id}': {error}"
+                ))
+            })?;
+            let primary = guard.is_single();
+            Ok(Self {
+                guard: Some(guard),
+                endpoint_path: Some(endpoint_path),
+                primary,
+            })
+        }
+
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+        {
+            let _ = (app_id, data_dir);
+            Ok(Self::disabled())
+        }
+    }
+
+    fn disabled() -> Self {
+        Self {
+            #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+            guard: None,
+            endpoint_path: None,
+            primary: true,
+        }
+    }
+
+    fn is_primary(&self) -> bool {
+        self.primary
+    }
+
+    fn forward_to_primary(&self, paths: &[PathBuf]) -> Result<()> {
+        let endpoint_path = self.endpoint_path.as_ref().ok_or_else(|| {
+            RuntimeError::InvalidConfiguration(
+                "single-instance routing endpoint is unavailable".into(),
+            )
+        })?;
+        let files = paths
+            .iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        let mut last_error = None;
+
+        for _ in 0..SINGLE_INSTANCE_CONNECT_RETRIES {
+            match read_single_instance_endpoint(endpoint_path)
+                .and_then(|endpoint| send_single_instance_request(&endpoint, &files))
+            {
+                Ok(()) => return Ok(()),
+                Err(error) => last_error = Some(error),
+            }
+            thread::sleep(SINGLE_INSTANCE_RETRY_DELAY);
+        }
+
+        Err(RuntimeError::InvalidConfiguration(format!(
+            "another app instance owns the lock, but file-open routing did not answer: {}",
+            last_error
+                .map(|error| error.to_string())
+                .unwrap_or_else(|| "endpoint was not ready".into())
+        )))
+    }
+
+    fn start_listener(
+        mut self,
+        proxy: EventLoopProxy<UserEvent>,
+    ) -> Result<Option<SingleInstanceSession>> {
+        let Some(endpoint_path) = self.endpoint_path.take() else {
+            return Ok(None);
+        };
+        let listener = TcpListener::bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))?;
+        listener.set_nonblocking(true)?;
+        let port = listener.local_addr()?.port();
+        let token = random_hex_token()?;
+        write_single_instance_endpoint(
+            &endpoint_path,
+            &SingleInstanceEndpoint {
+                schema_version: 1,
+                port,
+                token: token.clone(),
+                pid: std::process::id(),
+            },
+        )?;
+
+        let stopped = Arc::new(AtomicBool::new(false));
+        let thread_stopped = Arc::clone(&stopped);
+        let listener_thread = thread::Builder::new()
+            .name("rustframe-open-files".into())
+            .spawn(move || {
+                while !thread_stopped.load(Ordering::Relaxed) {
+                    match listener.accept() {
+                        Ok((stream, peer)) if peer.ip().is_loopback() => {
+                            handle_single_instance_connection(stream, &token, &proxy);
+                        }
+                        Ok(_) => {}
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(Duration::from_millis(25));
+                        }
+                        Err(_) => break,
+                    }
+                }
+            })
+            .map_err(|error| {
+                RuntimeError::InvalidConfiguration(format!(
+                    "unable to start single-instance routing: {error}"
+                ))
+            })?;
+
+        Ok(Some(SingleInstanceSession {
+            #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+            _guard: self.guard.take(),
+            endpoint_path,
+            stopped,
+            listener_thread: Some(listener_thread),
+        }))
+    }
+}
+
+struct SingleInstanceSession {
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+    _guard: Option<single_instance::SingleInstance>,
+    endpoint_path: PathBuf,
+    stopped: Arc<AtomicBool>,
+    listener_thread: Option<JoinHandle<()>>,
+}
+
+impl Drop for SingleInstanceSession {
+    fn drop(&mut self) {
+        self.stopped.store(true, Ordering::Relaxed);
+        if let Some(listener_thread) = self.listener_thread.take() {
+            let _ = listener_thread.join();
+        }
+        let _ = fs::remove_file(&self.endpoint_path);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn single_instance_lock_name(_app_id: &str, endpoint_path: &Path) -> String {
+    endpoint_path
+        .with_file_name(SINGLE_INSTANCE_LOCK_FILE_NAME)
+        .to_string_lossy()
+        .to_string()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn single_instance_lock_name(app_id: &str, _endpoint_path: &Path) -> String {
+    use sha2::{Digest, Sha256};
+    format!("rustframe-{:x}", Sha256::digest(app_id.as_bytes()))
+}
+
+fn random_hex_token() -> Result<String> {
+    let mut bytes = [0_u8; 32];
+    getrandom::fill(&mut bytes).map_err(|error| {
+        RuntimeError::InvalidConfiguration(format!(
+            "unable to create a single-instance authentication token: {error}"
+        ))
+    })?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+fn write_single_instance_endpoint(path: &Path, endpoint: &SingleInstanceEndpoint) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let temporary_path = path.with_extension(format!("tmp-{}", std::process::id()));
+    let contents = serde_json::to_vec(endpoint)?;
+    let mut options = fs::OpenOptions::new();
+    options.create(true).truncate(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(&temporary_path)?;
+    file.write_all(&contents)?;
+    file.sync_all()?;
+    fs::rename(&temporary_path, path)?;
+    Ok(())
+}
+
+fn read_single_instance_endpoint(path: &Path) -> Result<SingleInstanceEndpoint> {
+    let contents = fs::read(path)?;
+    let endpoint: SingleInstanceEndpoint = serde_json::from_slice(&contents)?;
+    if endpoint.schema_version != 1 || endpoint.port == 0 || endpoint.token.len() != 64 {
+        return Err(RuntimeError::InvalidConfiguration(
+            "single-instance routing endpoint is invalid".into(),
+        ));
+    }
+    Ok(endpoint)
+}
+
+fn send_single_instance_request(endpoint: &SingleInstanceEndpoint, files: &[String]) -> Result<()> {
+    let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), endpoint.port);
+    let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(250))?;
+    stream.set_read_timeout(Some(Duration::from_secs(1)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(1)))?;
+    let request = serde_json::to_vec(&SingleInstanceRequest {
+        schema_version: 1,
+        token: endpoint.token.clone(),
+        files: files.to_vec(),
+    })?;
+    if request.len() as u64 > MAX_SINGLE_INSTANCE_MESSAGE_BYTES {
+        return Err(RuntimeError::InvalidParameter(
+            "too many file paths were passed to the running app".into(),
+        ));
+    }
+    stream.write_all(&request)?;
+    stream.shutdown(std::net::Shutdown::Write)?;
+    let mut acknowledgement = Vec::new();
+    stream
+        .take(1024)
+        .read_to_end(&mut acknowledgement)
+        .map_err(RuntimeError::from)?;
+    let acknowledged = serde_json::from_slice::<Value>(&acknowledgement)?
+        .get("ok")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if !acknowledged {
+        return Err(RuntimeError::InvalidConfiguration(
+            "the running app rejected the file-open request".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn handle_single_instance_connection(
+    mut stream: TcpStream,
+    token: &str,
+    proxy: &EventLoopProxy<UserEvent>,
+) {
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
+    let mut contents = Vec::new();
+    let read = (&mut stream)
+        .take(MAX_SINGLE_INSTANCE_MESSAGE_BYTES + 1)
+        .read_to_end(&mut contents);
+    let request = read
+        .ok()
+        .filter(|_| contents.len() as u64 <= MAX_SINGLE_INSTANCE_MESSAGE_BYTES)
+        .and_then(|_| serde_json::from_slice::<SingleInstanceRequest>(&contents).ok())
+        .filter(|request| request.schema_version == 1 && request.token == token);
+    let accepted = request
+        .map(|request| sanitize_open_paths(request.files))
+        .is_some_and(|paths| proxy.send_event(UserEvent::OpenFiles { paths }).is_ok());
+    let _ = stream.write_all(if accepted {
+        br#"{"ok":true}"#
+    } else {
+        br#"{"ok":false}"#
+    });
+}
+
+fn collect_launch_paths() -> Vec<PathBuf> {
+    sanitize_open_paths(
+        env::args_os()
+            .skip(1)
+            .filter_map(|argument| argument.into_string().ok())
+            .collect(),
+    )
+}
+
+fn sanitize_open_paths(paths: Vec<String>) -> Vec<PathBuf> {
+    let mut normalized = paths
+        .into_iter()
+        .take(MAX_OPEN_FILE_COUNT)
+        .filter_map(|value| fs::canonicalize(value).ok())
+        .filter(|path| path.is_file())
+        .collect::<Vec<_>>();
+    normalized.sort();
+    normalized.dedup();
+    normalized
+}
 
 #[derive(Default)]
 struct SensitiveRateLimiter {
@@ -400,6 +726,7 @@ struct WindowManager {
     next_window_index: u64,
     state_store: WindowStateStore,
     rate_limiter: SensitiveRateLimiter,
+    initial_open_files: Vec<Value>,
 }
 
 impl WindowManager {
@@ -423,7 +750,13 @@ impl WindowManager {
             next_window_index: 2,
             state_store,
             rate_limiter: SensitiveRateLimiter::default(),
+            initial_open_files: Vec::new(),
         }
+    }
+
+    fn with_initial_open_files(mut self, initial_open_files: Vec<Value>) -> Self {
+        self.initial_open_files = initial_open_files;
+        self
     }
 
     fn open_primary(&mut self, target: &EventLoopWindowTarget<UserEvent>) -> Result<WindowRecord> {
@@ -520,7 +853,13 @@ impl WindowManager {
             .with_inner_size(tao::dpi::LogicalSize::new(width, height))
             .build(target)?;
         let native_window_id = window.id();
-        let bridge_config_script = bridge_config_script(&self.security, &record)?;
+        let initial_open_files = if is_primary {
+            self.initial_open_files.as_slice()
+        } else {
+            &[]
+        };
+        let bridge_config_script =
+            bridge_config_script(&self.security, &record, initial_open_files)?;
         let ipc_proxy = self.ipc_proxy.clone();
         let assets = self.assets;
         let content_security_policy = self.content_security_policy.clone();
@@ -610,6 +949,19 @@ impl WindowManager {
             .unwrap_or_else(|| "unknown".into())
     }
 
+    fn focus_primary(&self) {
+        if let Some(managed) = self
+            .windows
+            .values()
+            .find(|managed| managed.record.is_primary)
+        {
+            managed.window.set_minimized(false);
+            managed.window.set_visible(true);
+            managed.window.set_focus();
+            managed.window.request_redraw();
+        }
+    }
+
     fn emit_database_change(&self, mut event: Value, source_window_id: String) {
         if let Some(object) = event.as_object_mut() {
             object.insert("sourceWindowId".into(), Value::String(source_window_id));
@@ -651,28 +1003,7 @@ impl WindowManager {
         let Some(managed) = self.windows.get(&window_id) else {
             return;
         };
-
-        let files = paths
-            .iter()
-            .filter_map(|path| {
-                let record = external_path_record(path).ok()?;
-                let grant = fs_capability
-                    .grant_path(path, FsGrantAccess::Read, false)
-                    .ok()?;
-                Some(json!({
-                    "id": grant.id,
-                    "uri": grant.uri,
-                    "name": record.name,
-                    "isDir": record.is_dir,
-                    "isFile": record.is_file,
-                    "size": record.size,
-                    "extension": record.extension,
-                    "modifiedAt": record.modified_at,
-                    "access": grant.access,
-                    "persistent": false
-                }))
-            })
-            .collect::<Vec<_>>();
+        let files = external_file_entries(paths, fs_capability);
         if files.is_empty() {
             return;
         }
@@ -680,6 +1011,27 @@ impl WindowManager {
         if let Ok(serialized) = serde_json::to_string(&json!({ "files": files })) {
             let script = format!(
                 "if (window.RustFrame && typeof window.RustFrame.__emitFileDrop === 'function') {{ window.RustFrame.__emitFileDrop({serialized}); }}"
+            );
+            let _ = managed.webview.evaluate_script(&script);
+        }
+    }
+
+    fn emit_open_files(&self, paths: &[PathBuf], fs_capability: &FsCapability) {
+        self.focus_primary();
+        let files = external_file_entries(paths, fs_capability);
+        if files.is_empty() {
+            return;
+        }
+        let Some(managed) = self
+            .windows
+            .values()
+            .find(|managed| managed.record.is_primary)
+        else {
+            return;
+        };
+        if let Ok(serialized) = serde_json::to_string(&json!({ "files": files })) {
+            let script = format!(
+                "if (window.RustFrame && typeof window.RustFrame.__emitOpenFiles === 'function') {{ window.RustFrame.__emitOpenFiles({serialized}); }}"
             );
             let _ = managed.webview.evaluate_script(&script);
         }
@@ -934,10 +1286,19 @@ impl RustFrameBuilder {
             );
         }
 
+        let launch_paths = collect_launch_paths();
+        let single_instance =
+            SingleInstanceCoordinator::acquire(app_id.as_deref(), database_data_dir.as_deref())?;
+        if !single_instance.is_primary() {
+            single_instance.forward_to_primary(&launch_paths)?;
+            return Ok(());
+        }
+
         prepare_linux_runtime()?;
 
         let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
         let ipc_proxy = event_loop.create_proxy();
+        let single_instance_session = single_instance.start_listener(ipc_proxy.clone())?;
         let worker = IpcWorker::spawn(
             ipc_proxy.clone(),
             fs_capability.clone(),
@@ -955,10 +1316,16 @@ impl RustFrameBuilder {
                 app_id.as_deref(),
                 database_data_dir.as_deref(),
             )),
-        );
+        )
+        .with_initial_open_files(if security.filesystem {
+            external_file_entries(&launch_paths, &fs_capability)
+        } else {
+            Vec::new()
+        });
         window_manager.open_primary(&event_loop)?;
 
         event_loop.run(move |event, target, control_flow| {
+            let _keep_single_instance_session_alive = &single_instance_session;
             *control_flow = ControlFlow::Wait;
 
             match event {
@@ -1021,6 +1388,27 @@ impl RustFrameBuilder {
                 Event::UserEvent(UserEvent::FilesystemChange { window_id, event }) => {
                     window_manager.emit_filesystem_change(window_id, &event);
                 }
+                Event::UserEvent(UserEvent::OpenFiles { paths }) => {
+                    if security.filesystem {
+                        window_manager.emit_open_files(&paths, &fs_capability);
+                    } else {
+                        window_manager.focus_primary();
+                    }
+                }
+                Event::Opened { urls } => {
+                    let paths = sanitize_open_paths(
+                        urls.into_iter()
+                            .filter_map(|url| url.to_file_path().ok())
+                            .map(|path| path.to_string_lossy().to_string())
+                            .collect(),
+                    );
+                    if security.filesystem {
+                        window_manager.emit_open_files(&paths, &fs_capability);
+                    } else {
+                        window_manager.focus_primary();
+                    }
+                }
+                Event::Reopen { .. } => window_manager.focus_primary(),
                 Event::MainEventsCleared => {
                     if window_manager.windows.is_empty() {
                         *control_flow = ControlFlow::Exit;
@@ -1107,15 +1495,18 @@ struct BridgeConfig<'a> {
     #[serde(flatten)]
     security: &'a ResolvedFrontendSecurity,
     current_window: &'a WindowRecord,
+    opened_files: &'a [Value],
 }
 
 fn bridge_config_script(
     security: &ResolvedFrontendSecurity,
     current_window: &WindowRecord,
+    opened_files: &[Value],
 ) -> Result<String> {
     let serialized = serde_json::to_string(&BridgeConfig {
         security,
         current_window,
+        opened_files,
     })?;
     Ok(format!(
         "window.__RUSTFRAME_BRIDGE_CONFIG__ = Object.freeze({serialized});"
@@ -1135,6 +1526,9 @@ enum UserEvent {
     FilesystemChange {
         window_id: WindowId,
         event: Value,
+    },
+    OpenFiles {
+        paths: Vec<PathBuf>,
     },
 }
 
@@ -2427,6 +2821,30 @@ fn resolve_dialog_directory(fs_capability: &FsCapability, directory: &str) -> Re
     Ok(resolved)
 }
 
+fn external_file_entries(paths: &[PathBuf], fs_capability: &FsCapability) -> Vec<Value> {
+    paths
+        .iter()
+        .filter_map(|path| {
+            let record = external_path_record(path).ok()?;
+            let grant = fs_capability
+                .grant_path(path, FsGrantAccess::Read, false)
+                .ok()?;
+            Some(json!({
+                "id": grant.id,
+                "uri": grant.uri,
+                "name": record.name,
+                "isDir": record.is_dir,
+                "isFile": record.is_file,
+                "size": record.size,
+                "extension": record.extension,
+                "modifiedAt": record.modified_at,
+                "access": grant.access,
+                "persistent": false
+            }))
+        })
+        .collect()
+}
+
 fn external_path_record(path: &Path) -> Result<ExternalPathRecord> {
     let metadata = fs::metadata(path).map_err(|error| {
         RuntimeError::InvalidParameter(format!(
@@ -2780,7 +3198,14 @@ fn pump_linux_events() {}
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::Cow, collections::BTreeMap};
+    use std::{
+        borrow::Cow,
+        collections::BTreeMap,
+        fs,
+        io::{Read, Write},
+        net::{Ipv4Addr, TcpListener},
+        thread,
+    };
 
     use serde_json::json;
     use wry::http::Request;
@@ -2789,10 +3214,13 @@ mod tests {
 
     use super::{
         EmbeddedAssetRouter, EmbeddedDatabaseConfig, FrontendSecurity, FrontendTrust,
-        MethodExecution, ResolvedFrontendSecurity, SensitiveRateLimiter, WindowRecord,
-        active_dev_url, asset_response, authorize_method, authorize_request, bridge_config_script,
-        load_database_capability, method_execution, normalize_asset_path, normalize_window_route,
-        window_pattern_matches, window_url,
+        MethodExecution, ResolvedFrontendSecurity, SINGLE_INSTANCE_ENDPOINT_FILE_NAME,
+        SensitiveRateLimiter, SingleInstanceCoordinator, SingleInstanceEndpoint,
+        SingleInstanceRequest, WindowRecord, active_dev_url, asset_response, authorize_method,
+        authorize_request, bridge_config_script, load_database_capability, method_execution,
+        normalize_asset_path, normalize_window_route, random_hex_token,
+        read_single_instance_endpoint, sanitize_open_paths, send_single_instance_request,
+        window_pattern_matches, window_url, write_single_instance_endpoint,
     };
 
     fn fixture(path: &str) -> Option<Cow<'static, [u8]>> {
@@ -3028,6 +3456,11 @@ mod tests {
 
     #[test]
     fn bridge_config_script_serializes_frontend_security() {
+        let opened_files = vec![json!({
+            "id": "grant-1",
+            "uri": "grant://grant-1/brief.md",
+            "name": "brief.md"
+        })];
         let script = bridge_config_script(
             &ResolvedFrontendSecurity {
                 model: FrontendTrust::Networked,
@@ -3044,6 +3477,7 @@ mod tests {
                 height: 540.0,
                 is_primary: false,
             },
+            &opened_files,
         )
         .unwrap();
 
@@ -3053,6 +3487,99 @@ mod tests {
         assert!(script.contains("\"shell\":false"));
         assert!(script.contains("\"currentWindow\":{"));
         assert!(script.contains("\"id\":\"settings\""));
+        assert!(script.contains("\"openedFiles\":[{"));
+        assert!(script.contains("grant://grant-1/brief.md"));
+    }
+
+    #[test]
+    fn open_path_routing_keeps_unique_existing_files_only() {
+        let temp = tempfile::tempdir().unwrap();
+        let first = temp.path().join("first.md");
+        let second = temp.path().join("second.txt");
+        let directory = temp.path().join("folder");
+        fs::write(&first, "first").unwrap();
+        fs::write(&second, "second").unwrap();
+        fs::create_dir(&directory).unwrap();
+
+        let paths = sanitize_open_paths(vec![
+            first.to_string_lossy().to_string(),
+            second.to_string_lossy().to_string(),
+            first.to_string_lossy().to_string(),
+            directory.to_string_lossy().to_string(),
+            temp.path().join("missing.md").to_string_lossy().to_string(),
+        ]);
+
+        assert_eq!(
+            paths,
+            vec![
+                first.canonicalize().unwrap(),
+                second.canonicalize().unwrap()
+            ]
+        );
+    }
+
+    #[test]
+    fn single_instance_endpoint_is_private_and_round_trips() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join(SINGLE_INSTANCE_ENDPOINT_FILE_NAME);
+        let endpoint = SingleInstanceEndpoint {
+            schema_version: 1,
+            port: 43123,
+            token: "a".repeat(64),
+            pid: 42,
+        };
+
+        write_single_instance_endpoint(&path, &endpoint).unwrap();
+        let loaded = read_single_instance_endpoint(&path).unwrap();
+
+        assert_eq!(loaded.port, endpoint.port);
+        assert_eq!(loaded.token, endpoint.token);
+        assert_eq!(loaded.pid, endpoint.pid);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+    #[test]
+    fn only_one_coordinator_owns_an_app_lock() {
+        let temp = tempfile::tempdir().unwrap();
+        let app_id = format!("rustframe-test-{}", random_hex_token().unwrap());
+        let first = SingleInstanceCoordinator::acquire(Some(&app_id), Some(temp.path())).unwrap();
+        let second = SingleInstanceCoordinator::acquire(Some(&app_id), Some(temp.path())).unwrap();
+
+        assert!(first.is_primary());
+        assert!(!second.is_primary());
+    }
+
+    #[test]
+    fn secondary_instance_sends_authenticated_file_request() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = Vec::new();
+            stream.read_to_end(&mut request).unwrap();
+            let request: SingleInstanceRequest = serde_json::from_slice(&request).unwrap();
+            assert_eq!(request.schema_version, 1);
+            assert_eq!(request.token, "b".repeat(64));
+            assert_eq!(request.files, vec!["/tmp/brief.md"]);
+            stream.write_all(br#"{"ok":true}"#).unwrap();
+        });
+        let endpoint = SingleInstanceEndpoint {
+            schema_version: 1,
+            port,
+            token: "b".repeat(64),
+            pid: 42,
+        };
+
+        send_single_instance_request(&endpoint, &["/tmp/brief.md".into()]).unwrap();
+        server.join().unwrap();
     }
 
     #[test]

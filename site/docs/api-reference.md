@@ -23,7 +23,9 @@ The frontend package is currently documented at release candidate `0.1.0-rc.1`. 
 - [DatabaseChangeEvent](#databasechangeevent)
 - [FilesystemChangeEvent](#filesystemchangeevent)
 - [FileDropEntry](#filedropentry)
+- [FileOpenEvent](#fileopenevent)
 - [RustFrameEvents](#rustframeevents)
+- [RustFrameAppApi](#rustframeappapi)
 - [RustFrameWindowApi](#rustframewindowapi)
 - [DialogOptions](#dialogoptions)
 - [ShellOutput](#shelloutput)
@@ -307,16 +309,39 @@ export interface FileDropEntry {
 }
 ```
 
+## FileOpenEvent
+
+Source declaration kind: `InterfaceDeclaration`.
+
+```typescript
+export interface FileOpenEvent {
+  files: FileDropEntry[];
+}
+```
+
 ## RustFrameEvents
 
 Source declaration kind: `InterfaceDeclaration`.
 
 ```typescript
 export interface RustFrameEvents {
-  onFileDrop(listener: (entries: FileDropEntry[]) => void): () => void;
+  onFileDrop(listener: (event: FileOpenEvent) => void): () => void;
   onDatabaseChange(listener: (event: DatabaseChangeEvent) => void): () => void;
   onFilesystemChange(listener: (event: FilesystemChangeEvent) => void): () => void;
   onRestore(listener: () => void): () => void;
+}
+```
+
+## RustFrameAppApi
+
+Source declaration kind: `InterfaceDeclaration`.
+
+```typescript
+export interface RustFrameAppApi {
+  /** Files passed by the OS at launch, plus files routed by later app opens. */
+  openedFiles(): FileDropEntry[];
+  /** Subscribes to files routed after this WebView initialized. */
+  onOpenFiles(listener: (event: FileOpenEvent) => void): () => void;
 }
 ```
 
@@ -388,6 +413,7 @@ Source declaration kind: `InterfaceDeclaration`.
 
 ```typescript
 export interface RustFrameClient<Tables extends RustFrameTableMap = RustFrameTableMap> {
+  app: RustFrameAppApi;
   db: RustFrameDatabase<Tables>;
   fs: RustFrameFilesystem;
   events: RustFrameEvents;

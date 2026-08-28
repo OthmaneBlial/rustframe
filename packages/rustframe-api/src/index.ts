@@ -175,11 +175,22 @@ export interface FileDropEntry {
   persistent: false;
 }
 
+export interface FileOpenEvent {
+  files: FileDropEntry[];
+}
+
 export interface RustFrameEvents {
-  onFileDrop(listener: (entries: FileDropEntry[]) => void): () => void;
+  onFileDrop(listener: (event: FileOpenEvent) => void): () => void;
   onDatabaseChange(listener: (event: DatabaseChangeEvent) => void): () => void;
   onFilesystemChange(listener: (event: FilesystemChangeEvent) => void): () => void;
   onRestore(listener: () => void): () => void;
+}
+
+export interface RustFrameAppApi {
+  /** Files passed by the OS at launch, plus files routed by later app opens. */
+  openedFiles(): FileDropEntry[];
+  /** Subscribes to files routed after this WebView initialized. */
+  onOpenFiles(listener: (event: FileOpenEvent) => void): () => void;
 }
 
 export interface RustFrameWindowApi {
@@ -221,6 +232,7 @@ export interface RustFrameSecurity {
 }
 
 export interface RustFrameClient<Tables extends RustFrameTableMap = RustFrameTableMap> {
+  app: RustFrameAppApi;
   db: RustFrameDatabase<Tables>;
   fs: RustFrameFilesystem;
   events: RustFrameEvents;

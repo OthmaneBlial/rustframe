@@ -15,6 +15,7 @@ The manifest `security.csp` is emitted as the native `Content-Security-Policy` r
 - `db`: info, typed CRUD, filtered list/search/count, atomic batch, backup, and restore.
 - `fs`: opaque URI metadata/read/write, directory listing, bounded recursive walk, user grants, revocation, and watching.
 - `events`: database commits, filesystem changes, restore notification, and temporary drag/drop grants.
+- `app`: launch-time opened files and later single-instance file-open events.
 - `window`: current/list/open/close/minimize/maximize/title for declared in-app windows.
 - `dialog`: native open/save flows.
 - `clipboard`: permission-scoped read and write.
@@ -30,6 +31,8 @@ A declared root such as `workspace` is exposed as `root://workspace`. Root IDs c
 Open and save dialogs return temporary grants, never absolute paths. Use the returned `uri` for subsequent filesystem calls. `fs.copyFrom` accepts authorized root or grant URIs for its source and destination and enforces read and write permissions separately.
 
 Drag/drop paths are immediately converted into temporary read grants before the event reaches JavaScript.
+
+OS document opens use the same temporary-grant shape. Apps with an ID run as a single instance on macOS, Windows, and Linux; later launches route files to and focus the primary window. See [Single-instance file-open routing](./file-open-routing.md).
 
 ## Database lifecycle
 

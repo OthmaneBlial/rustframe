@@ -116,6 +116,14 @@ const DOCS = {
         source: "docs/developer-loop.md",
         path: "docs/developer-loop.md",
     },
+    "file-open-routing": {
+        title: "Single-instance file-open routing",
+        navLabel: "File-open routing",
+        section: "operations",
+        summary: "Route OS document opens to one app process without exposing absolute paths.",
+        source: "docs/file-open-routing.md",
+        path: "docs/file-open-routing.md",
+    },
     "api-reference": {
         title: "Frontend API reference",
         navLabel: "Frontend API reference",

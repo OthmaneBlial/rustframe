@@ -8,6 +8,8 @@ const STATUS_ORDER = ["queued", "reviewing", "ready", "archived"];
 const PRIORITY_ORDER = ["critical", "watch", "reference"];
 let latestSearchRequestId = 0;
 let filterSaveTimer = null;
+let bootComplete = false;
+let pendingOpenedFiles = window.RustFrame?.app?.openedFiles?.() || [];
 
 const state = {
     mode: ROUTE_PATH === "/reader" ? "reader" : "main",
@@ -55,6 +57,15 @@ if (window.RustFrame?.events?.onFileDrop) {
     });
 }
 
+if (window.RustFrame?.app?.onOpenFiles) {
+    window.RustFrame.app.onOpenFiles((payload) => {
+        pendingOpenedFiles.push(...(payload?.files || []));
+        if (bootComplete && state.mode === "main") {
+            void importPendingOpenedFiles();
+        }
+    });
+}
+
 if (window.RustFrame?.events?.onDatabaseChange) {
     window.RustFrame.events.onDatabaseChange((event) => {
         if (event?.sourceWindowId === window.RustFrame.window.id) return;
@@ -98,6 +109,8 @@ async function boot() {
             ? `Workspace connected: ${workspace.label}\n${state.documents.length} documents indexed.\nDatabase tables: ${state.dbInfo.tables.join(", ")}`
             : "Choose a Markdown or text-document folder to create your first private research workspace.");
         renderMain();
+        bootComplete = true;
+        await importPendingOpenedFiles();
     } else {
         const documentId = Number(ROUTE_PARAMS.get("doc"));
         if (!documentId) {
@@ -110,6 +123,15 @@ async function boot() {
             await window.RustFrame.window.setTitle(`${state.readerDocument.title} · Reader`);
         }
         renderReader();
+        bootComplete = true;
+    }
+}
+
+async function importPendingOpenedFiles() {
+    const files = pendingOpenedFiles;
+    pendingOpenedFiles = [];
+    if (files.length) {
+        await importExternalFiles(files, "the operating system");
     }
 }
 

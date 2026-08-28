@@ -14,12 +14,13 @@ name = "rustframe"
 
 [features]
 default = ["desktop"]
-desktop = ["dep:arboard", "dep:gtk", "dep:mime_guess", "dep:rfd", "dep:tao", "dep:wry"]
+desktop = ["dep:arboard", "dep:getrandom", "dep:gtk", "dep:mime_guess", "dep:rfd", "dep:single-instance", "dep:tao", "dep:wry"]
 
 [dependencies]
 arboard = { version = "3.6.1", optional = true }
 base64 = "0.22.1"
 dirs = "6.0.0"
+getrandom = { version = "0.3.4", optional = true }
 rusqlite = { version = "0.37.0", features = ["backup", "bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -45,6 +46,10 @@ optional = true
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.gtk]
 version = "0.18"
+optional = true
+
+[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies.single-instance]
+version = "0.3.3"
 optional = true
 
 [dev-dependencies]

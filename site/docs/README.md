@@ -16,6 +16,7 @@ RustFrame is a Rust workspace for local-first desktop workflow tools that should
 - [Portable Data Exports](./portable-data-exports.md)
 - [Release Verification](./release-verification.md)
 - [Developer Loop And Diagnostics](./developer-loop.md)
+- [Single-Instance File-Open Routing](./file-open-routing.md)
 - [Frontend API Reference](./api-reference.md)
 - [Manifest Reference](./manifest-reference.md)
 - [Troubleshooting](./troubleshooting.md)

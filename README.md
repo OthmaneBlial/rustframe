@@ -299,6 +299,7 @@ Choose Tauri or Electron when you need a broad plugin ecosystem, mobile targets,
 - [Portable data exports](docs/portable-data-exports.md)
 - [Release verification](docs/release-verification.md)
 - [Developer loop and diagnostics](docs/developer-loop.md)
+- [Single-instance file-open routing](docs/file-open-routing.md)
 - [Cookbook](docs/cookbook.md)
 - [Workflow guides](docs/workflow-guides.md)
 - [Generated frontend API reference](docs/api-reference.md)
