@@ -84,6 +84,14 @@ const DOCS = {
         source: "docs/research-desk-architecture.md",
         path: "docs/research-desk-architecture.md",
     },
+    "local-first-and-capabilities": {
+        title: "Local-first and capability inspection",
+        navLabel: "Local-first inspection",
+        section: "operations",
+        summary: "Inspect bundled ownership, explain policy, and deny unreviewed privilege expansion.",
+        source: "docs/local-first-and-capabilities.md",
+        path: "docs/local-first-and-capabilities.md",
+    },
     "api-reference": {
         title: "Frontend API reference",
         navLabel: "Frontend API reference",

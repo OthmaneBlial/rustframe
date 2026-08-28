@@ -43,6 +43,8 @@ struct PackageManifest<'a> {
     target_arch: &'static str,
     signed: bool,
     signature_state: &'static str,
+    policy_hash: &'a str,
+    local_first_conformant: bool,
     tested_os_version: Option<&'a str>,
     source_commit: Option<&'a str>,
     linux_categories: &'a [String],
@@ -64,6 +66,8 @@ pub fn package(
     source_binary: &Path,
     requested_formats: &[String],
     verify: bool,
+    policy_hash: &str,
+    local_first_conformant: bool,
 ) -> CliResult<PackageResult> {
     let staging_dir = app.app_dir.join("target/rustframe/package-input");
     let out_dir = app.app_dir.join("dist/packages");
@@ -144,6 +148,8 @@ pub fn package(
         target_arch: std::env::consts::ARCH,
         signed,
         signature_state: if signed { "signed" } else { "unsigned" },
+        policy_hash,
+        local_first_conformant,
         tested_os_version: tested_os_version.as_deref(),
         source_commit: source_commit.as_deref(),
         linux_categories: &app.config.packaging.linux.categories,

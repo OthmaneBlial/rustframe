@@ -17,10 +17,12 @@ use rustframe::{DatabaseMigrationFile, DatabaseSchema, DatabaseSeedFile};
 use serde::Deserialize;
 use serde_json::json;
 
+mod capabilities;
 mod codegen;
 mod command;
 mod database;
 mod diagnostics;
+mod local_first;
 mod manifest;
 mod migration;
 mod packaging;
@@ -28,7 +30,7 @@ mod project;
 mod runner;
 mod scaffold;
 
-use command::{Cli, Command as CliCommand, DbCommand};
+use command::{CapabilitiesCommand, Cli, Command as CliCommand, DbCommand, InspectArgs};
 use runner::RunnerProject;
 
 type CliResult<T> = Result<T, String>;
@@ -509,6 +511,11 @@ fn run() -> CliResult<()> {
     if matches!(cli.command, CliCommand::Doctor) {
         return command_doctor(&[]);
     }
+    if let CliCommand::Capabilities(args) = &cli.command {
+        if let CapabilitiesCommand::Diff { old, new, json } = &args.command {
+            return command_capabilities_diff(old, new, *json);
+        }
+    }
 
     let project_dir = project::resolve_project(cli.project.as_deref())?;
     let name = project::project_name(&project_dir)?;
@@ -517,7 +524,8 @@ fn run() -> CliResult<()> {
         CliCommand::New(_) | CliCommand::Doctor => unreachable!(),
         CliCommand::Dev(args) => command_dev(&project_dir, &name, args.dev_url),
         CliCommand::Validate(args) => command_validate(&project_dir, &name, args.json),
-        CliCommand::Inspect(args) => command_inspect_v1(&project_dir, &name, args.json),
+        CliCommand::Inspect(args) => command_inspect_v1(&project_dir, &name, &args),
+        CliCommand::Capabilities(args) => command_capabilities(&project_dir, &name, args.command),
         CliCommand::Codegen(args) => command_codegen(&project_dir, args.check),
         CliCommand::Build(args) => command_build(&project_dir, &name, args.release),
         CliCommand::Package(args) => command_package(
@@ -949,14 +957,47 @@ fn command_validate(project_dir: &Path, name: &str, as_json: bool) -> CliResult<
     }
 }
 
-fn command_inspect_v1(project_dir: &Path, name: &str, as_json: bool) -> CliResult<()> {
+fn command_inspect_v1(project_dir: &Path, name: &str, args: &InspectArgs) -> CliResult<()> {
     let app = load_app_project(project_dir, name)?;
+    if args.local_first {
+        let report = local_first::inspect(&app)?;
+        if args.json {
+            let rendered = serde_json::to_string_pretty(&report)
+                .map_err(|error| format!("failed to render local-first report: {error}"))?;
+            println!("{rendered}");
+            if let Some(path) = &args.output {
+                local_first::write_report(path, &report)?;
+            }
+        } else {
+            println!("{}", local_first::render(&report));
+        }
+        return if report.conformant {
+            Ok(())
+        } else {
+            Err("local-first conformance failed; inspect the reported error findings".into())
+        };
+    }
     let inspection = build_app_inspection(&app)?;
-    if as_json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&inspection).map_err(|error| error.to_string())?
-        );
+    if args.json {
+        let rendered =
+            serde_json::to_string_pretty(&inspection).map_err(|error| error.to_string())?;
+        println!("{rendered}");
+        if let Some(path) = &args.output {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).map_err(|error| {
+                    format!(
+                        "failed to create inspection output '{}': {error}",
+                        parent.display()
+                    )
+                })?;
+            }
+            fs::write(path, format!("{rendered}\n")).map_err(|error| {
+                format!(
+                    "failed to write inspection output '{}': {error}",
+                    path.display()
+                )
+            })?;
+        }
     } else {
         println!("RustFrame project: {}", app.config.title);
         println!("  id: {}", app.config.app_id);
@@ -969,6 +1010,86 @@ fn command_inspect_v1(project_dir: &Path, name: &str, as_json: bool) -> CliResul
         println!("  database: {}", app.config.database.schema);
         println!("  filesystem roots: {}", app.config.fs_roots.len());
         println!("  shell commands: {}", app.config.shell_commands.len());
+    }
+    Ok(())
+}
+
+fn command_capabilities(
+    project_dir: &Path,
+    name: &str,
+    command: CapabilitiesCommand,
+) -> CliResult<()> {
+    match command {
+        CapabilitiesCommand::Explain(args) => {
+            let app = load_app_project(project_dir, name)?;
+            let policy = capabilities::from_app(&app)?;
+            if args.json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&policy)
+                        .map_err(|error| format!("failed to render capability policy: {error}"))?
+                );
+            } else {
+                println!("{}", capabilities::render_explanation(&policy));
+            }
+            Ok(())
+        }
+        CapabilitiesCommand::Diff { old, new, json } => command_capabilities_diff(&old, &new, json),
+        CapabilitiesCommand::Check {
+            deny_expansion,
+            baseline,
+            write_baseline,
+            json,
+        } => {
+            let app = load_app_project(project_dir, name)?;
+            let current = capabilities::from_app(&app)?;
+            let baseline = capabilities::resolve_from_project(project_dir, &baseline);
+            if write_baseline {
+                capabilities::write_policy(&baseline, &current)?;
+                println!("Wrote reviewed capability baseline: {}", baseline.display());
+                return Ok(());
+            }
+            if !baseline.is_file() {
+                return Err(format!(
+                    "capability baseline '{}' is missing; review the current policy and run `rustframe capabilities check --write-baseline`",
+                    baseline.display()
+                ));
+            }
+            let reviewed = capabilities::from_file(&baseline)?;
+            let report = capabilities::diff(&reviewed, &current);
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&report)
+                        .map_err(|error| format!("failed to render capability check: {error}"))?
+                );
+            } else {
+                println!("{}", capabilities::render_diff(&report));
+            }
+            if deny_expansion && report.expanded {
+                Err(
+                    "capability expansion denied; update the baseline only after explicit review"
+                        .into(),
+                )
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
+fn command_capabilities_diff(old: &Path, new: &Path, as_json: bool) -> CliResult<()> {
+    let old = capabilities::from_file(old)?;
+    let new = capabilities::from_file(new)?;
+    let report = capabilities::diff(&old, &new);
+    if as_json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report)
+                .map_err(|error| format!("failed to render capability diff: {error}"))?
+        );
+    } else {
+        println!("{}", capabilities::render_diff(&report));
     }
     Ok(())
 }
@@ -1087,9 +1208,19 @@ fn command_package(workspace: &Path, request: &PackageRequest) -> CliResult<()> 
     }
 
     print_capability_warnings(&app);
+    let local_first_report = local_first::inspect(&app)?;
     let runner = resolve_runner_project(workspace, &app)?;
     let source_binary = build_release_binary(workspace, &request.name, &runner)?;
-    let output = packaging::package(&app, &source_binary, &request.formats, request.verify)?;
+    let output = packaging::package(
+        &app,
+        &source_binary,
+        &request.formats,
+        request.verify,
+        &local_first_report.policy_hash,
+        local_first_report.conformant,
+    )?;
+    let local_first_report_path = output.out_dir.join("rustframe-local-first-report.json");
+    local_first::write_report(&local_first_report_path, &local_first_report)?;
 
     println!("Packaged {} with cargo-packager", app.name);
     for artifact in &output.artifact_paths {
@@ -1098,6 +1229,7 @@ fn command_package(workspace: &Path, request: &PackageRequest) -> CliResult<()> 
     println!("Manifest: {}", output.manifest_path.display());
     println!("Checksums: {}", output.checksums_path.display());
     println!("Release notes: {}", output.release_notes_path.display());
+    println!("Local-first report: {}", local_first_report_path.display());
     println!(
         "Signing: {}",
         if output.signed {

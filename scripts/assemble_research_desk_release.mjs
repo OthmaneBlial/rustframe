@@ -22,6 +22,8 @@ fs.mkdirSync(outputDir, { recursive: true });
 const downloads = [];
 const evidence = [];
 const sourceCommits = new Set();
+const localFirstReportHashes = new Set();
+let localFirstReportSource = null;
 
 for (const [label, definition] of Object.entries(platformDefinitions)) {
   const bundleDir = path.join(inputDir, label);
@@ -33,6 +35,17 @@ for (const [label, definition] of Object.entries(platformDefinitions)) {
   if (packageManifest.version !== version) {
     fail(`${label} contains version ${packageManifest.version}, expected ${version}`);
   }
+  const localFirstReportFile = findTopLevelFile(bundleDir, (name) => name === "rustframe-local-first-report.json");
+  if (!localFirstReportFile) fail(`${label} is missing the local-first conformance report`);
+  const localFirstReport = readJson(localFirstReportFile);
+  if (localFirstReport.schemaVersion !== 1 || localFirstReport.kind !== "rustframe.local-first-conformance") {
+    fail(`${label} has an unsupported local-first report`);
+  }
+  if (!localFirstReport.conformant || localFirstReport.policyHash !== packageManifest.policyHash) {
+    fail(`${label} local-first policy is not conformant or does not match package metadata`);
+  }
+  localFirstReportHashes.add(sha256File(localFirstReportFile));
+  localFirstReportSource ||= localFirstReportFile;
   const evidenceFile = findTopLevelFile(bundleDir, (name) => name.endsWith("-evidence.json"));
   const sbomFile = findTopLevelFile(bundleDir, (name) => name.endsWith(".spdx.json"));
   if (!evidenceFile || !sbomFile) fail(`${label} is missing evidence or SBOM metadata`);
@@ -76,6 +89,12 @@ for (const [label, definition] of Object.entries(platformDefinitions)) {
 }
 
 if (sourceCommits.size !== 1) fail("release bundles do not share one source commit");
+if (localFirstReportHashes.size !== 1 || !localFirstReportSource) {
+  fail("release bundles do not share one local-first conformance report");
+}
+
+const localFirstReportName = `research-desk-${version}-local-first-report.json`;
+copy(localFirstReportSource, path.join(outputDir, localFirstReportName));
 
 for (const host of ["macOS", "Windows", "Linux"]) {
   if (downloads.filter((entry) => entry.host === host && entry.primary).length !== 1) {
@@ -92,6 +111,7 @@ const index = {
   generatedAt: new Date().toISOString(),
   downloads,
   verification: evidence,
+  localFirstReport: localFirstReportName,
   provenance: {
     state: "github-attested",
     command: `gh attestation verify <download> --repo OthmaneBlial/rustframe`,

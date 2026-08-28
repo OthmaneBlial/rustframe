@@ -117,3 +117,34 @@ fn migrates_pre_v1_manifests_without_rewriting_application_logic() {
     assert_eq!(manifest["schemaVersion"], 1);
     assert!(project.join("package.json").is_file());
 }
+
+#[test]
+fn reports_local_ownership_and_enforces_a_reviewed_capability_baseline() {
+    let temp = tempdir().unwrap();
+    run(temp.path(), &["new", "owned-desk"]);
+    let project = temp.path().join("owned-desk");
+    fs::create_dir_all(project.join("dist")).unwrap();
+    fs::copy(project.join("index.html"), project.join("dist/index.html")).unwrap();
+
+    let inspection = run(&project, &["inspect", "--local-first", "--json"]);
+    let inspection: Value = serde_json::from_slice(&inspection.stdout).unwrap();
+    assert_eq!(inspection["kind"], "rustframe.local-first-conformance");
+    assert_eq!(inspection["conformant"], true);
+    assert_eq!(inspection["network"]["productionServerRequired"], false);
+
+    let policy = run(&project, &["capabilities", "explain", "--json"]);
+    let policy: Value = serde_json::from_slice(&policy.stdout).unwrap();
+    assert_eq!(policy["kind"], "rustframe.capability-policy");
+    assert!(
+        policy["policyHash"]
+            .as_str()
+            .unwrap()
+            .starts_with("sha256:")
+    );
+
+    run(&project, &["capabilities", "check", "--write-baseline"]);
+    run(
+        &project,
+        &["capabilities", "check", "--deny-expansion", "--json"],
+    );
+}

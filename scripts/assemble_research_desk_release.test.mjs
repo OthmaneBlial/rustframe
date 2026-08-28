@@ -28,6 +28,13 @@ test("release assembly exposes one primary download per host and every proof fil
       schemaVersion: 1,
       version: "0.1.0-rc.1",
       sourceCommit: "a".repeat(40),
+      policyHash: "sha256:fixture-policy",
+    })}\n`);
+    fs.writeFileSync(path.join(directory, "rustframe-local-first-report.json"), `${JSON.stringify({
+      schemaVersion: 1,
+      kind: "rustframe.local-first-conformance",
+      conformant: true,
+      policyHash: "sha256:fixture-policy",
     })}\n`);
     fs.writeFileSync(path.join(directory, `research-desk-${label}-evidence.json`), `${JSON.stringify({
       product: "Research Desk",
@@ -59,5 +66,7 @@ test("release assembly exposes one primary download per host and every proof fil
     assert.equal(index.downloads.filter((entry) => entry.host === host && entry.primary).length, 1);
   }
   assert.equal(index.verification.length, 6);
+  assert.equal(index.localFirstReport, "research-desk-0.1.0-rc.1-local-first-report.json");
+  assert.ok(fs.statSync(path.join(output, index.localFirstReport)).isFile());
   assert.match(fs.readFileSync(path.join(output, "SHA256SUMS"), "utf8"), /research-desk-release-index\.json/u);
 });

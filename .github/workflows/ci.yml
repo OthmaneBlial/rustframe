@@ -95,6 +95,10 @@ jobs:
           scratch="$(mktemp -d)"
           cli="$PWD/target/debug/rustframe"
           cargo build -p rustframe-cli
+          "$cli" --project apps/research-desk inspect --local-first --json > "$scratch/research-desk-local-first.json"
+          "$cli" --project apps/research-desk capabilities check --deny-expansion --json > "$scratch/research-desk-capabilities.json"
+          test -s "$scratch/research-desk-local-first.json"
+          test -s "$scratch/research-desk-capabilities.json"
           api_tarball="$(cd packages/rustframe-api && npm pack --pack-destination "$scratch" | tail -n 1)"
           (cd "$scratch" && "$cli" new standalone --template vanilla-ts)
           npm --prefix "$scratch/standalone" install "$scratch/$api_tarball"

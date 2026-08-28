@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "kind": "rustframe.capability-policy",
+  "appId": "research-desk",
+  "securityModel": "local-first",
+  "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  "persistGrants": true,
+  "filesystemRoots": [],
+  "windows": {
+    "main": [
+      "clipboard:write",
+      "db:backup",
+      "db:read",
+      "db:restore",
+      "db:write",
+      "dialog:open",
+      "dialog:save",
+      "fs:grants:read",
+      "fs:grants:watch",
+      "fs:grants:write",
+      "window:create"
+    ],
+    "reader": [],
+    "reader-*": [
+      "clipboard:write",
+      "db:read",
+      "db:write",
+      "fs:grants:read",
+      "window:create"
+    ]
+  },
+  "shellCommands": [],
+  "policyHash": "sha256:2ee9cdb02090140f77d6e68eca4c9aa4433f3a01309b707cf1c09bb963ae04c4"
+}

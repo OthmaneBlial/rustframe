@@ -33,7 +33,9 @@ pub enum Command {
     /// Validate the manifest, assets, schema, and generated types.
     Validate(OutputArgs),
     /// Inspect the resolved public project contract.
-    Inspect(OutputArgs),
+    Inspect(InspectArgs),
+    /// Explain, diff, and enforce the effective capability policy.
+    Capabilities(CapabilitiesArgs),
     /// Generate deterministic database TypeScript types.
     Codegen(CodegenArgs),
     /// Build the frontend and native runner.
@@ -128,6 +130,54 @@ pub struct DevArgs {
 pub struct OutputArgs {
     #[arg(long)]
     pub json: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct InspectArgs {
+    /// Emit the stable machine-readable report.
+    #[arg(long)]
+    pub json: bool,
+
+    /// Inspect local ownership, remote dependencies, data portability, and packaging policy.
+    #[arg(long)]
+    pub local_first: bool,
+
+    /// Write the selected JSON report to a file as well as standard output.
+    #[arg(long, value_name = "PATH", requires = "json")]
+    pub output: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct CapabilitiesArgs {
+    #[command(subcommand)]
+    pub command: CapabilitiesCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CapabilitiesCommand {
+    /// Explain the effective policy for every declared window and machine scope.
+    Explain(OutputArgs),
+    /// Compare two manifests or policy snapshots.
+    Diff {
+        old: PathBuf,
+        new: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Compare the current project with a reviewed baseline.
+    Check {
+        /// Fail when the current policy expands beyond the baseline.
+        #[arg(long)]
+        deny_expansion: bool,
+        /// Baseline path, relative to the project when not absolute.
+        #[arg(long, default_value = ".rustframe/capabilities-baseline.json")]
+        baseline: PathBuf,
+        /// Replace the baseline with the current normalized policy.
+        #[arg(long, conflicts_with = "deny_expansion")]
+        write_baseline: bool,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Args)]

@@ -224,7 +224,8 @@ rustframe new          Create an independent Vite project
 rustframe doctor       Check Rust and native host prerequisites
 rustframe dev          Run Vite and the desktop process together
 rustframe validate     Validate the complete static project contract
-rustframe inspect      Explain the resolved project; add --json for automation
+rustframe inspect      Explain the project or emit a local-first conformance report
+rustframe capabilities Explain, diff, and deny unreviewed permission expansion
 rustframe codegen      Generate deterministic database types
 rustframe build        Build the frontend, then the hidden native runner
 rustframe package      Produce native packages, checksums, and metadata
@@ -292,6 +293,7 @@ Choose Tauri or Electron when you need a broad plugin ecosystem, mobile targets,
 - [Build a packaged tool](docs/build-in-20-minutes.md)
 - [Architecture](docs/architecture-overview.md)
 - [Runtime and capabilities](docs/runtime-and-capabilities.md)
+- [Local-first and capability inspection](docs/local-first-and-capabilities.md)
 - [Cookbook](docs/cookbook.md)
 - [Workflow guides](docs/workflow-guides.md)
 - [Generated frontend API reference](docs/api-reference.md)
