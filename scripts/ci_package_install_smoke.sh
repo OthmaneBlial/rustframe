@@ -138,8 +138,8 @@ if (-not (Test-Path $binary)) { throw "NSIS did not install $binary" }
 $env:RUSTFRAME_SMOKE_TEST = '1'
 $env:RUSTFRAME_SMOKE_OUTPUT = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'nsis.json'
 $env:RUSTFRAME_SMOKE_DATA_DIR = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'nsis-data'
-& $binary
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed NSIS application smoke failed' }
+$app = Start-Process -FilePath $binary -Wait -PassThru
+if ($app.ExitCode -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed NSIS application smoke failed' }
 $result = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
 if ($result.ExitCode -ne 0) { throw "NSIS uninstall failed with exit code $($result.ExitCode)" }
 Start-Sleep -Seconds 2
@@ -176,8 +176,8 @@ if (-not (Test-Path $binary)) { throw "MSI did not install $binary" }
 $env:RUSTFRAME_SMOKE_TEST = '1'
 $env:RUSTFRAME_SMOKE_OUTPUT = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'msi.json'
 $env:RUSTFRAME_SMOKE_DATA_DIR = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'msi-data'
-& $binary
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed MSI application smoke failed' }
+$app = Start-Process -FilePath $binary -Wait -PassThru
+if ($app.ExitCode -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed MSI application smoke failed' }
 $arguments = @('/x', $installer, '/qn', '/norestart')
 $result = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -PassThru
 if ($result.ExitCode -ne 0) { throw "MSI uninstall failed with exit code $($result.ExitCode)" }
