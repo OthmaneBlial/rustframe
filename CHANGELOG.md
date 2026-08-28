@@ -16,6 +16,9 @@ All notable RustFrame changes are documented here. RustFrame follows [Semantic V
 - A cross-platform public-artifact smoke workflow that exercises the registry-only quickstart after a release is published.
 - An interactive least-privilege policy explorer, accessible installation tabs, keyboard-safe mobile navigation, and task-filterable mirrored documentation.
 - Canonical metadata, structured data, social previews, sitemap, robots policy, `llms.txt`, and an automated site contract covering local links, image budgets, headings, and metadata.
+- A schema-to-TypeScript workbench whose golden fixture is checked against the Rust CLI, including a locally generated runnable starter ZIP.
+- Generated frontend API and manifest references, full-text documentation search, RC version visibility, previous/next navigation, troubleshooting, and workflow-shaped guides.
+- Playwright desktop/mobile journeys and a Lighthouse CI gate requiring 95+ category scores, LCP at or below 2.5 seconds, and CLS at or below 0.1.
 
 ## [0.1.0-rc.1] - 2026-08-13
 

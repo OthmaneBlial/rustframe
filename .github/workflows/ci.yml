@@ -73,6 +73,8 @@ jobs:
       - name: Verify public documentation and schema contracts
         run: |
           node --check site/app.js
+          node --check site/codegen.js
+          node scripts/generate_reference_docs.mjs --check
           node scripts/check_public_contracts.mjs
           node scripts/check_site.mjs
 
@@ -108,6 +110,28 @@ jobs:
             RUSTFRAME_SMOKE_DATA_DIR="$scratch/standalone/target/rustframe/smoke-data" \
             "$scratch/standalone/target/rustframe/native/release/standalone"
           test -s "$scratch/standalone/target/rustframe/smoke.json"
+
+  site-quality:
+    name: Site browser and Lighthouse contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install site quality tools
+        run: |
+          npm --prefix site ci
+          (cd site && npx playwright install --with-deps chromium)
+      - name: Browser journeys
+        run: npm --prefix site test
+      - name: Lighthouse quality gate
+        shell: bash
+        run: |
+          cd site
+          CHROME_PATH="$(node --input-type=module -e 'import { chromium } from "playwright"; console.log(chromium.executablePath())')" npm run audit
 
   publish-dry-run:
     name: Published artifact contract

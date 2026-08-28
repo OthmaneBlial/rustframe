@@ -255,4 +255,13 @@ mod tests {
         assert!(output.contains("interface WorkItemInsert"));
         assert!(output.contains("type WorkItemUpdate = Partial<WorkItemInsert>"));
     }
+
+    #[test]
+    fn website_codegen_fixture_matches_the_cli() {
+        let schema: Schema =
+            serde_json::from_str(include_str!("../../../site/examples/schema.json")).unwrap();
+        let expected = include_str!("../../../site/examples/rustframe.generated.ts");
+
+        assert_eq!(render_typescript(&schema), expected);
+    }
 }

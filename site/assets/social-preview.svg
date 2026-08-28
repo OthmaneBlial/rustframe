@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#11130f" stroke-opacity=".09"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="#f2efe5"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <path d="M0 0h1200v14H0z" fill="#1647d8"/>
+  <g transform="translate(58 54) rotate(-2 45 45)">
+    <rect width="90" height="90" fill="#11130f"/>
+    <path d="M45 0h45v90H45z" fill="#ff4d00"/>
+    <rect x="7" y="7" width="76" height="76" fill="none" stroke="#f2efe5" stroke-opacity=".55"/>
+    <text x="12" y="61" fill="#f2efe5" font-family="Arial Black,Arial" font-size="34" font-weight="900">R</text>
+    <text x="56" y="61" fill="#11130f" font-family="Arial Black,Arial" font-size="34" font-weight="900">F</text>
+  </g>
+  <text x="170" y="86" fill="#11130f" font-family="Arial Black,Arial" font-size="30" font-weight="900">RustFrame</text>
+  <text x="170" y="116" fill="#1647d8" font-family="monospace" font-size="14" font-weight="700" letter-spacing="2">LOCAL WORKFLOW KIT / RC 0.1</text>
+  <g font-family="Arial Black,Arial" font-size="76" font-weight="900" letter-spacing="-4">
+    <text x="58" y="238" fill="#11130f">YOUR FRONTEND.</text>
+    <text x="58" y="320" fill="#1647d8">THEIR FILES.</text>
+    <text x="58" y="402" fill="#11130f">ONE NATIVE WORKFLOW.</text>
+  </g>
+  <text x="62" y="455" fill="#42463d" font-family="Arial,Helvetica" font-size="22">Typed SQLite · consent-scoped machine access · native installers</text>
+  <g transform="translate(655 482) rotate(-1 238 54)">
+    <rect x="8" y="8" width="476" height="108" fill="#11130f"/>
+    <rect width="476" height="108" fill="#171915" stroke="#11130f" stroke-width="3"/>
+    <circle cx="22" cy="19" r="4" fill="#ff4d00"/><circle cx="37" cy="19" r="4" fill="#ff4d00"/><circle cx="52" cy="19" r="4" fill="#ff4d00"/>
+    <text x="22" y="60" fill="#c7f65b" font-family="monospace" font-size="18">$</text>
+    <text x="48" y="60" fill="#f2efe5" font-family="monospace" font-size="18">rustframe new evidence-desk</text>
+    <text x="22" y="88" fill="#c7f65b" font-family="monospace" font-size="15">✓ typed schema  ✓ policy validated  ✓ package</text>
+  </g>
+  <rect x="58" y="520" width="420" height="58" fill="#c7f65b" stroke="#11130f" stroke-width="3"/>
+  <text x="82" y="557" fill="#11130f" font-family="monospace" font-size="16" font-weight="700">RUST-POWERED. FRONTEND-OWNED.</text>
+  <circle cx="1108" cy="88" r="54" fill="#ff4d00" stroke="#11130f" stroke-width="4"/>
+  <text x="1108" y="80" text-anchor="middle" fill="#11130f" font-family="monospace" font-size="12" font-weight="700">NO APP-</text>
+  <text x="1108" y="98" text-anchor="middle" fill="#11130f" font-family="monospace" font-size="12" font-weight="700">OWNED RUST</text>
+</svg>

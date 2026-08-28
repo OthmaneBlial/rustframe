@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const siteRoot = path.join(repoRoot, "site");
@@ -90,6 +90,19 @@ if (!read("robots.txt").includes("/rustframe/sitemap.xml")) fail("robots.txt: si
 if (!read("llms.txt").includes("## Primary pages")) fail("llms.txt: primary page map is missing");
 if (fs.statSync(path.join(siteRoot, "assets/screenshots/research-desk.webp")).size > 250_000) {
   fail("research-desk.webp exceeds the 250 KB proof-image budget");
+}
+
+await import(pathToFileURL(path.join(siteRoot, "codegen.js")));
+const codegen = globalThis.RustFrameSiteTools;
+const exampleSchema = JSON.parse(read("examples/schema.json"));
+const expectedTypes = read("examples/rustframe.generated.ts");
+if (!codegen || codegen.renderTypescript(exampleSchema) !== expectedTypes) {
+  fail("codegen.js: browser output does not match the CLI-owned golden fixture");
+} else {
+  const starterZip = codegen.buildStarterZip(exampleSchema);
+  if (starterZip.length < 1024 || starterZip[0] !== 0x50 || starterZip[1] !== 0x4b) {
+    fail("codegen.js: generated starter is not a valid ZIP payload");
+  }
 }
 
 if (errors.length) {

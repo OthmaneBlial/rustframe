@@ -68,6 +68,30 @@ const DOCS = {
         source: "docs/cookbook.md",
         path: "docs/cookbook.md",
     },
+    "workflow-guides": {
+        title: "Workflow guides",
+        navLabel: "Workflow guides",
+        section: "core",
+        summary: "Shape document desks, review queues, media libraries, and offline operations tools.",
+        source: "docs/workflow-guides.md",
+        path: "docs/workflow-guides.md",
+    },
+    "api-reference": {
+        title: "Frontend API reference",
+        navLabel: "Frontend API reference",
+        section: "reference",
+        summary: "Read the generated public TypeScript contract for data, files, windows, events, and errors.",
+        source: "docs/api-reference.md",
+        path: "docs/api-reference.md",
+    },
+    "manifest-reference": {
+        title: "Manifest reference",
+        navLabel: "Manifest reference",
+        section: "reference",
+        summary: "Inspect every schema v1 field and its machine-generated JSON Schema constraint.",
+        source: "docs/manifest-reference.md",
+        path: "docs/manifest-reference.md",
+    },
     "threat-model": {
         title: "Threat model",
         navLabel: "Threat model",
@@ -115,6 +139,14 @@ const DOCS = {
         summary: "Use the operator checklist before calling a RustFrame app ready to ship.",
         source: "docs/release-checklist.md",
         path: "docs/release-checklist.md",
+    },
+    "troubleshooting": {
+        title: "Troubleshooting",
+        navLabel: "Troubleshooting",
+        section: "operations",
+        summary: "Resolve install, validation, development, grant, build, and packaging failures by stage.",
+        source: "docs/troubleshooting.md",
+        path: "docs/troubleshooting.md",
     },
     "community-templates": {
         title: "Community templates",
@@ -169,6 +201,7 @@ setupNavigation();
 setupCommandTabs();
 setupCopyButtons();
 setupPolicyLab();
+setupSchemaLab();
 setupRevealObserver();
 setupHomePage();
 setupDocsPage();
@@ -294,6 +327,75 @@ function setupPolicyLab() {
     render();
 }
 
+function setupSchemaLab() {
+    const lab = document.querySelector("[data-schema-lab]");
+    const tools = globalThis.RustFrameSiteTools;
+    if (!lab || !tools) {
+        return;
+    }
+
+    const input = lab.querySelector("[data-schema-input]");
+    const output = lab.querySelector("[data-types-output]");
+    const status = lab.querySelector("[data-schema-status]");
+    const reset = lab.querySelector("[data-schema-reset]");
+    const download = lab.querySelector("[data-starter-download]");
+    let example = "";
+    let currentSchema = null;
+    let renderTimer = null;
+
+    const render = () => {
+        status.classList.remove("is-valid", "is-invalid");
+        try {
+            const schema = JSON.parse(input.value);
+            const errors = tools.validateSchema(schema);
+            if (errors.length) {
+                throw new Error(errors[0]);
+            }
+            output.textContent = tools.renderTypescript(schema);
+            status.textContent = `${schema.tables.length} table${schema.tables.length === 1 ? "" : "s"} · valid schema v${schema.version}`;
+            status.classList.add("is-valid");
+            download.disabled = false;
+            currentSchema = schema;
+        } catch (error) {
+            output.textContent = `Validation stopped\n\n${String(error.message || error)}`;
+            status.textContent = "Fix the highlighted contract";
+            status.classList.add("is-invalid");
+            download.disabled = true;
+            currentSchema = null;
+        }
+    };
+
+    input.addEventListener("input", () => {
+        window.clearTimeout(renderTimer);
+        renderTimer = window.setTimeout(render, 120);
+    });
+    reset.addEventListener("click", () => {
+        input.value = example;
+        render();
+        input.focus();
+    });
+    download.addEventListener("click", () => {
+        if (currentSchema) {
+            tools.downloadStarter(currentSchema);
+        }
+    });
+
+    fetch("examples/schema.json")
+        .then((response) => {
+            if (!response.ok) throw new Error("Unable to load the verified schema fixture");
+            return response.text();
+        })
+        .then((source) => {
+            example = source.trim();
+            input.value = example;
+            render();
+        })
+        .catch((error) => {
+            status.textContent = String(error.message || error);
+            status.classList.add("is-invalid");
+        });
+}
+
 function setupRevealObserver() {
     if (!REVEAL_ITEMS.length || !("IntersectionObserver" in window)) {
         REVEAL_ITEMS.forEach((item) => item.classList.add("is-visible"));
@@ -352,6 +454,8 @@ function setupDocsPage() {
     const sourceNode = document.getElementById("docs-source");
     const navRoot = document.getElementById("docs-nav");
     const countNode = document.getElementById("docs-count");
+    const searchStatus = document.getElementById("docs-search-status");
+    const pager = document.getElementById("docs-pager");
     if (navRoot) {
         navRoot.innerHTML = renderDocsNav();
     }
@@ -359,37 +463,55 @@ function setupDocsPage() {
         countNode.textContent = `${Object.keys(DOCS).length} mirrored guides`;
     }
     const navLinks = Array.from(document.querySelectorAll("[data-doc-link]"));
+    const searchIndex = new Map(
+        Object.entries(DOCS).map(([id, meta]) => [id, `${meta.title} ${meta.summary}`.toLowerCase()])
+    );
 
     const params = new URLSearchParams(window.location.search);
     const requested = params.get("doc");
     const activeId = normalizeDocId(requested);
 
-    if (searchInput) {
-        searchInput.addEventListener("input", () => {
-            const query = searchInput.value.trim().toLowerCase();
-            navLinks.forEach((link) => {
-                const label = link.textContent.toLowerCase();
-                link.classList.toggle("is-hidden", Boolean(query) && !label.includes(query));
-            });
-            Array.from(document.querySelectorAll(".docs-nav-group")).forEach((group) => {
-                const visibleLinks = group.querySelectorAll("a:not(.is-hidden)");
-                group.classList.toggle("is-hidden", !visibleLinks.length);
-            });
+    const applySearch = () => {
+        const query = searchInput?.value.trim().toLowerCase() || "";
+        let visible = 0;
+        navLinks.forEach((link) => {
+            const matches = !query || searchIndex.get(link.dataset.docLink)?.includes(query);
+            link.classList.toggle("is-hidden", !matches);
+            if (matches) visible += 1;
         });
-    }
+        Array.from(document.querySelectorAll(".docs-nav-group")).forEach((group) => {
+            const visibleLinks = group.querySelectorAll("a:not(.is-hidden)");
+            group.classList.toggle("is-hidden", !visibleLinks.length);
+        });
+        if (searchStatus) {
+            searchStatus.textContent = query
+                ? `${visible} guide${visible === 1 ? "" : "s"} match “${query}”`
+                : `${Object.keys(DOCS).length} guides indexed across full text`;
+        }
+    };
 
-    async function activateDoc(docId, { pushState = false, scroll = true } = {}) {
+    searchInput?.addEventListener("input", applySearch);
+    void hydrateDocsSearch(searchIndex).then(applySearch);
+
+    async function activateDoc(docId, { pushState = false, scroll = true, anchor = "" } = {}) {
         const resolved = normalizeDocId(docId);
         navLinks.forEach((link) => {
             link.classList.toggle("is-active", link.dataset.docLink === resolved);
         });
         await loadDoc(resolved, docsContent, titleNode, sourceNode);
+        if (pager) {
+            pager.innerHTML = renderDocsPager(resolved);
+        }
         if (pushState) {
             const next = new URL(window.location.href);
             next.searchParams.set("doc", resolved);
+            next.hash = anchor ? `#${anchor}` : "";
             window.history.pushState({ doc: resolved }, "", next);
         }
-        if (scroll) {
+        const requestedAnchor = anchor || (!pushState ? window.location.hash.slice(1) : "");
+        if (requestedAnchor) {
+            scrollDocsToAnchor(docsContent, requestedAnchor);
+        } else if (scroll) {
             scrollDocsToTitle(docsContent);
         }
     }
@@ -401,13 +523,17 @@ function setupDocsPage() {
         });
     });
 
-    docsContent.addEventListener("click", async (event) => {
+    docsContent.parentElement.addEventListener("click", async (event) => {
         const link = event.target.closest("a[data-doc-target]");
         if (!link) {
             return;
         }
         event.preventDefault();
-        await activateDoc(link.dataset.docTarget, { pushState: true, scroll: true });
+        await activateDoc(link.dataset.docTarget, {
+            pushState: true,
+            scroll: true,
+            anchor: link.dataset.docAnchor || "",
+        });
     });
 
     window.addEventListener("popstate", async () => {
@@ -421,6 +547,7 @@ function setupDocsPage() {
 async function loadDoc(docId, docsContent, titleNode, sourceNode) {
     const meta = DOCS[docId];
     titleNode.textContent = meta.title;
+    document.title = `${meta.title} — RustFrame Docs`;
     sourceNode.textContent = meta.source;
     sourceNode.href = `${GITHUB_REPO_BASE}${meta.source}`;
 
@@ -437,6 +564,21 @@ async function loadDoc(docId, docsContent, titleNode, sourceNode) {
         docsContent.innerHTML = `<p>Unable to load the selected doc.</p><pre>${escapeHtml(String(error))}</pre>`;
         enhanceDocsCodeBlocks(docsContent);
     }
+}
+
+async function hydrateDocsSearch(searchIndex) {
+    await Promise.all(
+        Object.entries(DOCS).map(async ([id, meta]) => {
+            try {
+                const response = await fetch(meta.path);
+                if (!response.ok) return;
+                const markdown = await response.text();
+                searchIndex.set(id, `${searchIndex.get(id)} ${markdown}`.toLowerCase());
+            } catch {
+                // Metadata search remains available if a mirrored guide cannot be indexed.
+            }
+        })
+    );
 }
 
 function setupShowcasePage() {
@@ -524,6 +666,7 @@ function renderFeaturedDocCard(docId) {
 function renderDocsNav() {
     const sections = [
         { id: "core", label: "Start here" },
+        { id: "reference", label: "Generated reference" },
         { id: "operations", label: "Ship and operate" },
         { id: "ecosystem", label: "Patterns and examples" },
     ];
@@ -554,6 +697,17 @@ function renderDocsNav() {
             `;
         })
         .join("");
+}
+
+function renderDocsPager(activeId) {
+    const ids = Object.keys(DOCS);
+    const index = ids.indexOf(activeId);
+    const previous = index > 0 ? ids[index - 1] : null;
+    const next = index >= 0 && index < ids.length - 1 ? ids[index + 1] : null;
+    return `
+        ${previous ? `<a href="docs.html?doc=${previous}" data-doc-target="${previous}"><span>Previous</span><strong>← ${escapeHtml(DOCS[previous].title)}</strong></a>` : "<span></span>"}
+        ${next ? `<a href="docs.html?doc=${next}" data-doc-target="${next}"><span>Next</span><strong>${escapeHtml(DOCS[next].title)} →</strong></a>` : "<span></span>"}
+    `;
 }
 
 function enhanceDocsCodeBlocks(container) {
@@ -604,6 +758,22 @@ function scrollDocsToTitle(docsContent) {
 
     window.scrollTo({
         top: Math.max(0, targetTop),
+        behavior: reducedMotion ? "auto" : "smooth",
+    });
+}
+
+function scrollDocsToAnchor(docsContent, anchor) {
+    const target = docsContent.querySelector(`#${CSS.escape(anchor)}`);
+    if (!target) {
+        scrollDocsToTitle(docsContent);
+        return;
+    }
+    const reducedMotion =
+        window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const header = document.querySelector(".docs-topbar");
+    const offset = header ? header.getBoundingClientRect().height + 20 : 20;
+    window.scrollTo({
+        top: Math.max(0, window.scrollY + target.getBoundingClientRect().top - offset),
         behavior: reducedMotion ? "auto" : "smooth",
     });
 }
@@ -791,7 +961,9 @@ function renderInline(text) {
     value = value.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => {
         const target = resolveInternalDocHref(href);
         if (target) {
-            return `<a href="docs.html?doc=${target}" data-doc-target="${target}">${label}</a>`;
+            const anchor = target.anchor ? `#${escapeHtml(target.anchor)}` : "";
+            const anchorData = target.anchor ? ` data-doc-anchor="${escapeHtml(target.anchor)}"` : "";
+            return `<a href="docs.html?doc=${target.id}${anchor}" data-doc-target="${target.id}"${anchorData}>${label}</a>`;
         }
 
         if (isExternalHref(href)) {
@@ -813,6 +985,9 @@ function normalizeDocId(value) {
 }
 
 function navSectionLabel(section) {
+    if (section === "reference") {
+        return "Reference";
+    }
     if (section === "operations") {
         return "Operations";
     }
@@ -838,7 +1013,11 @@ function resolveInternalDocHref(href) {
     }
 
     const normalized = normalizeDocSlug(href);
-    return DOC_SOURCE_TO_ID.get(normalized) || null;
+    const id = DOC_SOURCE_TO_ID.get(normalized) || null;
+    if (!id) {
+        return null;
+    }
+    return { id, anchor: href.split("#")[1] || "" };
 }
 
 function isExternalHref(href) {

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "tables": [
+    {
+      "name": "projects",
+      "columns": [
+        { "name": "title", "type": "text", "required": true },
+        { "name": "status", "type": "text", "required": true, "default": "inbox" },
+        { "name": "notes", "type": "text" },
+        { "name": "pinned", "type": "boolean", "default": false }
+      ]
+    }
+  ]
+}

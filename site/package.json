@@ -1,0 +1,15 @@
+{
+  "name": "rustframe-site-tests",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "audit": "node tests/lighthouse.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "chrome-launcher": "1.2.1",
+    "lighthouse": "13.4.1"
+  }
+}

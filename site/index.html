@@ -7,6 +7,7 @@
     <meta name="description" content="Build native macOS, Windows, and Linux workflow tools with TypeScript, embedded SQLite, consent-scoped files, and real installers.">
     <meta name="theme-color" content="#f2efe5">
     <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="canonical" href="https://othmaneblial.github.io/rustframe/">
     <link rel="preload" href="assets/fonts/archivo-black-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="assets/fonts/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -16,10 +17,12 @@
     <meta property="og:title" content="RustFrame — Local-first desktop tools in TypeScript">
     <meta property="og:description" content="Own the workflow, not a native backend. RustFrame supplies typed SQLite, consent-scoped machine access, and native packaging.">
     <meta property="og:url" content="https://othmaneblial.github.io/rustframe/">
-    <meta property="og:image" content="https://othmaneblial.github.io/rustframe/assets/screenshots/research-desk.webp">
-    <meta property="og:image:width" content="2696">
-    <meta property="og:image:height" content="1562">
+    <meta property="og:image" content="https://othmaneblial.github.io/rustframe/assets/social-preview.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="RustFrame local workflow kit: your frontend, their files, one native workflow">
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://othmaneblial.github.io/rustframe/assets/social-preview.png">
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -52,7 +55,7 @@
     <div class="paper-noise" aria-hidden="true"></div>
 
     <header class="site-header" data-site-header>
-        <a class="brand" href="index.html" aria-label="RustFrame home">
+        <a class="brand" href="index.html">
             <span class="brand-mark" aria-hidden="true"><i>R</i><i>F</i></span>
             <span class="brand-copy"><strong>RustFrame</strong><small>Local workflow kit</small></span>
         </a>
@@ -60,7 +63,7 @@
             <span>Menu</span><i aria-hidden="true"></i>
         </button>
         <nav class="site-nav" id="site-nav" aria-label="Primary navigation" data-site-nav>
-            <a href="#why">Why</a><a href="#workflow">Workflow</a><a href="#security">Security</a>
+            <a href="#why">Why</a><a href="#workflow">Workflow</a><a href="#builder">Builder</a><a href="#security">Security</a>
             <a href="showcase.html">Showcase</a><a href="docs.html">Docs</a>
             <a class="nav-github" href="https://github.com/OthmaneBlial/rustframe">GitHub <span aria-hidden="true">↗</span></a>
         </nav>
@@ -126,6 +129,26 @@
                 <article class="workflow-step reveal"><span>03</span><div><strong>Develop</strong><h3>Vite + native window</h3><p>One process supervisor runs the frontend and hidden native runner together.</p></div><code>rustframe dev</code></article>
                 <article class="workflow-step reveal"><span>04</span><div><strong>Prove</strong><h3>Validate the boundary</h3><p>Unknown permissions, unsafe paths, weak CSPs, and stale generated types fail before shipping.</p></div><code>rustframe validate</code></article>
                 <article class="workflow-step reveal"><span>05</span><div><strong>Ship</strong><h3>Host-native packages</h3><p>Create DMG, MSI, NSIS, AppImage, and Debian output with checksums and metadata.</p></div><code>rustframe package</code></article>
+            </div>
+        </section>
+
+        <section class="schema-lab section-shell" id="builder">
+            <header class="section-heading section-heading-side reveal">
+                <div><p class="section-kicker">Schema in. Types out.</p><h2>Edit a real RustFrame data contract.</h2></div>
+                <p>This browser tool mirrors the CLI’s deterministic TypeScript generator. Its golden fixture is checked against the Rust implementation in the test suite.</p>
+            </header>
+            <div class="schema-workbench reveal" data-schema-lab>
+                <section class="schema-editor">
+                    <div class="workbench-bar"><strong>data/schema.json</strong><span data-schema-status role="status">Loading verified example…</span></div>
+                    <label class="sr-only" for="schema-input">RustFrame database schema JSON</label>
+                    <textarea id="schema-input" data-schema-input spellcheck="false" autocomplete="off"></textarea>
+                    <div class="schema-actions"><button type="button" class="button button-paper" data-schema-reset>Reset example</button><button type="button" class="button button-signal" data-starter-download disabled>Download generated starter ↓</button></div>
+                    <p class="lab-disclosure">The ZIP is generated locally in your browser. It includes this schema, matching types, a minimal Vite app, and the current RC dependency. npm installation remains gated until the first public <code>rustframe-api</code> publication.</p>
+                </section>
+                <section class="type-preview">
+                    <div class="workbench-bar"><strong>src/rustframe.generated.ts</strong><span>read-only output</span></div>
+                    <pre><code data-types-output>Waiting for a valid schema…</code></pre>
+                </section>
             </div>
         </section>
 
@@ -207,6 +230,7 @@
         <div><a href="docs.html">Docs</a><a href="showcase.html">Showcase</a><a href="https://github.com/OthmaneBlial/rustframe/blob/main/SECURITY.md">Security</a><a href="https://github.com/OthmaneBlial/rustframe/releases">Releases</a></div>
         <p>RustFrame is an early release candidate. Platform and signing boundaries are stated explicitly in every release.</p>
     </footer>
+    <script src="codegen.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
