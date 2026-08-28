@@ -28,7 +28,7 @@ resvg = { version = "0.47.0", default-features = false }
 rustframe = { package = "rustframe-runtime", version = "=0.1.0-rc.2", path = "../rustframe", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
