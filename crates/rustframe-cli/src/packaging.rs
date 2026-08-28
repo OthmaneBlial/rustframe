@@ -312,6 +312,7 @@ fn command_failure(label: &str, output: &std::process::Output) -> String {
     )
 }
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn non_empty_env(name: &str) -> Option<String> {
     std::env::var(name)
         .ok()
