@@ -1,7 +1,9 @@
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, VecDeque},
-    env, fs,
+    env,
+    ffi::OsString,
+    fs,
     io::{Read, Write},
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
@@ -52,6 +54,8 @@ const MAX_OPEN_FILE_COUNT: usize = 64;
 const MAX_SINGLE_INSTANCE_MESSAGE_BYTES: u64 = 64 * 1024;
 const SINGLE_INSTANCE_CONNECT_RETRIES: usize = 40;
 const SINGLE_INSTANCE_RETRY_DELAY: Duration = Duration::from_millis(50);
+const SMOKE_OUTPUT_ARGUMENT: &str = "--rustframe-smoke-output";
+const SMOKE_DATA_DIR_ARGUMENT: &str = "--rustframe-smoke-data-dir";
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -559,16 +563,46 @@ struct RuntimeSmokeConfig {
 
 impl RuntimeSmokeConfig {
     fn from_env() -> Option<Self> {
-        let enabled = env::var("RUSTFRAME_SMOKE_TEST")
-            .ok()
-            .map(|value| value != "0")
-            .unwrap_or(false);
+        Self::from_sources(
+            env::var("RUSTFRAME_SMOKE_TEST")
+                .ok()
+                .map(|value| value != "0")
+                .unwrap_or(false),
+            env::var_os("RUSTFRAME_SMOKE_OUTPUT"),
+            env::var_os("RUSTFRAME_SMOKE_DATA_DIR"),
+            env::args_os().skip(1).collect(),
+        )
+    }
 
-        enabled.then(|| Self {
-            output_path: env::var_os("RUSTFRAME_SMOKE_OUTPUT").map(PathBuf::from),
-            data_dir: env::var_os("RUSTFRAME_SMOKE_DATA_DIR").map(PathBuf::from),
+    fn from_sources(
+        environment_enabled: bool,
+        environment_output: Option<OsString>,
+        environment_data_dir: Option<OsString>,
+        arguments: Vec<OsString>,
+    ) -> Option<Self> {
+        let argument_output = internal_path_argument(&arguments, SMOKE_OUTPUT_ARGUMENT);
+        let argument_data_dir = internal_path_argument(&arguments, SMOKE_DATA_DIR_ARGUMENT);
+        let arguments_enabled = argument_output.is_some() && argument_data_dir.is_some();
+
+        (environment_enabled || arguments_enabled).then(|| Self {
+            output_path: argument_output.or_else(|| environment_output.map(PathBuf::from)),
+            data_dir: argument_data_dir.or_else(|| environment_data_dir.map(PathBuf::from)),
         })
     }
+}
+
+fn internal_path_argument(arguments: &[OsString], name: &str) -> Option<PathBuf> {
+    let prefix = format!("{name}=");
+    arguments.iter().enumerate().find_map(|(index, argument)| {
+        let value = argument.to_string_lossy();
+        if value == name {
+            return arguments.get(index + 1).map(PathBuf::from);
+        }
+        value
+            .strip_prefix(&prefix)
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -3201,9 +3235,11 @@ mod tests {
     use std::{
         borrow::Cow,
         collections::BTreeMap,
+        ffi::OsString,
         fs,
         io::{Read, Write},
         net::{Ipv4Addr, TcpListener},
+        path::PathBuf,
         thread,
     };
 
@@ -3214,13 +3250,14 @@ mod tests {
 
     use super::{
         EmbeddedAssetRouter, EmbeddedDatabaseConfig, FrontendSecurity, FrontendTrust,
-        MethodExecution, ResolvedFrontendSecurity, SINGLE_INSTANCE_ENDPOINT_FILE_NAME,
-        SensitiveRateLimiter, SingleInstanceCoordinator, SingleInstanceEndpoint,
-        SingleInstanceRequest, WindowRecord, active_dev_url, asset_response, authorize_method,
-        authorize_request, bridge_config_script, load_database_capability, method_execution,
-        normalize_asset_path, normalize_window_route, random_hex_token,
-        read_single_instance_endpoint, sanitize_open_paths, send_single_instance_request,
-        window_pattern_matches, window_url, write_single_instance_endpoint,
+        MethodExecution, ResolvedFrontendSecurity, RuntimeSmokeConfig,
+        SINGLE_INSTANCE_ENDPOINT_FILE_NAME, SensitiveRateLimiter, SingleInstanceCoordinator,
+        SingleInstanceEndpoint, SingleInstanceRequest, WindowRecord, active_dev_url,
+        asset_response, authorize_method, authorize_request, bridge_config_script,
+        load_database_capability, method_execution, normalize_asset_path, normalize_window_route,
+        random_hex_token, read_single_instance_endpoint, sanitize_open_paths,
+        send_single_instance_request, window_pattern_matches, window_url,
+        write_single_instance_endpoint,
     };
 
     fn fixture(path: &str) -> Option<Cow<'static, [u8]>> {
@@ -3239,6 +3276,40 @@ mod tests {
     fn normalizes_root_asset_path() {
         assert_eq!(normalize_asset_path("/"), "index.html");
         assert_eq!(normalize_asset_path("/styles.css"), "styles.css");
+    }
+
+    #[test]
+    fn smoke_paths_can_travel_as_internal_process_arguments() {
+        let config = RuntimeSmokeConfig::from_sources(
+            false,
+            None,
+            None,
+            vec![
+                OsString::from("--rustframe-smoke-output=C:\\ci\\smoke.json"),
+                OsString::from("--rustframe-smoke-data-dir=C:\\ci\\data"),
+            ],
+        )
+        .expect("complete internal smoke arguments should enable the smoke check");
+
+        assert_eq!(
+            config.output_path,
+            Some(PathBuf::from("C:\\ci\\smoke.json"))
+        );
+        assert_eq!(config.data_dir, Some(PathBuf::from("C:\\ci\\data")));
+    }
+
+    #[test]
+    fn incomplete_internal_smoke_arguments_do_not_enable_release_smoke_mode() {
+        let config = RuntimeSmokeConfig::from_sources(
+            false,
+            None,
+            None,
+            vec![OsString::from(
+                "--rustframe-smoke-output=C:\\ci\\smoke.json",
+            )],
+        );
+
+        assert!(config.is_none());
     }
 
     #[test]
