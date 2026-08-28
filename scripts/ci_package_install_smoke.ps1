@@ -67,7 +67,9 @@ if ($HostFormat -eq 'nsis') {
     'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
   )
   $entry = Get-ItemProperty $uninstallRoots -ErrorAction SilentlyContinue |
-    Where-Object { $_.DisplayName -eq $ProductName } |
+    Where-Object {
+      $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -eq $ProductName
+    } |
     Select-Object -First 1
   if (-not $entry) { throw 'MSI uninstall registration was not found' }
 
