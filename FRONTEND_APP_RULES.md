@@ -22,7 +22,7 @@ Projects may live anywhere. Commands resolve the nearest `rustframe.json`, or th
 
 ## Manifest
 
-- Set `$schema` to `https://rustframe.dev/schemas/v1/rustframe.schema.json` and `schemaVersion` to `1`.
+- Set `$schema` to `https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json` and `schemaVersion` to `1`. Projects created with the retired release-candidate URL can update it with `rustframe migrate`.
 - Unknown fields, undeclared windows, unknown or duplicate permissions, unsafe relative paths, missing assets, invalid commands, and incompatible trust settings are errors.
 - Keep a restrictive CSP in `security.csp` and the matching `index.html` meta tag.
 - Use exact window IDs or one trailing wildcard, such as `reader-*`, for permission scopes.

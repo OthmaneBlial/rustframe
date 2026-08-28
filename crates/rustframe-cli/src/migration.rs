@@ -2,7 +2,7 @@ use std::{fs, path::Path};
 
 use serde_json::{Map, Value, json};
 
-use crate::manifest::SCHEMA_URL;
+use crate::manifest::{LEGACY_SCHEMA_URL, SCHEMA_URL};
 
 pub fn migrate_project(project: &Path, dry_run: bool) -> Result<(), String> {
     let manifest_path = project.join("rustframe.json");
@@ -10,6 +10,27 @@ pub fn migrate_project(project: &Path, dry_run: bool) -> Result<(), String> {
         .map_err(|error| format!("failed to read '{}': {error}", manifest_path.display()))?;
     let old: Value = serde_json::from_str(&source)
         .map_err(|error| format!("failed to parse '{}': {error}", manifest_path.display()))?;
+    if old.get("schemaVersion").and_then(Value::as_u64) == Some(1)
+        && old.get("$schema").and_then(Value::as_str) == Some(LEGACY_SCHEMA_URL)
+    {
+        let mut migrated = old.clone();
+        migrated["$schema"] = Value::String(SCHEMA_URL.into());
+        println!(
+            "Updating retired manifest schema URL in {}",
+            manifest_path.display()
+        );
+        if dry_run {
+            println!("Dry run: no files changed");
+            return Ok(());
+        }
+        fs::write(
+            &manifest_path,
+            serde_json::to_string_pretty(&migrated).unwrap() + "\n",
+        )
+        .map_err(|error| format!("failed to update manifest schema URL: {error}"))?;
+        println!("Updated manifest schema URL");
+        return Ok(());
+    }
     if old.get("schemaVersion").and_then(Value::as_u64) == Some(1) {
         println!(
             "{} already uses manifest schema v1",
@@ -285,4 +306,54 @@ fn migrate_native_dependency(project: &Path) -> Result<(), String> {
     }
     fs::write(&path, changed.join("\n") + "\n")
         .map_err(|error| format!("failed to update '{}': {error}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn migrate_replaces_the_retired_schema_url() {
+        let directory = tempdir().unwrap();
+        let manifest = json!({
+            "$schema": LEGACY_SCHEMA_URL,
+            "schemaVersion": 1
+        });
+        fs::write(
+            directory.path().join("rustframe.json"),
+            serde_json::to_string_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        migrate_project(directory.path(), false).unwrap();
+
+        let migrated: Value = serde_json::from_str(
+            &fs::read_to_string(directory.path().join("rustframe.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(migrated["$schema"], SCHEMA_URL);
+    }
+
+    #[test]
+    fn dry_run_preserves_the_retired_schema_url() {
+        let directory = tempdir().unwrap();
+        let manifest = json!({
+            "$schema": LEGACY_SCHEMA_URL,
+            "schemaVersion": 1
+        });
+        fs::write(
+            directory.path().join("rustframe.json"),
+            serde_json::to_string_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        migrate_project(directory.path(), true).unwrap();
+
+        let unchanged: Value = serde_json::from_str(
+            &fs::read_to_string(directory.path().join("rustframe.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(unchanged["$schema"], LEGACY_SCHEMA_URL);
+    }
 }

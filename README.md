@@ -16,17 +16,36 @@ Build local-first macOS, Windows, and Linux applications with the frontend stack
 
 </div>
 
-> **Release candidate:** `0.1.0-rc.1` is the first public v1 candidate. The core contracts are in place and the full native packaging matrix is exercised in CI. RC feedback may still produce breaking corrections before `1.0.0`.
+> **Release candidate:** `0.1.0-rc.1` is the first public v1 candidate. The Rust crates and native artifacts are public. The `rustframe-api` npm package is still awaiting its initial 2FA-authorized publication, so a generated project's dependency install is not yet a supported public path.
 
 ## From empty folder to desktop app
 
-Install [Rust 1.88+](https://www.rust-lang.org/tools/install) and [Node.js 20+](https://nodejs.org/), then run:
+Install [Rust 1.88+](https://www.rust-lang.org/tools/install) and [Node.js 20+](https://nodejs.org/). Install the prebuilt CLI on macOS or Linux:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.sh | sh
+```
+
+On Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.ps1 | iex"
+```
+
+Building the CLI from source remains available:
 
 ```bash
 cargo install rustframe-cli --version 0.1.0-rc.1 --locked
+```
+
+Then create the project:
+
+```bash
 rustframe doctor
-rustframe new my-tool --template vanilla-ts --package-manager npm --install
+rustframe new my-tool --template vanilla-ts --package-manager npm
 cd my-tool
+npm install # available after rustframe-api reaches npm
 rustframe dev
 ```
 
@@ -166,7 +185,7 @@ if (workspace) {
 
 ```json
 {
-  "$schema": "https://rustframe.dev/schemas/v1/rustframe.schema.json",
+  "$schema": "https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json",
   "schemaVersion": 1,
   "security": {
     "model": "local-first",

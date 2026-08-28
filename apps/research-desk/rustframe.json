@@ -1,5 +1,5 @@
 {
-  "$schema": "https://rustframe.dev/schemas/v1/rustframe.schema.json",
+  "$schema": "https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json",
   "schemaVersion": 1,
   "app": {
     "id": "research-desk",

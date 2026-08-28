@@ -4,6 +4,16 @@ All notable RustFrame changes are documented here. RustFrame follows [Semantic V
 
 ## [Unreleased]
 
+### Changed
+
+- Moved the public manifest schema to the durable GitHub Pages URL and taught `rustframe migrate` to replace the retired `rustframe.dev` URL.
+- Made prebuilt release binaries the primary documented CLI installation path.
+
+### Added
+
+- CI checks that compile TypeScript documentation examples, verify local links, and keep published docs and schemas synchronized.
+- A cross-platform public-artifact smoke workflow that exercises the registry-only quickstart after a release is published.
+
 ## [0.1.0-rc.1] - 2026-08-13
 
 ### Added

@@ -180,7 +180,7 @@ fn manifest(name: &str, title: &str, template: Template, manager: PackageManager
         PackageManager::Bun => "bun run",
     };
     format!(r#"{{
-  "$schema": "https://rustframe.dev/schemas/v1/rustframe.schema.json",
+  "$schema": "https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json",
   "schemaVersion": 1,
   "app": {{
     "id": "{name}",

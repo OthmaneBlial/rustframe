@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://rustframe.dev/schemas/v1/rustframe.schema.json",
+  "$id": "https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json",
   "title": "RustFrame manifest schema v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["$schema", "schemaVersion", "app", "frontend", "security", "database", "filesystem", "shell", "packaging"],
   "properties": {
-    "$schema": { "const": "https://rustframe.dev/schemas/v1/rustframe.schema.json" },
+    "$schema": { "const": "https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json" },
     "schemaVersion": { "const": 1 },
     "app": {
       "type": "object",

@@ -64,4 +64,4 @@ RustFrame exposes named commands, never a general shell. Programs and fixed argu
 
 RustFrame does not make untrusted remote HTML safe to combine with local capabilities. It does not provide an OS sandbox, malware scanning, encrypted database storage, secret management, automatic updates, or signing credentials. Application authors remain responsible for frontend dependencies, safe Markdown/HTML rendering, data retention, release signing, and least-privilege manifests.
 
-Report vulnerabilities using the private process in [SECURITY.md](../SECURITY.md).
+Report vulnerabilities using the private process in [SECURITY.md](https://github.com/OthmaneBlial/rustframe/blob/main/SECURITY.md).

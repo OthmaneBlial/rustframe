@@ -4,10 +4,15 @@ This tutorial starts from the published CLI and ends with a native package. The 
 
 ## 1. Install and Check the Host
 
+Install the prebuilt CLI on macOS or Linux:
+
 ```bash
-cargo install rustframe-cli --version 0.1.0-rc.1 --locked
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.sh | sh
 rustframe doctor
 ```
+
+Windows users can run the release's `rustframe-cli-installer.ps1`. `cargo install rustframe-cli --version 0.1.0-rc.1 --locked` remains the build-from-source alternative. The initial `rustframe-api` npm publication must be complete before the registry-only project install below can succeed.
 
 Install any native WebView dependencies reported by `doctor` before continuing.
 

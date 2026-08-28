@@ -4,12 +4,28 @@ This tutorial starts with the public CLI and ends with a native package. The pro
 
 ## 1. Install
 
-Install Rust 1.88 or newer, Node.js 20 or newer, and your host's native WebView toolchain. Then install the CLI:
+Install Rust 1.88 or newer, Node.js 20 or newer, and your host's native WebView toolchain. The fastest CLI path uses the release binary.
+
+macOS or Linux:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.ps1 | iex"
+```
+
+Build-from-source alternative:
 
 ```bash
 cargo install rustframe-cli --version 0.1.0-rc.1 --locked
-rustframe doctor
 ```
+
+Then run `rustframe doctor` for host-specific checks. The initial `rustframe-api` npm publication is still a release-candidate gate; until it is public, generated projects cannot complete a registry-only `npm install`.
 
 Linux needs GTK 3 and WebKitGTK development packages, Windows needs the MSVC toolchain, and macOS needs Xcode command-line tools.
 
@@ -72,8 +88,10 @@ Declare only the permissions the main window needs in `rustframe.json`, then req
 const grant = await rustframe.fs.requestGrant({
   kind: "directory",
   access: "read",
-  persistent: true
+  persist: true
 });
+
+if (!grant) throw new Error("No folder selected");
 
 const documents = await rustframe.fs.walk(grant.uri, {
   recursive: true,

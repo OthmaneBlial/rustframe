@@ -18,6 +18,8 @@
 
 Registry publication is intentionally manual. Run the **Publish registry packages** GitHub workflow with the coordinated version and the confirmation value `publish`. The protected `release` environment must provide `CARGO_REGISTRY_TOKEN` and `NPM_TOKEN`. The workflow refuses existing versions, verifies all three package versions, publishes the runtime first, waits for it to become downloadable, and then publishes the CLI and frontend API. A tag matching the same version separately starts the generated `dist` workflow for CLI binaries, installers, checksums, attestations, and the GitHub Release.
 
+After the GitHub release and coordinated registry publication complete, run the **Public artifact smoke** workflow for the exact release tag. It downloads the release CLI instead of building the checkout, resolves `rustframe-api` from npm, creates a standalone project, compiles the registry runtime, and smoke-launches the result on macOS, Windows, and Linux.
+
 ## App and package verification
 
 - Create a project outside this repository using the release CLI.

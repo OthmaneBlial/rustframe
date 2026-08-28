@@ -9,7 +9,9 @@ use serde_json::Value;
 
 use crate::diagnostics::Diagnostic;
 
-pub const SCHEMA_URL: &str = "https://rustframe.dev/schemas/v1/rustframe.schema.json";
+pub const SCHEMA_URL: &str =
+    "https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json";
+pub const LEGACY_SCHEMA_URL: &str = "https://rustframe.dev/schemas/v1/rustframe.schema.json";
 pub const SCHEMA_SOURCE: &str = include_str!("../schema/rustframe-v1.schema.json");
 
 /// Parses a manifest source without reading from the filesystem.
@@ -86,11 +88,15 @@ pub fn validate_project(project: &Path) -> Result<ValidationReport, String> {
             .with_hint("run `rustframe migrate` for a pre-v1 project"),
         );
     }
-    if object.get("$schema").and_then(Value::as_str) != Some(SCHEMA_URL) {
-        errors.push(Diagnostic::error(
-            "RF1002",
-            format!("manifest $schema must be '{SCHEMA_URL}'"),
-        ));
+    let schema_url = object.get("$schema").and_then(Value::as_str);
+    if schema_url != Some(SCHEMA_URL) {
+        let mut diagnostic =
+            Diagnostic::error("RF1002", format!("manifest $schema must be '{SCHEMA_URL}'"));
+        if schema_url == Some(LEGACY_SCHEMA_URL) {
+            diagnostic =
+                diagnostic.with_hint("run `rustframe migrate` to replace the retired schema URL");
+        }
+        errors.push(diagnostic);
     }
     for key in object.keys() {
         if !TOP_LEVEL_FIELDS.contains(&key.as_str()) {
