@@ -55,15 +55,31 @@ jobs:
           irm "https://github.com/OthmaneBlial/rustframe/releases/download/$env:RELEASE_TAG/rustframe-cli-installer.ps1" | iex
           "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Verify public package set
+      - name: Verify public CLI and package readiness
+        id: package-set
         shell: bash
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
           rustframe --version | grep --fixed-strings "$version"
-          npm view "rustframe-api@$version" version | grep --fixed-strings "$version"
+          if npm_version="$(npm view "rustframe-api@$version" version 2>/dev/null)"; then
+            grep --fixed-strings "$version" <<< "$npm_version"
+            echo "api_available=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$version" == *-* ]]; then
+            echo "::warning::rustframe-api@$version is not public; validating the prerelease CLI-only path"
+            echo "api_available=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Known prerelease registry gate"
+              echo
+              echo "\`rustframe-api@$version\` is not public yet. The downloaded CLI is verified below; the registry-only quickstart remains intentionally skipped."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "rustframe-api@$version is required for a stable release" >&2
+            exit 1
+          fi
 
       - name: Complete registry-only quickstart
+        if: steps.package-set.outputs.api_available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -79,3 +95,15 @@ jobs:
             RUSTFRAME_SMOKE_DATA_DIR="$scratch/smoke-data" \
             "$binary"
           test -s "$scratch/smoke.json"
+
+      - name: Complete prerelease CLI-only quickstart
+        if: steps.package-set.outputs.api_available == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          scratch="$(mktemp -d)"
+          rustframe doctor
+          (cd "$scratch" && rustframe new standalone --template vanilla-ts --package-manager npm)
+          rustframe --project "$scratch/standalone" validate
+          grep --fixed-strings "\"rustframe-api\": \"=$version\"" "$scratch/standalone/package.json"
