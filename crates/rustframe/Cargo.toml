@@ -18,7 +18,7 @@ desktop = ["dep:arboard", "dep:getrandom", "dep:gtk", "dep:mime_guess", "dep:rfd
 
 [dependencies]
 arboard = { version = "3.6.1", optional = true }
-base64 = "0.22.1"
+base64 = "0.23.1"
 dirs = "6.0.0"
 getrandom = { version = "0.3.4", optional = true }
 rusqlite = { version = "0.37.0", features = ["backup", "bundled"] }
