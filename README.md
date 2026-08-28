@@ -12,7 +12,7 @@ Build local-first macOS, Windows, and Linux applications with the frontend stack
 [![MSRV](https://img.shields.io/badge/Rust-1.88%2B-b7410e?logo=rust)](https://www.rust-lang.org/tools/install)
 [![License](https://img.shields.io/badge/license-MIT-6e7681)](LICENSE)
 
-[Quickstart](#from-empty-folder-to-desktop-app) · [Why RustFrame](#a-small-framework-for-real-local-work) · [Security](#local-access-with-an-explicit-boundary) · [Packaging](#real-native-packages) · [Docs](#documentation)
+[Website](https://othmaneblial.github.io/rustframe/) · [Quickstart](#from-empty-folder-to-desktop-app) · [Why RustFrame](#a-small-framework-for-real-local-work) · [Security](#local-access-with-an-explicit-boundary) · [Packaging](#real-native-packages) · [Docs](https://othmaneblial.github.io/rustframe/docs.html) · [Showcase](https://othmaneblial.github.io/rustframe/showcase.html)
 
 </div>
 

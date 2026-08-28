@@ -15,7 +15,9 @@
         "database",
         "window"
       ],
-      "screenshot": "assets/screenshots/hello-rustframe.png",
+      "screenshot": "assets/screenshots/hello-rustframe.webp",
+      "width": 1280,
+      "height": 820,
       "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/hello-rustframe"
     },
     {
@@ -35,7 +37,9 @@
         "shell",
         "multi-window"
       ],
-      "screenshot": "assets/screenshots/research-desk.png",
+      "screenshot": "assets/screenshots/research-desk.webp",
+      "width": 2696,
+      "height": 1562,
       "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/research-desk"
     },
     {
@@ -70,7 +74,9 @@
         "database",
         "window"
       ],
-      "screenshot": "assets/screenshots/prism-gallery.png",
+      "screenshot": "assets/screenshots/prism-gallery.webp",
+      "width": 1460,
+      "height": 940,
       "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/prism-gallery"
     },
     {
@@ -88,7 +94,9 @@
         "database",
         "window"
       ],
-      "screenshot": "assets/screenshots/quill-studio.png",
+      "screenshot": "assets/screenshots/quill-studio.webp",
+      "width": 1460,
+      "height": 940,
       "href": "https://github.com/OthmaneBlial/rustframe/tree/main/apps/quill-studio"
     },
     {

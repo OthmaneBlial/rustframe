@@ -1,93 +1,52 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RustFrame Showcase</title>
-    <meta
-        name="description"
-        content="A public map of RustFrame starters, flagship workflows, and credible reference apps."
-    >
+    <title>RustFrame Showcase — Local desktop workflow examples</title>
+    <meta name="description" content="Explore verified RustFrame applications and starters for document research, media review, offline operations, and frontend frameworks.">
+    <meta name="theme-color" content="#f2efe5">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="canonical" href="https://othmaneblial.github.io/rustframe/showcase.html">
+    <link rel="preload" href="assets/fonts/archivo-black-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="styles.css">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="RustFrame Showcase">
+    <meta property="og:description" content="Workflow-first applications and verified starters built on RustFrame's public APIs.">
+    <meta property="og:url" content="https://othmaneblial.github.io/rustframe/showcase.html">
+    <meta property="og:image" content="https://othmaneblial.github.io/rustframe/assets/screenshots/research-desk.webp">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"CollectionPage","name":"RustFrame Showcase","url":"https://othmaneblial.github.io/rustframe/showcase.html","description":"A collection of workflow applications and templates built with RustFrame.","isPartOf":{"@type":"WebSite","name":"RustFrame","url":"https://othmaneblial.github.io/rustframe/"}}
+    </script>
 </head>
 <body class="page-showcase">
-    <div class="site-grid" aria-hidden="true"></div>
-    <div class="site-glow site-glow-a" aria-hidden="true"></div>
-    <div class="site-glow site-glow-b" aria-hidden="true"></div>
-
-    <header class="topbar">
-        <a class="brand" href="index.html">
-            <span class="brand-mark">RF</span>
-            <span class="brand-copy">
-                <strong>RustFrame</strong>
-                <span>Showcase</span>
-            </span>
-        </a>
-
-        <nav class="topnav" aria-label="Primary">
-            <a href="index.html">Home</a>
-            <a href="docs.html">Docs</a>
-            <a href="docs.html?doc=community-templates">Template guide</a>
-            <a class="topnav-cta" href="https://github.com/OthmaneBlial/rustframe" target="_blank" rel="noreferrer">GitHub</a>
-        </nav>
+    <a class="skip-link" href="#showcase">Skip to showcase</a>
+    <div class="paper-noise" aria-hidden="true"></div>
+    <header class="site-header">
+        <a class="brand" href="index.html" aria-label="RustFrame home"><span class="brand-mark" aria-hidden="true"><i>R</i><i>F</i></span><span class="brand-copy"><strong>RustFrame</strong><small>Showcase</small></span></a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle><span>Menu</span><i aria-hidden="true"></i></button>
+        <nav class="site-nav" id="site-nav" aria-label="Primary navigation" data-site-nav><a href="index.html">Home</a><a href="docs.html">Docs</a><a href="docs.html?doc=community-templates">Submit a template</a><a class="nav-github" href="https://github.com/OthmaneBlial/rustframe">GitHub ↗</a></nav>
     </header>
 
     <main>
-        <section class="frame showcase-hero reveal">
-            <div class="hero-copy">
-                <p class="eyebrow">Reference Surface</p>
-                <h1>Show the wedge without pretending the ecosystem is huge.</h1>
-                <p class="lede">
-                    This showcase is the public map for what RustFrame should help people start from:
-                    one flagship workflow, one workflow-first starter, a few credible references,
-                    and optional frontend-stack starters that still keep the runtime model intact.
-                </p>
-
-                <div class="hero-actions">
-                    <a class="button button-primary" href="#showcase">Browse entries</a>
-                    <a class="button button-ghost" href="docs.html?doc=community-templates">Read the template guide</a>
-                </div>
-            </div>
-
-            <aside class="showcase-sidebar">
-                <article class="package-card">
-                    <span class="tile-kicker">How to read this</span>
-                    <h3>Not every card is making the same claim.</h3>
-                    <p>The flagship app proves the wedge. Starters help teams move faster. Reference apps show layout and workflow patterns. The point is to help people choose a starting point honestly.</p>
-                </article>
-                <article class="package-card">
-                    <span class="tile-kicker">Ecosystem rule</span>
-                    <h3>Keep the surface tied to real jobs.</h3>
-                    <p>Community templates, remote sync patterns, and capability extensions should all stay anchored to credible local-first workflows instead of broad framework marketing.</p>
-                </article>
-                <article class="package-card">
-                    <span class="tile-kicker">Next step</span>
-                    <h3>Use the catalog and docs together.</h3>
-                    <p>Pick a starting point here, then move into the docs for the exact manifest, runtime, packaging, and trust-model constraints behind it.</p>
-                </article>
+        <section class="showcase-hero section-shell">
+            <div class="hero-copy"><p class="section-kicker">Applications / starters / references</p><h1>Local work, made visible.</h1><p class="lede">Start from a complete workflow, study a focused pattern, or choose the frontend stack your team already knows. Every entry states what it proves.</p><div class="hero-actions"><a class="button button-ink" href="#showcase">Browse the collection ↓</a><a class="button button-paper" href="docs.html?doc=community-templates">Template contract →</a></div></div>
+            <aside class="showcase-sidebar" aria-label="Showcase legend">
+                <article><span class="gallery-kicker">Flagship</span><h3>Installs as a product</h3><p>An end-to-end application using only stable public RustFrame APIs.</p></article>
+                <article><span class="gallery-kicker">Starter</span><h3>Begins with a job</h3><p>A runnable foundation shaped around a real queue, desk, or workbench.</p></article>
+                <article><span class="gallery-kicker">Reference</span><h3>Proves one pattern</h3><p>A smaller source example for layout, data, files, windows, or packaging.</p></article>
             </aside>
         </section>
 
-        <section class="frame reveal" id="showcase">
-            <div class="section-heading">
-                <p class="eyebrow">Showcase</p>
-                <h2>One public map for starters, flagship workflows, and references.</h2>
-                <p class="section-note">
-                    The showcase stays intentionally selective. Entries here should help a builder decide what to clone,
-                    adapt, or study next without implying that RustFrame already has a broad plugin ecosystem.
-                </p>
-            </div>
-
-            <div id="showcase-grid" class="showcase-grid">
-                <article class="showcase-empty">Loading showcase…</article>
-            </div>
+        <section class="section-shell" id="showcase">
+            <header class="section-heading section-heading-side"><div><p class="section-kicker">Verified collection</p><h2>Pick the closest real workflow.</h2></div><p>The catalog is deliberately selective. Entries link directly to source, list their capabilities, and avoid pretending that every example carries the same product claim.</p></header>
+            <div id="showcase-grid" class="showcase-grid" aria-live="polite"><article class="showcase-empty">Loading the verified catalog…</article></div>
         </section>
+
+        <section class="closing-cta section-shell"><p class="section-kicker">Built something useful?</p><h2>Make the next developer’s first window easier.</h2><div><a class="button button-ink" href="docs.html?doc=community-templates">Read the submission contract →</a><a class="button button-paper" href="https://github.com/OthmaneBlial/rustframe/issues">Propose an entry ↗</a></div></section>
     </main>
 
-    <footer class="site-footer">
-        <p>The showcase is the ecosystem layer after fit, not before it. RustFrame still starts with one credible flagship workflow and a narrow local-first desktop job.</p>
-    </footer>
-
+    <footer class="site-footer"><a class="brand footer-brand" href="index.html"><span class="brand-mark" aria-hidden="true"><i>R</i><i>F</i></span><span class="brand-copy"><strong>RustFrame</strong><small>Local workflow kit</small></span></a><div><a href="index.html">Home</a><a href="docs.html">Docs</a><a href="https://github.com/OthmaneBlial/rustframe">GitHub</a></div><p>Showcase claims are tied to source and public capabilities.</p></footer>
     <script src="app.js"></script>
 </body>
 </html>

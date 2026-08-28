@@ -165,29 +165,87 @@ const DOC_SOURCE_TO_ID = new Map(
     ])
 );
 
+setupNavigation();
 setupCommandTabs();
 setupCopyButtons();
+setupPolicyLab();
 setupRevealObserver();
 setupHomePage();
 setupDocsPage();
 setupShowcasePage();
+
+function setupNavigation() {
+    const toggle = document.querySelector("[data-nav-toggle]");
+    const nav = document.querySelector("[data-site-nav]");
+    if (!toggle || !nav) {
+        return;
+    }
+
+    const setOpen = (open, { restoreFocus = false } = {}) => {
+        nav.classList.toggle("is-open", open);
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.querySelector("span").textContent = open ? "Close" : "Menu";
+        if (restoreFocus) {
+            toggle.focus();
+        }
+    };
+
+    toggle.addEventListener("click", () => {
+        setOpen(toggle.getAttribute("aria-expanded") !== "true");
+    });
+    nav.addEventListener("click", (event) => {
+        if (event.target.closest("a")) {
+            setOpen(false);
+        }
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") {
+            setOpen(false, { restoreFocus: true });
+        }
+    });
+    window.addEventListener("resize", () => {
+        if (window.matchMedia("(min-width: 861px)").matches) {
+            setOpen(false);
+        }
+    });
+}
 
 function setupCommandTabs() {
     if (!HOME_COMMAND_TABS.length) {
         return;
     }
 
-    HOME_COMMAND_TABS.forEach((button) => {
-        button.addEventListener("click", () => {
-            const target = button.dataset.commandTab;
-            HOME_COMMAND_TABS.forEach((item) => {
-                item.classList.toggle("is-active", item === button);
-            });
-            HOME_COMMAND_PANELS.forEach((panel) => {
-                panel.classList.toggle("is-hidden", panel.dataset.commandPanel !== target);
-            });
+    const activateTab = (button) => {
+        const target = button.dataset.commandTab;
+        HOME_COMMAND_TABS.forEach((item) => {
+            const selected = item === button;
+            item.setAttribute("aria-selected", String(selected));
+            item.tabIndex = selected ? 0 : -1;
+        });
+        HOME_COMMAND_PANELS.forEach((panel) => {
+            panel.hidden = panel.dataset.commandPanel !== target;
+        });
+    };
+
+    HOME_COMMAND_TABS.forEach((button, index) => {
+        button.addEventListener("click", () => activateTab(button));
+        button.addEventListener("keydown", (event) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                return;
+            }
+            event.preventDefault();
+            let nextIndex = index;
+            if (event.key === "ArrowLeft") nextIndex = (index - 1 + HOME_COMMAND_TABS.length) % HOME_COMMAND_TABS.length;
+            if (event.key === "ArrowRight") nextIndex = (index + 1) % HOME_COMMAND_TABS.length;
+            if (event.key === "Home") nextIndex = 0;
+            if (event.key === "End") nextIndex = HOME_COMMAND_TABS.length - 1;
+            const next = HOME_COMMAND_TABS[nextIndex];
+            activateTab(next);
+            next.focus();
         });
     });
+
+    activateTab(HOME_COMMAND_TABS[0]);
 }
 
 function setupCopyButtons() {
@@ -196,8 +254,44 @@ function setupCopyButtons() {
     }
 
     COPY_BUTTONS.forEach((button) => {
-        bindCopyButton(button, () => button.dataset.copy || "");
+        bindCopyButton(button, () => {
+            if (button.dataset.copy) {
+                return button.dataset.copy;
+            }
+            return button.closest("[data-command-panel]")?.querySelector("code")?.textContent || "";
+        });
     });
+}
+
+function setupPolicyLab() {
+    const lab = document.querySelector("[data-policy-lab]");
+    if (!lab) {
+        return;
+    }
+
+    const controls = Array.from(lab.querySelectorAll("[data-capability-control]"));
+    const output = lab.querySelector("[data-policy-output]");
+    const count = lab.querySelector("[data-policy-count]");
+    const meter = lab.querySelector("[data-risk-meter]");
+    const label = lab.querySelector("[data-risk-label]");
+
+    const render = () => {
+        const selected = controls.filter((control) => control.checked).map((control) => control.value);
+        const elevated = selected.filter((permission) => permission.includes("write") || permission.startsWith("shell:"));
+        const score = Math.min(100, 18 + selected.length * 11 + elevated.length * 13);
+        output.textContent = JSON.stringify(
+            { security: { permissions: [{ window: "main", allow: selected }] } },
+            null,
+            2
+        );
+        count.textContent = `${selected.length} permission${selected.length === 1 ? "" : "s"}`;
+        meter.style.width = `${score}%`;
+        meter.style.background = score >= 70 ? "#ff4d00" : score >= 48 ? "#ffd447" : "#c7f65b";
+        label.textContent = score >= 70 ? "review broad native access" : score >= 48 ? "moderate local policy" : "narrow local policy";
+    };
+
+    controls.forEach((control) => control.addEventListener("change", render));
+    render();
 }
 
 function setupRevealObserver() {
@@ -383,7 +477,7 @@ function renderShowcaseCard(item) {
     const bestFor = Array.isArray(item.bestFor) ? item.bestFor : [];
     const capabilities = Array.isArray(item.capabilities) ? item.capabilities : [];
     const visual = item.screenshot
-        ? `<div class="showcase-visual"><img src="${escapeHtml(item.screenshot)}" alt="${title} screenshot"></div>`
+        ? `<div class="showcase-visual"><img src="${escapeHtml(item.screenshot)}" width="${Number(item.width) || 1460}" height="${Number(item.height) || 940}" loading="lazy" alt="${title} screenshot"></div>`
         : `<div class="showcase-visual showcase-placeholder"><span>${category}</span></div>`;
     const bestForHtml = bestFor.length
         ? `<p class="showcase-meta"><strong>Best for</strong> ${escapeHtml(bestFor.join(", "))}</p>`
@@ -615,7 +709,7 @@ function renderMarkdown(markdown) {
         if (heading) {
             flushParagraph();
             flushList();
-            const level = heading[1].length;
+            const level = Math.min(heading[1].length + 1, 4);
             const text = heading[2].trim();
             const id = slugifyHeading(text);
             html.push(`<h${level} id="${id}">${renderInline(text)}</h${level}>`);

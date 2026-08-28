@@ -1,0 +1,23 @@
+# RustFrame
+
+> RustFrame is a Rust-powered desktop runtime and CLI for frontend teams building local-first workflow tools with TypeScript or JavaScript, embedded SQLite, consent-scoped file access, and native installers.
+
+RustFrame is an early release candidate. It is deliberately narrower than Tauri or Electron and does not claim a broad native plugin ecosystem. The Rust crates and native release artifacts are public. The rustframe-api npm package is pending its initial 2FA-authorized publication.
+
+## Primary pages
+
+- [Product overview](https://othmaneblial.github.io/rustframe/): Positioning, workflow, security model, flagship proof, comparison, and installation.
+- [Documentation](https://othmaneblial.github.io/rustframe/docs.html): Mirrored task guides from the versioned repository source.
+- [Showcase](https://othmaneblial.github.io/rustframe/showcase.html): Flagship application, starter, and reference catalog.
+- [Source repository](https://github.com/OthmaneBlial/rustframe): Runtime, CLI, frontend bridge, examples, tests, and release workflows.
+- [Threat model](https://othmaneblial.github.io/rustframe/docs.html?doc=threat-model): Explicit guarantees, boundaries, and application-author responsibilities.
+- [Choosing RustFrame](https://othmaneblial.github.io/rustframe/docs.html?doc=choosing-rustframe): Honest framework comparison and non-goals.
+
+## Stable facts
+
+- License: MIT
+- Supported release hosts: macOS, Windows, and Linux
+- Default data model: local SQLite with no telemetry by default
+- Filesystem model: user-approved opaque grants checked by native IPC
+- Manifest schema v1: https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json
+- Current candidate documented by this site: 0.1.0-rc.1

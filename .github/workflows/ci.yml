@@ -71,7 +71,10 @@ jobs:
           (cd packages/rustframe-api && npm pack --dry-run)
 
       - name: Verify public documentation and schema contracts
-        run: node scripts/check_public_contracts.mjs
+        run: |
+          node --check site/app.js
+          node scripts/check_public_contracts.mjs
+          node scripts/check_site.mjs
 
       - name: Build Research Desk
         run: |

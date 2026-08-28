@@ -1,351 +1,212 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RustFrame</title>
-    <meta
-        name="description"
-        content="Build local-first macOS, Windows, and Linux apps with TypeScript or JavaScript, embedded SQLite, user-approved filesystem access, and real native installers."
-    >
+    <title>RustFrame — Local-first desktop tools in TypeScript</title>
+    <meta name="description" content="Build native macOS, Windows, and Linux workflow tools with TypeScript, embedded SQLite, consent-scoped files, and real installers.">
+    <meta name="theme-color" content="#f2efe5">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="canonical" href="https://othmaneblial.github.io/rustframe/">
+    <link rel="preload" href="assets/fonts/archivo-black-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="assets/screenshots/research-desk.webp" as="image" type="image/webp" fetchpriority="high">
     <link rel="stylesheet" href="styles.css">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="RustFrame — Local-first desktop tools in TypeScript">
+    <meta property="og:description" content="Own the workflow, not a native backend. RustFrame supplies typed SQLite, consent-scoped machine access, and native packaging.">
+    <meta property="og:url" content="https://othmaneblial.github.io/rustframe/">
+    <meta property="og:image" content="https://othmaneblial.github.io/rustframe/assets/screenshots/research-desk.webp">
+    <meta property="og:image:width" content="2696">
+    <meta property="og:image:height" content="1562">
+    <meta name="twitter:card" content="summary_large_image">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "name": "RustFrame",
+          "url": "https://othmaneblial.github.io/rustframe/",
+          "description": "Documentation and downloads for the RustFrame local-first desktop workflow kit."
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "RustFrame",
+          "applicationCategory": "DeveloperApplication",
+          "operatingSystem": "macOS, Windows, Linux",
+          "softwareVersion": "0.1.0-rc.1",
+          "description": "A Rust-powered desktop runtime and CLI for frontend teams building local workflow tools with TypeScript, SQLite, scoped files, and native installers.",
+          "url": "https://othmaneblial.github.io/rustframe/",
+          "downloadUrl": "https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.1",
+          "license": "https://github.com/OthmaneBlial/rustframe/blob/main/LICENSE",
+          "codeRepository": "https://github.com/OthmaneBlial/rustframe",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+        }
+      ]
+    }
+    </script>
 </head>
 <body class="page-home">
-    <div class="site-grid" aria-hidden="true"></div>
-    <div class="site-glow site-glow-a" aria-hidden="true"></div>
-    <div class="site-glow site-glow-b" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="paper-noise" aria-hidden="true"></div>
 
-    <header class="topbar">
-        <a class="brand" href="index.html">
-            <span class="brand-mark">RF</span>
-            <span class="brand-copy">
-                <strong>RustFrame</strong>
-                <span>Local-first desktop tools</span>
-            </span>
+    <header class="site-header" data-site-header>
+        <a class="brand" href="index.html" aria-label="RustFrame home">
+            <span class="brand-mark" aria-hidden="true"><i>R</i><i>F</i></span>
+            <span class="brand-copy"><strong>RustFrame</strong><small>Local workflow kit</small></span>
         </a>
-
-        <nav class="topnav" aria-label="Primary">
-            <a href="#overview">Overview</a>
-            <a href="#quickstart">Quickstart</a>
-            <a href="#fit">Fit</a>
-            <a href="#workflow">Workflow</a>
-            <a href="#ship">Ship</a>
-            <a href="showcase.html">Showcase</a>
-            <a href="#docs">Docs</a>
-            <a class="topnav-cta" href="docs.html">Open Docs</a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle>
+            <span>Menu</span><i aria-hidden="true"></i>
+        </button>
+        <nav class="site-nav" id="site-nav" aria-label="Primary navigation" data-site-nav>
+            <a href="#why">Why</a><a href="#workflow">Workflow</a><a href="#security">Security</a>
+            <a href="showcase.html">Showcase</a><a href="docs.html">Docs</a>
+            <a class="nav-github" href="https://github.com/OthmaneBlial/rustframe">GitHub <span aria-hidden="true">↗</span></a>
         </nav>
     </header>
 
-    <main>
-        <section class="hero frame reveal" id="overview">
+    <main id="main">
+        <section class="hero section-shell">
             <div class="hero-copy">
-                <p class="eyebrow">Public v1 release candidate</p>
-                <h1>Desktop tools that keep their data close.</h1>
-                <p class="lede">
-                    Build local-first macOS, Windows, and Linux applications with the frontend stack
-                    you already know. RustFrame adds native windows, embedded SQLite, user-approved
-                    machine access, typed APIs, and real installers—without making your app a Rust project.
-                </p>
-
+                <div class="release-stamp"><span>Public RC</span><strong>0.1.0-rc.1</strong><small>macOS · Windows · Linux</small></div>
+                <p class="section-kicker">Rust-powered. Frontend-owned.</p>
+                <h1>Your frontend.<br><em>Their files.</em><br>One native workflow.</h1>
+                <p class="hero-lede">Build local desktop tools in TypeScript or JavaScript. RustFrame owns typed SQLite, consent-scoped machine access, the native window, and real installers—until you decide to eject.</p>
                 <div class="hero-actions">
-                    <a class="button button-primary" href="#quickstart">Start building</a>
-                    <a class="button button-ghost" href="docs.html?doc=getting-started">Read the guide</a>
-                    <a class="button button-ghost" href="https://github.com/OthmaneBlial/rustframe">View on GitHub</a>
+                    <a class="button button-ink" href="#install"><span>Install RustFrame</span><b aria-hidden="true">↓</b></a>
+                    <a class="button button-paper" href="https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.1"><span>Download Research Desk</span><b aria-hidden="true">↗</b></a>
                 </div>
-
-                <div class="signal-strip">
-                    <article>
-                        <span>Authoring model</span>
-                        <strong>Independent Vite project, hidden native runner</strong>
-                    </article>
-                    <article>
-                        <span>Local-first data</span>
-                        <strong>Typed SQLite with transactions, backup and restore</strong>
-                    </article>
-                    <article>
-                        <span>Native surface</span>
-                        <strong>Window permissions and opaque filesystem grants</strong>
-                    </article>
-                    <article>
-                        <span>Escape hatch</span>
-                        <strong>Eject to an owned native runner only when needed</strong>
-                    </article>
-                </div>
+                <p class="release-note"><strong>RC status:</strong> Rust crates and native artifacts are public. The initial npm frontend package remains the last registry gate.</p>
             </div>
 
-            <aside class="hero-stack">
-                <article class="command-card" id="quickstart">
-                    <div class="card-head">
-                        <p class="eyebrow">Five commands to a native app</p>
-                        <span class="status-pill">v0.1 RC</span>
+            <div class="hero-proof" aria-label="RustFrame command to desktop workflow">
+                <div class="proof-window proof-terminal">
+                    <div class="window-bar"><span class="window-dots" aria-hidden="true">● ● ●</span><strong>TERMINAL / 00:01</strong></div>
+                    <div class="terminal-lines" aria-label="Example RustFrame commands">
+                        <p><span>$</span> rustframe new evidence-desk</p><p><span>✓</span> Vite + TypeScript</p>
+                        <p><span>✓</span> SQLite types generated</p><p><span>✓</span> capability policy validated</p>
+                        <p class="terminal-active"><span>$</span> rustframe dev<i aria-hidden="true"></i></p>
                     </div>
-                    <h2>Install once. Create anywhere. Ship when the workflow is ready.</h2>
-                    <div class="command-list">
-                        <button class="command-chip is-active" type="button" data-command-tab="install">Install</button>
-                        <button class="command-chip" type="button" data-command-tab="new">New</button>
-                        <button class="command-chip" type="button" data-command-tab="dev">Dev</button>
-                        <button class="command-chip" type="button" data-command-tab="validate">Validate</button>
-                        <button class="command-chip" type="button" data-command-tab="build">Build</button>
-                        <button class="command-chip" type="button" data-command-tab="package">Package</button>
-                    </div>
-                    <div class="command-panel" data-command-panel="install">
-                        <pre><code>curl --proto '=https' --tlsv1.2 -LsSf https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.sh | sh</code></pre>
-                        <button class="mini-button" type="button" data-copy="curl --proto '=https' --tlsv1.2 -LsSf https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.sh | sh">Copy</button>
-                    </div>
-                    <div class="command-panel is-hidden" data-command-panel="new">
-                        <pre><code>rustframe new my-tool --template vanilla-ts --package-manager npm --install</code></pre>
-                        <button class="mini-button" type="button" data-copy="rustframe new my-tool --template vanilla-ts --package-manager npm --install">Copy</button>
-                    </div>
-                    <div class="command-panel is-hidden" data-command-panel="dev">
-                        <pre><code>cd my-tool &amp;&amp; rustframe dev</code></pre>
-                        <button class="mini-button" type="button" data-copy="cd my-tool &amp;&amp; rustframe dev">Copy</button>
-                    </div>
-                    <div class="command-panel is-hidden" data-command-panel="validate">
-                        <pre><code>rustframe validate</code></pre>
-                        <button class="mini-button" type="button" data-copy="rustframe validate">Copy</button>
-                    </div>
-                    <div class="command-panel is-hidden" data-command-panel="build">
-                        <pre><code>rustframe build</code></pre>
-                        <button class="mini-button" type="button" data-copy="rustframe build">Copy</button>
-                    </div>
-                    <div class="command-panel is-hidden" data-command-panel="package">
-                        <pre><code>rustframe package --verify</code></pre>
-                        <button class="mini-button" type="button" data-copy="rustframe package --verify">Copy</button>
-                    </div>
-                    <p class="section-copy">The CLI finds the nearest <code>rustframe.json</code>, owns the Vite and desktop process lifetimes together, and keeps generated native code under <code>target/rustframe/</code>.</p>
-                </article>
-
-                <figure class="shot-card shot-card-large">
-                    <img src="assets/screenshots/research-desk.png" alt="Research Desk screenshot">
-                    <figcaption>
-                        <strong>Research Desk</strong>
-                        <span>Flagship proof app: choose any document folder, index it natively, and keep focused reader windows synchronized.</span>
-                    </figcaption>
+                </div>
+                <figure class="proof-window proof-app">
+                    <div class="window-bar"><span class="window-dots" aria-hidden="true">● ● ●</span><strong>RESEARCH DESK / LOCAL</strong></div>
+                    <img src="assets/screenshots/research-desk.webp" width="2696" height="1562" alt="Research Desk indexing and reviewing local documents in a native desktop window" fetchpriority="high">
                 </figure>
+                <div class="proof-seal" aria-hidden="true"><span>NO</span><strong>APP-OWNED</strong><span>RUST</span></div>
+            </div>
+        </section>
 
-                <article class="package-card">
-                    <span class="tile-kicker">Packaged app path</span>
-                    <h3>Host-native bundles already sit inside the workflow, not outside it.</h3>
-                <div class="package-artifacts">
-                        <div class="package-artifact">
-                            <strong>Linux</strong>
-                            <code>AppImage · Debian</code>
-                        </div>
-                        <div class="package-artifact">
-                            <strong>Windows</strong>
-                            <code>NSIS · MSI</code>
-                        </div>
-                        <div class="package-artifact">
-                            <strong>macOS</strong>
-                            <code>.app · DMG</code>
-                        </div>
+        <section class="signal-rail" aria-label="RustFrame core signals">
+            <p><span>01</span> Embedded SQLite</p><p><span>02</span> Opaque file grants</p>
+            <p><span>03</span> Window capabilities</p><p><span>04</span> Native installers</p><p><span>05</span> Explicit eject</p>
+        </section>
+
+        <section class="why section-shell" id="why">
+            <header class="section-heading reveal">
+                <p class="section-kicker">The missing middle</p>
+                <h2>A browser tab is too small.<br>A native backend is too much.</h2>
+                <p>RustFrame sits between them: a deliberately bounded native substrate for applications whose value lives in local structured data, user-selected files, and repeatable machine workflows.</p>
+            </header>
+            <div class="use-case-grid">
+                <article class="use-case-card reveal"><span>01 / Research</span><h3>Evidence desks</h3><p>Index documents, search locally, annotate findings, and keep focused reader windows synchronized.</p><code>files + search + notes</code></article>
+                <article class="use-case-card reveal"><span>02 / Review</span><h3>Media queues</h3><p>Attach a user-approved library, track decisions in SQLite, and export a portable review trail.</p><code>grants + records + export</code></article>
+                <article class="use-case-card reveal"><span>03 / Operations</span><h3>Offline workbenches</h3><p>Ship a focused queue, catalog, runbook, or internal console without operating a mandatory server.</p><code>schema + jobs + package</code></article>
+            </div>
+        </section>
+
+        <section class="workflow section-shell" id="workflow">
+            <header class="section-heading section-heading-side reveal">
+                <div><p class="section-kicker">One contract, end to end</p><h2>Model the work.<br>RustFrame carries it.</h2></div>
+                <p>You own ordinary frontend code and the product experience. RustFrame owns the repeatable native substrate and keeps it visible in one versioned manifest.</p>
+            </header>
+            <div class="workflow-track">
+                <article class="workflow-step reveal"><span>01</span><div><strong>Declare</strong><h3>Schema + capabilities</h3><p>Define tables, windows, permissions, file roots, commands, and package identity as reviewable source.</p></div><code>rustframe.json</code></article>
+                <article class="workflow-step reveal"><span>02</span><div><strong>Generate</strong><h3>Typed SQLite APIs</h3><p>Record, insert, update, and table-map types stay deterministic and CI-checkable.</p></div><code>rustframe codegen</code></article>
+                <article class="workflow-step reveal"><span>03</span><div><strong>Develop</strong><h3>Vite + native window</h3><p>One process supervisor runs the frontend and hidden native runner together.</p></div><code>rustframe dev</code></article>
+                <article class="workflow-step reveal"><span>04</span><div><strong>Prove</strong><h3>Validate the boundary</h3><p>Unknown permissions, unsafe paths, weak CSPs, and stale generated types fail before shipping.</p></div><code>rustframe validate</code></article>
+                <article class="workflow-step reveal"><span>05</span><div><strong>Ship</strong><h3>Host-native packages</h3><p>Create DMG, MSI, NSIS, AppImage, and Debian output with checksums and metadata.</p></div><code>rustframe package</code></article>
+            </div>
+        </section>
+
+        <section class="security section-shell" id="security">
+            <div class="security-copy reveal">
+                <p class="section-kicker">Least privilege you can explain</p><h2>The frontend never gets a master key.</h2>
+                <p>A person chooses a folder. RustFrame returns an opaque grant. Every read, write, watch, dialog, database call, command, and window action is authorized inside native IPC.</p>
+                <ul class="check-list"><li><span>✓</span> per-window permissions</li><li><span>✓</span> revocable file grants</li><li><span>✓</span> bounded command arguments and output</li><li><span>✓</span> rate, size, timeout, and traversal limits</li><li><span>✓</span> no telemetry by default</li></ul>
+                <a class="text-link" href="docs.html?doc=threat-model">Read the threat model <span aria-hidden="true">→</span></a>
+            </div>
+
+            <div class="policy-lab reveal" data-policy-lab>
+                <div class="lab-head"><span>CAPABILITY LAB</span><strong>main window</strong><small>interactive</small></div>
+                <div class="lab-body">
+                    <fieldset>
+                        <legend>Toggle effective permissions</legend>
+                        <label><input type="checkbox" value="db:read" checked data-capability-control><span>Read SQLite</span></label>
+                        <label><input type="checkbox" value="db:write" checked data-capability-control><span>Write SQLite</span></label>
+                        <label><input type="checkbox" value="fs:grants:read" checked data-capability-control><span>Read chosen folder</span></label>
+                        <label><input type="checkbox" value="fs:grants:write" data-capability-control><span>Write chosen folder</span></label>
+                        <label><input type="checkbox" value="shell:index-workspace" data-capability-control><span>Run bounded indexer</span></label>
+                    </fieldset>
+                    <div class="policy-output">
+                        <p><span>effective policy</span><strong data-policy-count>3 permissions</strong></p>
+                        <pre><code data-policy-output></code></pre><div class="risk-meter"><i data-risk-meter></i></div><small data-risk-label>narrow local policy</small>
                     </div>
-                    <p>Every format is built, installed, smoke-launched, and uninstalled on its native CI host. Artifacts include checksums, package metadata, and release notes.</p>
-                </article>
-            </aside>
-        </section>
-
-        <section class="frame section-grid reveal" id="fit">
-            <div class="section-heading">
-                <p class="eyebrow">Fit</p>
-                <h2>RustFrame is a wedge, not a general desktop answer.</h2>
-                <p class="section-note">
-                    It makes the most sense when the app is still mostly frontend code,
-                    but the workflow has outgrown a browser tab.
-                </p>
-            </div>
-
-            <div class="fit-grid">
-                <article class="fit-card">
-                    <span class="tile-kicker">Use RustFrame when</span>
-                    <h3>You want the runtime to own the desktop shell around a frontend-heavy app.</h3>
-                    <ul class="card-list">
-                        <li>The app should stay mostly HTML, CSS, and JavaScript.</li>
-                        <li>You want embedded SQLite without building the full desktop stack yourself.</li>
-                        <li>You need scoped filesystem access, allowlisted commands, or multi-window views.</li>
-                        <li>You want to start small and eject only if the app outgrows the hidden runner.</li>
-                    </ul>
-                </article>
-                <article class="fit-card">
-                    <span class="tile-kicker">Do not use RustFrame when</span>
-                    <h3>You already know the product needs broad native depth or a larger ecosystem.</h3>
-                    <ul class="card-list">
-                        <li>The app works fine as a browser tab or PWA.</li>
-                        <li>You need mature plugin ecosystems and deeper native APIs immediately.</li>
-                        <li>You want Chromium-level rendering consistency across every host.</li>
-                        <li>You are already productive in Tauri or Electron and not feeling friction.</li>
-                    </ul>
-                </article>
-            </div>
-        </section>
-
-        <section class="frame workflow reveal" id="workflow">
-            <div class="section-heading">
-                <p class="eyebrow">Target Workflow</p>
-                <h2>One concrete job RustFrame should own: the local research desk.</h2>
-                <p class="section-note">
-                    <code>research-desk</code> is the proof point for the product story:
-                    awkward in a browser tab, but still not big enough to deserve a full native-first rewrite on day one.
-                </p>
-            </div>
-
-            <div class="workflow-rail">
-                <div class="workflow-grid">
-                    <article class="workflow-step">
-                        <span class="step-index">01</span>
-                        <h3>Choose a local archive</h3>
-                        <p>Ask the user for a Markdown or text folder and persist the opaque grant only after explicit consent.</p>
-                    </article>
-                    <article class="workflow-step">
-                        <span class="step-index">02</span>
-                        <h3>Index natively into SQLite</h3>
-                        <p>Walk the grant with extension and entry limits. No Python process, absolute-path API, or bundled fake workspace.</p>
-                    </article>
-                    <article class="workflow-step">
-                        <span class="step-index">03</span>
-                        <h3>Watch incremental changes</h3>
-                        <p>Coalesce create, modify, rename, and delete events while surfacing unsupported or unreadable files honestly.</p>
-                    </article>
-                    <article class="workflow-step">
-                        <span class="step-index">04</span>
-                        <h3>Review in focused windows</h3>
-                        <p>Keep search, tags, notes, status, and pinning synchronized through database events delivered after commit.</p>
-                    </article>
-                    <article class="workflow-step">
-                        <span class="step-index">05</span>
-                        <h3>Back up, restore, and ship</h3>
-                        <p>Create consistent SQLite snapshots, restore behind a safety backup, export queues, and produce native installers.</p>
-                    </article>
                 </div>
-
-                <aside class="manifest-card">
-                    <span class="tile-kicker">Manifest snapshot</span>
-                    <h3>The workflow stays explicit in one contract.</h3>
-                    <pre><code>{
-  "schemaVersion": 1,
-  "app": {
-    "id": "research-desk",
-    "windows": [{ "id": "main", "route": "/" }]
-  },
-  "security": {
-    "model": "local-first",
-    "permissions": [{
-      "window": "main",
-      "allow": ["db:read", "db:write", "fs:grants:read", "fs:grants:watch"]
-    }]
-  },
-  "filesystem": { "roots": [], "persistGrants": true },
-  "shell": { "commands": [] }
-}</code></pre>
-                    <p>
-                        Manifest schema v1 is the native contract. Unknown fields, unsafe paths, undeclared permissions,
-                        weak CSPs, and stale generated database types fail validation before the app ships.
-                    </p>
-                </aside>
             </div>
         </section>
 
-        <section class="frame runtime reveal" id="ship">
-            <div class="section-heading">
-                <p class="eyebrow">Ship</p>
-                <h2>Packaging is already part of the flagship app story.</h2>
-                <p class="section-note">
-                    RustFrame should matter after the experiment. If the workflow becomes something people actually install,
-                    the packaging path should already be part of the default model.
-                </p>
+        <section class="flagship section-shell">
+            <div class="flagship-visual reveal">
+                <figure><img src="assets/screenshots/research-desk.webp" width="2696" height="1562" loading="lazy" alt="Research Desk local archive, review queue, and document preview"></figure>
+                <div class="visual-caption"><span>FLAGSHIP / 01</span><strong>Research Desk</strong><small>Built only with public RustFrame APIs</small></div>
             </div>
-
-            <div class="package-grid">
-                <article class="package-card">
-                    <span class="tile-kicker">Package command</span>
-                    <h3>Build and verify on the native host.</h3>
-                    <pre><code>rustframe package --verify</code></pre>
-                    <p>The frontend builds first, then the hidden runner becomes a host-native bundle under <code>dist/packages/</code> with checksums and machine-readable metadata.</p>
-                </article>
-                <article class="package-card">
-                    <span class="tile-kicker">Support contract</span>
-                    <h3>Production credibility now has an explicit boundary.</h3>
-                    <ul class="card-list">
-                        <li>Native CI builds, installs, launches, and uninstalls every supported package format.</li>
-                        <li>Platform promises and non-promises are now documented instead of implied.</li>
-                        <li>Signing, notarization, updates, and release prep have dedicated operator guides.</li>
-                        <li>Unsigned local output is supported and labeled explicitly in package metadata.</li>
-                    </ul>
-                </article>
-                <article class="package-card">
-                    <span class="tile-kicker">Current limits</span>
-                    <h3>Be honest about what is still early.</h3>
-                    <ul class="card-list">
-                        <li>Packaging requires the matching native host toolchain; cross-host installers are not promised.</li>
-                        <li>Signing and updates are documented, but they are still release-layer responsibilities outside the runtime.</li>
-                        <li>Linux still has the heaviest GTK, WebKitGTK, and display-stack constraints.</li>
-                    </ul>
-                </article>
+            <div class="flagship-copy reveal">
+                <p class="section-kicker">A real workflow, not a toy counter</p><h2>Choose a folder.<br>Build a research memory.</h2>
+                <p>Research Desk watches Markdown and text files, indexes them without Python, stores review state locally, synchronizes reader windows, exports queues, and protects recovery with SQLite backup and restore.</p>
+                <div class="fact-grid"><p><strong>0</strong><span>required servers</span></p><p><strong>3</strong><span>native hosts</span></p><p><strong>1</strong><span>public API surface</span></p></div>
+                <div class="button-row"><a class="button button-ink" href="https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.1">Download RC <b aria-hidden="true">↗</b></a><a class="text-link" href="https://github.com/OthmaneBlial/rustframe/tree/main/apps/research-desk">Inspect the source →</a></div>
             </div>
         </section>
 
-        <section class="frame gallery reveal">
-            <div class="section-heading">
-                <p class="eyebrow">Flagship And References</p>
-                <h2>Lead with one credible workflow. Keep the rest as references.</h2>
-                <p class="section-note">
-                    The repo still benefits from a broad example set, but the public story should start
-                    with <code>research-desk</code> and use the rest as implementation references around it.
-                </p>
-            </div>
+        <section class="comparison section-shell">
+            <header class="section-heading reveal"><p class="section-kicker">Choose honestly</p><h2>Use the smallest tool that owns your actual problem.</h2><p>RustFrame wins by being opinionated, not by pretending to have the broadest desktop ecosystem.</p></header>
+            <div class="comparison-table-wrap reveal"><table class="comparison-table"><thead><tr><th>Need</th><th class="is-rustframe">RustFrame</th><th>Tauri</th><th>Electron</th><th>Browser / PWA</th></tr></thead><tbody>
+                <tr><th>App-owned native backend</th><td class="is-rustframe"><strong>No</strong> until eject</td><td>Usually Rust</td><td>Node main process</td><td>None</td></tr>
+                <tr><th>Typed embedded data by default</th><td class="is-rustframe"><strong>Yes</strong> · SQLite</td><td>Compose plugins</td><td>Choose a library</td><td>Browser storage</td></tr>
+                <tr><th>Consent-scoped local files</th><td class="is-rustframe"><strong>Opaque grants</strong></td><td>Capability/plugin scopes</td><td>App-defined IPC</td><td>Limited picker APIs</td></tr>
+                <tr><th>Native API breadth</th><td class="is-rustframe">Intentionally small</td><td><strong>Broad</strong></td><td><strong>Broad</strong></td><td>Limited</td></tr>
+                <tr><th>Best fit</th><td class="is-rustframe">Local workbenches</td><td>Custom native apps</td><td>Large JS desktop apps</td><td>Connected products</td></tr>
+            </tbody></table></div>
+            <a class="text-link" href="docs.html?doc=choosing-rustframe">Read the complete chooser →</a>
+        </section>
 
-            <div class="gallery-grid">
-                <article class="gallery-card gallery-card-wide">
-                    <img src="assets/screenshots/research-desk.png" alt="Research Desk screenshot">
-                    <div class="gallery-copy">
-                        <span class="gallery-kicker">Flagship workflow</span>
-                        <h3>Research Desk</h3>
-                        <p>A user-selected document workflow combining native indexing, filesystem watching, typed SQLite, backups, and synchronized reader windows.</p>
-                    </div>
-                </article>
-                <article class="gallery-card">
-                    <img src="assets/screenshots/atlas-crm.png" alt="Atlas CRM screenshot">
-                    <div class="gallery-copy">
-                        <span class="gallery-kicker">Dense structured data</span>
-                        <h3>Atlas CRM</h3>
-                        <p>A good reference for richer list, lane, and mutation patterns over SQLite-backed records.</p>
-                    </div>
-                </article>
-                <article class="gallery-card">
-                    <img src="assets/screenshots/prism-gallery.png" alt="Prism Gallery screenshot">
-                    <div class="gallery-copy">
-                        <span class="gallery-kicker">Earlier file-centric reference</span>
-                        <h3>Prism Gallery</h3>
-                        <p>The previous closest file-centric reference. Useful for layout ideas, but no longer the main product story.</p>
-                    </div>
-                </article>
+        <section class="install section-shell" id="install">
+            <div class="install-copy reveal"><p class="section-kicker">Start from an empty folder</p><h2>Install once.<br>Create anywhere.</h2><p>Use the prebuilt CLI for the shortest path. Rust and the host WebView toolchain are still required to compile the stock native runner.</p><ol><li><span>1</span>Install the CLI</li><li><span>2</span>Run <code>rustframe doctor</code></li><li><span>3</span>Create and open your workflow</li></ol></div>
+            <div class="command-workbench reveal">
+                <div class="command-tabs" role="tablist" aria-label="Install method"><button type="button" role="tab" aria-selected="true" data-command-tab="unix">macOS / Linux</button><button type="button" role="tab" aria-selected="false" data-command-tab="windows">Windows</button><button type="button" role="tab" aria-selected="false" data-command-tab="source">From source</button></div>
+                <div class="command-panel" role="tabpanel" data-command-panel="unix"><pre><code>curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.sh | sh</code></pre><button type="button" data-copy>Copy</button></div>
+                <div class="command-panel" role="tabpanel" data-command-panel="windows" hidden><pre><code>powershell -ExecutionPolicy Bypass -c "irm https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.1/rustframe-cli-installer.ps1 | iex"</code></pre><button type="button" data-copy>Copy</button></div>
+                <div class="command-panel" role="tabpanel" data-command-panel="source" hidden><pre><code>cargo install rustframe-cli --version 0.1.0-rc.1 --locked</code></pre><button type="button" data-copy>Copy</button></div>
+                <div class="next-command"><span>Then</span><code>rustframe doctor &amp;&amp; rustframe new my-tool</code></div>
+                <p class="registry-warning"><strong>RC registry note:</strong> dependency installation becomes public after the initial <code>rustframe-api</code> npm publication.</p>
             </div>
         </section>
 
-        <section class="frame docs-strip reveal" id="docs">
-            <div class="section-heading">
-                <p class="eyebrow">Docs</p>
-                <h2>Move from the landing page into the real contract.</h2>
-                <p class="section-note">
-                    The featured guide cards below are now driven from the same docs registry as the docs sidebar,
-                    so the homepage stops drifting whenever the documentation changes.
-                </p>
-            </div>
-
-            <div id="featured-docs" class="docs-grid">
-                <a class="doc-card" href="docs.html">
-                    <span>Guide</span>
-                    <strong>Loading featured docs</strong>
-                    <p>Preparing the current guide set from the site registry.</p>
-                </a>
-            </div>
+        <section class="docs-gateway section-shell">
+            <header class="section-heading section-heading-side reveal"><div><p class="section-kicker">Read only what you need</p><h2>From first window to trusted package.</h2></div><a class="button button-paper" href="docs.html">Open all documentation <b aria-hidden="true">→</b></a></header>
+            <div class="docs-card-grid" id="featured-docs" aria-live="polite"></div>
         </section>
+
+        <section class="closing-cta section-shell reveal"><p class="section-kicker">Build the workflow. Keep the data.</p><h2>The desktop can be local<br>without becoming low-level.</h2><div><a class="button button-signal" href="#install">Install RustFrame ↓</a><a class="button button-line" href="https://github.com/OthmaneBlial/rustframe">Star or contribute on GitHub ↗</a></div></section>
     </main>
 
     <footer class="site-footer">
-        <p>RustFrame is the narrow path for local-first desktop workflow tools: mostly frontend code, embedded SQLite, and a small explicit native surface.</p>
+        <a class="brand footer-brand" href="index.html"><span class="brand-mark" aria-hidden="true"><i>R</i><i>F</i></span><span class="brand-copy"><strong>RustFrame</strong><small>MIT licensed · no telemetry by default</small></span></a>
+        <div><a href="docs.html">Docs</a><a href="showcase.html">Showcase</a><a href="https://github.com/OthmaneBlial/rustframe/blob/main/SECURITY.md">Security</a><a href="https://github.com/OthmaneBlial/rustframe/releases">Releases</a></div>
+        <p>RustFrame is an early release candidate. Platform and signing boundaries are stated explicitly in every release.</p>
     </footer>
-
     <script src="app.js"></script>
 </body>
 </html>

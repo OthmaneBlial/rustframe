@@ -1,64 +1,49 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>RustFrame Docs</title>
-    <meta name="description" content="Repository-derived documentation for RustFrame.">
+    <title>RustFrame Documentation — Build and ship local tools</title>
+    <meta name="description" content="Learn RustFrame from the first native window through typed SQLite, scoped files, security validation, packaging, signing, and migration.">
+    <meta name="theme-color" content="#f2efe5">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <link rel="canonical" href="https://othmaneblial.github.io/rustframe/docs.html">
+    <link rel="preload" href="assets/fonts/archivo-black-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="styles.css">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="RustFrame Documentation">
+    <meta property="og:description" content="Task-focused guides for local-first desktop tools, security boundaries, native packaging, and releases.">
+    <meta property="og:url" content="https://othmaneblial.github.io/rustframe/docs.html">
+    <meta property="og:image" content="https://othmaneblial.github.io/rustframe/assets/screenshots/research-desk.webp">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"WebPage","name":"RustFrame Documentation","url":"https://othmaneblial.github.io/rustframe/docs.html","description":"Guides and reference documentation for RustFrame desktop workflow applications.","isPartOf":{"@type":"WebSite","name":"RustFrame","url":"https://othmaneblial.github.io/rustframe/"}}
+    </script>
 </head>
 <body class="page-docs">
+    <a class="skip-link" href="#docs-content">Skip to documentation</a>
+    <div class="paper-noise" aria-hidden="true"></div>
     <header class="docs-topbar">
-        <a class="brand" href="index.html">
-            <span class="brand-mark">RF</span>
-            <span class="brand-copy">
-                <strong>RustFrame</strong>
-                <span>Docs</span>
-            </span>
-        </a>
-
-        <div class="docs-actions">
-            <a class="button button-ghost" href="showcase.html">Showcase</a>
-            <a class="button button-ghost" href="index.html">Back to site</a>
-        </div>
+        <a class="brand" href="index.html" aria-label="RustFrame home"><span class="brand-mark" aria-hidden="true"><i>R</i><i>F</i></span><span class="brand-copy"><strong>RustFrame</strong><small>Documentation</small></span></a>
+        <div class="docs-actions"><a class="button button-paper" href="showcase.html">Showcase</a><a class="button button-ink" href="index.html">Product site</a></div>
     </header>
 
     <main class="docs-layout">
-        <aside class="docs-sidebar">
-            <div class="docs-sidebar-head">
-                <p class="eyebrow">Docs</p>
-                <h1>Repository guides</h1>
-                <p>Everything on this page is mirrored from the repo-level <code>docs/</code> folder, so the static site stays tied to the same working contract as the source tree.</p>
-            </div>
-
-            <div class="docs-sidebar-meta">
-                <strong id="docs-count">18 mirrored guides</strong>
-                <span>One registry drives the docs routes, sidebar navigation, and the featured guide surface on the homepage.</span>
-            </div>
-
-            <label class="docs-search">
-                <span>Filter docs</span>
-                <input id="docs-search" type="search" placeholder="Search docs by title">
-            </label>
-
-            <nav id="docs-nav" class="docs-nav" aria-label="Documentation"></nav>
+        <aside class="docs-sidebar" aria-label="Documentation navigation">
+            <div class="docs-sidebar-head"><p class="section-kicker">Docs / RC 0.1</p><h1>Build with the boundary visible.</h1><p>Task-focused guides mirrored from the same versioned source reviewed with the runtime.</p></div>
+            <div class="docs-sidebar-meta"><strong id="docs-count">18 guides</strong><span>CLI, data, capabilities, packaging, operations, and examples.</span></div>
+            <label class="docs-search"><span>Filter guides</span><input id="docs-search" type="search" placeholder="Try “packaging” or “security”" autocomplete="off"></label>
+            <nav id="docs-nav" class="docs-nav" aria-label="Documentation guides"></nav>
         </aside>
 
         <section class="docs-panel">
             <div class="docs-meta">
-                <div class="docs-meta-copy">
-                    <p class="eyebrow">Current doc</p>
-                    <strong id="docs-title">Loading…</strong>
-                </div>
-                <a id="docs-source" class="docs-source-link" href="https://github.com/OthmaneBlial/rustframe/tree/main/docs" target="_blank" rel="noreferrer">docs/README.md</a>
+                <div class="docs-meta-copy"><p class="section-kicker">Current guide</p><strong id="docs-title">Loading…</strong></div>
+                <a id="docs-source" class="docs-source-link" href="https://github.com/OthmaneBlial/rustframe/tree/main/docs" target="_blank" rel="noreferrer">View source ↗</a>
             </div>
-
-            <article id="docs-content" class="docs-content">
-                <p>Loading documentation…</p>
-            </article>
+            <article id="docs-content" class="docs-content" aria-live="polite"><p>Loading documentation…</p></article>
         </section>
     </main>
-
     <script src="app.js"></script>
 </body>
 </html>
