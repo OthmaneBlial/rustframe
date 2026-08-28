@@ -119,96 +119,20 @@ case "$host_format" in
     ;;
 
   nsis)
-    artifact="$(find_artifact '*.exe')"
-    artifact_windows="$(cygpath -w "$artifact")"
-    smoke_windows="$(cygpath -w "$smoke_root")"
-    smoke_output="$package_dir/.rustframe-nsis-smoke.json"
-    smoke_output_windows="$(cygpath -w "$smoke_output")"
-    receipt_output_windows="$(cygpath -w "$receipt_output")"
-    RUSTFRAME_INSTALLER="$artifact_windows" \
-    RUSTFRAME_PRODUCT_NAME="$product_name" \
-    RUSTFRAME_BINARY_NAME="${binary_name}.exe" \
-    RUSTFRAME_INSTALL_SMOKE_ROOT="$smoke_windows" \
-    RUSTFRAME_INSTALL_SMOKE_OUTPUT="$smoke_output_windows" \
-    RUSTFRAME_INSTALL_SMOKE_RECEIPT="$receipt_output_windows" \
-    RUSTFRAME_INSTALL_SMOKE_FORMAT="$host_format" \
-      powershell.exe -NoLogo -NoProfile -NonInteractive -Command - <<'POWERSHELL'
-$ErrorActionPreference = 'Stop'
-$installer = $env:RUSTFRAME_INSTALLER
-$installRoot = Join-Path $env:LOCALAPPDATA $env:RUSTFRAME_PRODUCT_NAME
-$binary = Join-Path $installRoot $env:RUSTFRAME_BINARY_NAME
-$uninstaller = Join-Path $installRoot 'uninstall.exe'
-$result = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
-if ($result.ExitCode -ne 0) { throw "NSIS install failed with exit code $($result.ExitCode)" }
-if (-not (Test-Path $binary)) { throw "NSIS did not install $binary" }
-$env:RUSTFRAME_SMOKE_TEST = '1'
-$env:RUSTFRAME_SMOKE_OUTPUT = $env:RUSTFRAME_INSTALL_SMOKE_OUTPUT
-$env:RUSTFRAME_SMOKE_DATA_DIR = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'nsis-data'
-$smokeArguments = '--rustframe-smoke-output="{0}" --rustframe-smoke-data-dir="{1}"' -f `
-  $env:RUSTFRAME_SMOKE_OUTPUT, $env:RUSTFRAME_SMOKE_DATA_DIR
-$app = Start-Process -FilePath $binary -ArgumentList $smokeArguments -Wait -PassThru
-if ($app.ExitCode -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed NSIS application smoke failed' }
-node scripts/assert_offline_smoke.mjs --input $env:RUSTFRAME_SMOKE_OUTPUT --format $env:RUSTFRAME_INSTALL_SMOKE_FORMAT --output $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT)) { throw 'NSIS offline receipt generation failed' }
-$result = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
-if ($result.ExitCode -ne 0) { throw "NSIS uninstall failed with exit code $($result.ExitCode)" }
-Start-Sleep -Seconds 2
-if (Test-Path $binary) { throw "NSIS uninstall left $binary behind" }
-if (-not (Test-Path $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT)) { throw 'NSIS uninstall removed the transported smoke receipt' }
-Remove-Item $env:RUSTFRAME_SMOKE_OUTPUT -Force
-POWERSHELL
-    test -s "$receipt_output"
+    powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+      -File scripts/ci_package_install_smoke.ps1 \
+      -ProjectPath "$project_path" \
+      -HostFormat "$host_format" \
+      -ProductName "$product_name"
     smoke_verified=1
     ;;
 
   msi)
-    artifact="$(find_artifact '*.msi')"
-    artifact_windows="$(cygpath -w "$artifact")"
-    smoke_windows="$(cygpath -w "$smoke_root")"
-    smoke_output="$package_dir/.rustframe-msi-smoke.json"
-    smoke_output_windows="$(cygpath -w "$smoke_output")"
-    receipt_output_windows="$(cygpath -w "$receipt_output")"
-    RUSTFRAME_INSTALLER="$artifact_windows" \
-    RUSTFRAME_PRODUCT_NAME="$product_name" \
-    RUSTFRAME_BINARY_NAME="${binary_name}.exe" \
-    RUSTFRAME_INSTALL_SMOKE_ROOT="$smoke_windows" \
-    RUSTFRAME_INSTALL_SMOKE_OUTPUT="$smoke_output_windows" \
-    RUSTFRAME_INSTALL_SMOKE_RECEIPT="$receipt_output_windows" \
-    RUSTFRAME_INSTALL_SMOKE_FORMAT="$host_format" \
-      powershell.exe -NoLogo -NoProfile -NonInteractive -Command - <<'POWERSHELL'
-$ErrorActionPreference = 'Stop'
-$installer = $env:RUSTFRAME_INSTALLER
-$arguments = @('/i', $installer, '/qn', '/norestart')
-$result = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -PassThru
-if ($result.ExitCode -ne 0) { throw "MSI install failed with exit code $($result.ExitCode)" }
-$uninstallRoots = @(
-  'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
-  'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
-)
-$entry = Get-ItemProperty $uninstallRoots -ErrorAction SilentlyContinue |
-  Where-Object { $_.DisplayName -eq $env:RUSTFRAME_PRODUCT_NAME } |
-  Select-Object -First 1
-if (-not $entry) { throw "MSI uninstall registration was not found" }
-$installRoot = $entry.InstallLocation.Trim('"')
-$binary = Join-Path $installRoot $env:RUSTFRAME_BINARY_NAME
-if (-not (Test-Path $binary)) { throw "MSI did not install $binary" }
-$env:RUSTFRAME_SMOKE_TEST = '1'
-$env:RUSTFRAME_SMOKE_OUTPUT = $env:RUSTFRAME_INSTALL_SMOKE_OUTPUT
-$env:RUSTFRAME_SMOKE_DATA_DIR = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'msi-data'
-$smokeArguments = '--rustframe-smoke-output="{0}" --rustframe-smoke-data-dir="{1}"' -f `
-  $env:RUSTFRAME_SMOKE_OUTPUT, $env:RUSTFRAME_SMOKE_DATA_DIR
-$app = Start-Process -FilePath $binary -ArgumentList $smokeArguments -Wait -PassThru
-if ($app.ExitCode -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed MSI application smoke failed' }
-node scripts/assert_offline_smoke.mjs --input $env:RUSTFRAME_SMOKE_OUTPUT --format $env:RUSTFRAME_INSTALL_SMOKE_FORMAT --output $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT)) { throw 'MSI offline receipt generation failed' }
-$arguments = @('/x', $installer, '/qn', '/norestart')
-$result = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -PassThru
-if ($result.ExitCode -ne 0) { throw "MSI uninstall failed with exit code $($result.ExitCode)" }
-if (Test-Path $binary) { throw "MSI uninstall left $binary behind" }
-if (-not (Test-Path $env:RUSTFRAME_INSTALL_SMOKE_RECEIPT)) { throw 'MSI uninstall removed the transported smoke receipt' }
-Remove-Item $env:RUSTFRAME_SMOKE_OUTPUT -Force
-POWERSHELL
-    test -s "$receipt_output"
+    powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+      -File scripts/ci_package_install_smoke.ps1 \
+      -ProjectPath "$project_path" \
+      -HostFormat "$host_format" \
+      -ProductName "$product_name"
     smoke_verified=1
     ;;
 
