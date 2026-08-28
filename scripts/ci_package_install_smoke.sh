@@ -122,10 +122,13 @@ case "$host_format" in
     artifact="$(find_artifact '*.exe')"
     artifact_windows="$(cygpath -w "$artifact")"
     smoke_windows="$(cygpath -w "$smoke_root")"
+    smoke_output="$package_dir/.rustframe-nsis-smoke.json"
+    smoke_output_windows="$(cygpath -w "$smoke_output")"
     RUSTFRAME_INSTALLER="$artifact_windows" \
     RUSTFRAME_PRODUCT_NAME="$product_name" \
     RUSTFRAME_BINARY_NAME="${binary_name}.exe" \
     RUSTFRAME_INSTALL_SMOKE_ROOT="$smoke_windows" \
+    RUSTFRAME_INSTALL_SMOKE_OUTPUT="$smoke_output_windows" \
       powershell.exe -NoLogo -NoProfile -NonInteractive -Command - <<'POWERSHELL'
 $ErrorActionPreference = 'Stop'
 $installer = $env:RUSTFRAME_INSTALLER
@@ -136,7 +139,7 @@ $result = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
 if ($result.ExitCode -ne 0) { throw "NSIS install failed with exit code $($result.ExitCode)" }
 if (-not (Test-Path $binary)) { throw "NSIS did not install $binary" }
 $env:RUSTFRAME_SMOKE_TEST = '1'
-$env:RUSTFRAME_SMOKE_OUTPUT = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'nsis.json'
+$env:RUSTFRAME_SMOKE_OUTPUT = $env:RUSTFRAME_INSTALL_SMOKE_OUTPUT
 $env:RUSTFRAME_SMOKE_DATA_DIR = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'nsis-data'
 $app = Start-Process -FilePath $binary -Wait -PassThru
 if ($app.ExitCode -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed NSIS application smoke failed' }
@@ -145,17 +148,19 @@ if ($result.ExitCode -ne 0) { throw "NSIS uninstall failed with exit code $($res
 Start-Sleep -Seconds 2
 if (Test-Path $binary) { throw "NSIS uninstall left $binary behind" }
 POWERSHELL
-    smoke_output="$smoke_root/nsis.json"
     ;;
 
   msi)
     artifact="$(find_artifact '*.msi')"
     artifact_windows="$(cygpath -w "$artifact")"
     smoke_windows="$(cygpath -w "$smoke_root")"
+    smoke_output="$package_dir/.rustframe-msi-smoke.json"
+    smoke_output_windows="$(cygpath -w "$smoke_output")"
     RUSTFRAME_INSTALLER="$artifact_windows" \
     RUSTFRAME_PRODUCT_NAME="$product_name" \
     RUSTFRAME_BINARY_NAME="${binary_name}.exe" \
     RUSTFRAME_INSTALL_SMOKE_ROOT="$smoke_windows" \
+    RUSTFRAME_INSTALL_SMOKE_OUTPUT="$smoke_output_windows" \
       powershell.exe -NoLogo -NoProfile -NonInteractive -Command - <<'POWERSHELL'
 $ErrorActionPreference = 'Stop'
 $installer = $env:RUSTFRAME_INSTALLER
@@ -174,7 +179,7 @@ $installRoot = $entry.InstallLocation.Trim('"')
 $binary = Join-Path $installRoot $env:RUSTFRAME_BINARY_NAME
 if (-not (Test-Path $binary)) { throw "MSI did not install $binary" }
 $env:RUSTFRAME_SMOKE_TEST = '1'
-$env:RUSTFRAME_SMOKE_OUTPUT = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'msi.json'
+$env:RUSTFRAME_SMOKE_OUTPUT = $env:RUSTFRAME_INSTALL_SMOKE_OUTPUT
 $env:RUSTFRAME_SMOKE_DATA_DIR = Join-Path $env:RUSTFRAME_INSTALL_SMOKE_ROOT 'msi-data'
 $app = Start-Process -FilePath $binary -Wait -PassThru
 if ($app.ExitCode -ne 0 -or -not (Test-Path $env:RUSTFRAME_SMOKE_OUTPUT)) { throw 'installed MSI application smoke failed' }
@@ -193,3 +198,6 @@ POWERSHELL
 esac
 
 write_offline_receipt "$smoke_output"
+if [[ "$host_format" == "nsis" || "$host_format" == "msi" ]]; then
+  rm -f "$smoke_output"
+fi
