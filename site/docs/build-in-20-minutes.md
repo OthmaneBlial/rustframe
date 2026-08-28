@@ -62,6 +62,8 @@ rustframe package --verify
 
 `build` runs the frontend build before compiling the hidden native runner. `package` uses cargo-packager to create host-native artifacts under `dist/packages/`, plus checksums, release metadata, and release notes. Local packages are explicitly marked unsigned.
 
+Document-oriented apps can add versioned native file types in `.rustframe/file-associations.json`. The main manifest remains on immutable schema v1. See [Single-instance file-open routing](./file-open-routing.md) for the configuration and frontend event contract.
+
 Run packaging on each native host for its formats:
 
 - macOS: `.app` and `.dmg`

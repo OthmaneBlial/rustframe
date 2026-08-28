@@ -14,7 +14,7 @@ use std::{
 
 use clap::Parser;
 use rustframe::{DatabaseMigrationFile, DatabaseSchema, DatabaseSeedFile};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 mod capabilities;
@@ -48,6 +48,8 @@ const TEMPLATE_EJECTED_RUNNER_CARGO_TOML: &str =
 const TEMPLATE_EJECTED_RUNNER_MAIN_RS: &str =
     include_str!("../templates/ejected-runner/main.rs.tmpl");
 const DATABASE_FILE_NAME: &str = "app.db";
+const FILE_ASSOCIATIONS_PATH: &str = ".rustframe/file-associations.json";
+const FILE_ASSOCIATIONS_SCHEMA_URL: &str = "https://othmaneblial.github.io/rustframe/schemas/file-associations/v1/file-associations.schema.json";
 
 #[derive(Debug)]
 struct AppProject {
@@ -259,11 +261,56 @@ struct AppPackagingConfig {
     description: String,
     publisher: Option<String>,
     homepage: Option<String>,
+    file_associations: Vec<AppFileAssociation>,
     linux: LinuxPackagingConfig,
     #[cfg_attr(not(any(test, target_os = "windows")), allow(dead_code))]
     windows: WindowsPackagingConfig,
     #[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
     macos: MacOsPackagingConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppFileAssociation {
+    extensions: Vec<String>,
+    mime_type: Option<String>,
+    description: Option<String>,
+    name: Option<String>,
+    role: AppFileAssociationRole,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum AppFileAssociationRole {
+    #[default]
+    Editor,
+    Viewer,
+    Shell,
+    QlGenerator,
+    None,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FileAssociationsDocument {
+    #[serde(rename = "$schema")]
+    schema: String,
+    schema_version: u32,
+    associations: Vec<FileAssociationEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct FileAssociationEntry {
+    extensions: Vec<String>,
+    #[serde(default)]
+    mime_type: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    role: AppFileAssociationRole,
 }
 
 #[derive(Debug, Clone)]
@@ -3050,6 +3097,7 @@ fn read_packaging_config(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| default_macos_bundle_identifier(app_id));
+    let file_associations = read_file_associations(app_dir)?;
 
     validate_packaging_metadata(&version, &description, &categories, &keywords)?;
     if let Some(path) = &icon_path {
@@ -3068,6 +3116,7 @@ fn read_packaging_config(
         description,
         publisher,
         homepage,
+        file_associations,
         linux: LinuxPackagingConfig {
             categories,
             keywords,
@@ -3081,6 +3130,134 @@ fn read_packaging_config(
             icon_path: macos_icon_path,
         },
     })
+}
+
+fn read_file_associations(app_dir: &Path) -> CliResult<Vec<AppFileAssociation>> {
+    let path = app_dir.join(FILE_ASSOCIATIONS_PATH);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let source = fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read '{}': {error}", path.display()))?;
+    let document: FileAssociationsDocument = serde_json::from_str(&source)
+        .map_err(|error| format!("failed to parse '{}': {error}", path.display()))?;
+    if document.schema != FILE_ASSOCIATIONS_SCHEMA_URL {
+        return Err(format!(
+            "file associations $schema must be '{FILE_ASSOCIATIONS_SCHEMA_URL}'"
+        ));
+    }
+    if document.schema_version != 1 {
+        return Err(format!(
+            "unsupported file associations schemaVersion {}; this rustframe supports schemaVersion 1",
+            document.schema_version
+        ));
+    }
+    if document.associations.is_empty() {
+        return Err("file associations must declare at least one association".into());
+    }
+    if document.associations.len() > 32 {
+        return Err("file associations may declare at most 32 associations".into());
+    }
+
+    let mut seen_extensions = BTreeSet::new();
+    let mut associations = Vec::with_capacity(document.associations.len());
+    for (index, entry) in document.associations.into_iter().enumerate() {
+        if entry.extensions.is_empty() || entry.extensions.len() > 32 {
+            return Err(format!(
+                "file associations entry {index} must declare 1 to 32 extensions"
+            ));
+        }
+        let mut extensions = Vec::with_capacity(entry.extensions.len());
+        for extension in entry.extensions {
+            if !valid_file_association_extension(&extension) {
+                return Err(format!(
+                    "file associations entry {index} has invalid extension '{extension}'; use 1 to 32 lowercase letters, digits, '+', '-', or '_' without a leading dot"
+                ));
+            }
+            if !seen_extensions.insert(extension.clone()) {
+                return Err(format!(
+                    "file association extension '{extension}' is declared more than once"
+                ));
+            }
+            extensions.push(extension);
+        }
+        let mime_type = normalize_optional_string(
+            &format!("file associations entry {index} mimeType"),
+            entry.mime_type,
+        )?;
+        if let Some(mime_type) = mime_type.as_deref()
+            && !valid_file_association_mime_type(mime_type)
+        {
+            return Err(format!(
+                "file associations entry {index} has invalid mimeType '{mime_type}'"
+            ));
+        }
+        let description =
+            normalize_bounded_association_label(index, "description", entry.description)?;
+        let name = normalize_bounded_association_label(index, "name", entry.name)?;
+        associations.push(AppFileAssociation {
+            extensions,
+            mime_type,
+            description,
+            name,
+            role: entry.role,
+        });
+    }
+    Ok(associations)
+}
+
+fn valid_file_association_extension(value: &str) -> bool {
+    (1..=32).contains(&value.len())
+        && value
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_lowercase() || character.is_ascii_digit())
+        && value.chars().all(|character| {
+            character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || matches!(character, '+' | '-' | '_')
+        })
+}
+
+fn valid_file_association_mime_type(value: &str) -> bool {
+    if value.len() > 127 || value.chars().any(char::is_whitespace) {
+        return false;
+    }
+    let Some((category, subtype)) = value.split_once('/') else {
+        return false;
+    };
+    !category.is_empty()
+        && !subtype.is_empty()
+        && !subtype.contains('/')
+        && category.chars().all(valid_mime_character)
+        && subtype.chars().all(valid_mime_character)
+}
+
+fn valid_mime_character(character: char) -> bool {
+    character.is_ascii_lowercase()
+        || character.is_ascii_digit()
+        || matches!(
+            character,
+            '!' | '#' | '$' | '&' | '^' | '_' | '.' | '+' | '-'
+        )
+}
+
+fn normalize_bounded_association_label(
+    index: usize,
+    field: &str,
+    value: Option<String>,
+) -> CliResult<Option<String>> {
+    let value =
+        normalize_optional_string(&format!("file associations entry {index} {field}"), value)?;
+    if value
+        .as_ref()
+        .is_some_and(|value| value.chars().count() > 128)
+    {
+        return Err(format!(
+            "file associations entry {index} {field} must be at most 128 characters"
+        ));
+    }
+    Ok(value)
 }
 
 fn resolve_manifest_path(app_dir: &Path, path: &str) -> PathBuf {
@@ -5262,9 +5439,10 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        AppConfig, AppDatabaseConfig, AppPackagingConfig, AppProject, AppSecurityConfig,
-        AppSecurityModel, AppShellCommand, DEFAULT_PLATFORM_TARGETS, FrontendConfig,
-        LinuxPackagingConfig, MacOsPackagingConfig, WindowsPackagingConfig, build_app_inspection,
+        AppConfig, AppDatabaseConfig, AppFileAssociationRole, AppPackagingConfig, AppProject,
+        AppSecurityConfig, AppSecurityModel, AppShellCommand, DEFAULT_PLATFORM_TARGETS,
+        FILE_ASSOCIATIONS_PATH, FILE_ASSOCIATIONS_SCHEMA_URL, FrontendConfig, LinuxPackagingConfig,
+        MacOsPackagingConfig, WindowsPackagingConfig, build_app_inspection,
         collect_embedded_assets, find_workspace_root_from, load_app_project, parse_package_args,
         parse_platform_check_args, platform_target_spec, prepare_ejected_runner,
         prepare_generated_runner, read_app_config, relative_path, render_asset_match_arms,
@@ -5295,6 +5473,7 @@ mod tests {
             description: title.into(),
             publisher: None,
             homepage: None,
+            file_associations: Vec::new(),
             linux: LinuxPackagingConfig {
                 categories: vec!["Utility".into()],
                 keywords: Vec::new(),
@@ -5588,6 +5767,91 @@ mod tests {
             config.packaging.macos.icon_path,
             Some(temp.path().join("assets-icon.svg"))
         );
+    }
+
+    #[test]
+    fn reads_versioned_file_associations_without_changing_manifest_v1() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            "<title>Document Desk</title>",
+        )
+        .unwrap();
+        fs::create_dir(temp.path().join(".rustframe")).unwrap();
+        fs::write(
+            temp.path().join(FILE_ASSOCIATIONS_PATH),
+            format!(
+                r#"{{
+                  "$schema": "{FILE_ASSOCIATIONS_SCHEMA_URL}",
+                  "schemaVersion": 1,
+                  "associations": [{{
+                    "extensions": ["md", "markdown"],
+                    "mimeType": "text/markdown",
+                    "description": "Markdown document",
+                    "name": "Markdown",
+                    "role": "viewer"
+                  }}]
+                }}"#
+            ),
+        )
+        .unwrap();
+
+        let config = read_app_config("document-desk", temp.path(), temp.path()).unwrap();
+
+        assert_eq!(config.packaging.file_associations.len(), 1);
+        assert_eq!(
+            config.packaging.file_associations[0].extensions,
+            vec!["md", "markdown"]
+        );
+        assert_eq!(
+            config.packaging.file_associations[0].mime_type.as_deref(),
+            Some("text/markdown")
+        );
+        assert_eq!(
+            config.packaging.file_associations[0].role,
+            AppFileAssociationRole::Viewer
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_or_noncanonical_file_association_extensions() {
+        let temp = tempdir().unwrap();
+        fs::write(
+            temp.path().join("index.html"),
+            "<title>Document Desk</title>",
+        )
+        .unwrap();
+        fs::create_dir(temp.path().join(".rustframe")).unwrap();
+        fs::write(
+            temp.path().join(FILE_ASSOCIATIONS_PATH),
+            format!(
+                r#"{{
+                  "$schema": "{FILE_ASSOCIATIONS_SCHEMA_URL}",
+                  "schemaVersion": 1,
+                  "associations": [
+                    {{ "extensions": ["md"] }},
+                    {{ "extensions": ["md"] }}
+                  ]
+                }}"#
+            ),
+        )
+        .unwrap();
+        let duplicate = read_app_config("document-desk", temp.path(), temp.path()).unwrap_err();
+        assert!(duplicate.contains("extension 'md' is declared more than once"));
+
+        fs::write(
+            temp.path().join(FILE_ASSOCIATIONS_PATH),
+            format!(
+                r#"{{
+                  "$schema": "{FILE_ASSOCIATIONS_SCHEMA_URL}",
+                  "schemaVersion": 1,
+                  "associations": [{{ "extensions": [".MD"] }}]
+                }}"#
+            ),
+        )
+        .unwrap();
+        let invalid = read_app_config("document-desk", temp.path(), temp.path()).unwrap_err();
+        assert!(invalid.contains("invalid extension '.MD'"));
     }
 
     #[test]
@@ -6433,6 +6697,7 @@ mod tests {
                     description: "A Linux packaged app".into(),
                     publisher: Some("RustFrame".into()),
                     homepage: Some("https://example.com/package-demo".into()),
+                    file_associations: Vec::new(),
                     linux: LinuxPackagingConfig {
                         categories: vec!["Utility".into()],
                         keywords: vec!["package".into(), "demo".into()],
@@ -6507,6 +6772,7 @@ mod tests {
                     description: "Research desk".into(),
                     publisher: None,
                     homepage: None,
+                    file_associations: Vec::new(),
                     linux: LinuxPackagingConfig {
                         categories: vec!["Utility".into()],
                         keywords: Vec::new(),
@@ -6568,6 +6834,7 @@ mod tests {
                     description: "A Windows packaged app".into(),
                     publisher: Some("RustFrame".into()),
                     homepage: Some("https://example.com/package-demo".into()),
+                    file_associations: Vec::new(),
                     linux: LinuxPackagingConfig {
                         categories: vec!["Utility".into()],
                         keywords: vec!["package".into(), "demo".into()],
@@ -6635,6 +6902,7 @@ mod tests {
                     description: "A macOS packaged app".into(),
                     publisher: Some("RustFrame".into()),
                     homepage: Some("https://example.com/package-demo".into()),
+                    file_associations: Vec::new(),
                     linux: LinuxPackagingConfig {
                         categories: vec!["Utility".into()],
                         keywords: vec!["package".into(), "demo".into()],

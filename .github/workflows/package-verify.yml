@@ -54,6 +54,9 @@ jobs:
           RUSTFRAME_RUNTIME_PATH: ${{ github.workspace }}/crates/rustframe
         run: ./scripts/ci_package_verify.sh apps/research-desk "${{ matrix.format }}"
 
+      - name: Verify native file association metadata
+        run: node scripts/assert_file_associations.mjs apps/research-desk "${{ matrix.format }}"
+
       - name: Install, launch, and uninstall native package
         shell: bash
         env:

@@ -29,6 +29,13 @@ test("release assembly exposes one primary download per host and every proof fil
       version: "0.1.0-rc.1",
       sourceCommit: "a".repeat(40),
       policyHash: "sha256:fixture-policy",
+      fileAssociations: [{
+        extensions: ["md", "markdown"],
+        mimeType: "text/markdown",
+        description: "Markdown research document",
+        name: "Markdown research document",
+        role: "editor",
+      }],
     })}\n`);
     fs.writeFileSync(path.join(directory, "rustframe-local-first-report.json"), `${JSON.stringify({
       schemaVersion: 1,
@@ -79,6 +86,7 @@ test("release assembly exposes one primary download per host and every proof fil
 
   const index = JSON.parse(fs.readFileSync(path.join(output, "research-desk-release-index.json"), "utf8"));
   assert.equal(index.downloads.length, 6);
+  assert.deepEqual(index.fileAssociations[0].extensions, ["md", "markdown"]);
   for (const host of ["macOS", "Windows", "Linux"]) {
     assert.equal(index.downloads.filter((entry) => entry.host === host && entry.primary).length, 1);
   }

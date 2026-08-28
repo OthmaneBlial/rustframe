@@ -31,6 +31,36 @@ const stopOpenFiles = rustframe.app.onOpenFiles(async ({ files }) => {
 
 Each entry contains an opaque `grant://` URI and file metadata, matching a drag/drop entry. The grant is read-only and non-persistent. Read it with `fs.readText`, `fs.readBinary`, or `fs.metadata`; do not retain it as long-lived workspace access. The primary window needs `fs:grants:read`, and the filesystem bridge must be enabled.
 
+## Declare native file types
+
+Manifest schema v1 is immutable, so file types live in the separately versioned `.rustframe/file-associations.json` contract:
+
+```json
+{
+  "$schema": "https://othmaneblial.github.io/rustframe/schemas/file-associations/v1/file-associations.schema.json",
+  "schemaVersion": 1,
+  "associations": [
+    {
+      "extensions": ["md", "markdown"],
+      "mimeType": "text/markdown",
+      "description": "Markdown document",
+      "name": "Markdown document",
+      "role": "editor"
+    }
+  ]
+}
+```
+
+Extensions are lowercase and omit the dot. One extension may appear only once across the file. `mimeType` feeds Linux desktop metadata, `description` feeds Windows Explorer, `name` labels the macOS document type, and `role` accepts `editor`, `viewer`, `shell`, `ql-generator`, or `none`.
+
+`rustframe validate` rejects unknown fields, a wrong schema URL/version, duplicate or noncanonical extensions, malformed MIME types, and oversized labels. `rustframe package` translates the validated declarations into:
+
+- macOS `CFBundleDocumentTypes` entries;
+- Linux MIME metadata and an `Exec` document argument;
+- Windows installer file-extension registration.
+
+The normalized declarations are also written into `rustframe-package-manifest.json` and the generated release notes. This records what the packager was asked to emit without claiming that a particular machine selected the app as its user default.
+
 ## Native boundary
 
 The runtime:
@@ -50,4 +80,4 @@ macOS may deliver Finder document opens through its application event instead of
 
 Single-instance routing is deliberately tied to an app ID. A custom ejected runner that omits `.app_id(...)` opts out. RustFrame does not expose absolute OS paths to frontend code and does not turn a document open into a persistent filesystem permission.
 
-File type declarations belong to native packaging metadata. See [Build and package a local tool](./build-in-20-minutes.md) for distribution behavior and platform-specific verification.
+See [Build and package a local tool](./build-in-20-minutes.md) for distribution behavior and platform-specific verification.

@@ -38,6 +38,7 @@ RustFrame is a Rust workspace for local-first desktop workflow tools that should
 - `crates/rustframe-cli` publishes the `rustframe` binary for standalone project creation, validation, building, migration, diagnostics, and packaging.
 - `packages/rustframe-api` is the typed npm bridge package used by generated TypeScript projects.
 - `schemas/v1/rustframe.schema.json` is the immutable manifest schema v1 contract.
+- `schemas/file-associations/v1/file-associations.schema.json` versions native document-type declarations without changing manifest v1.
 - `examples/community-templates/catalog.json` is the machine-readable ecosystem catalog for workflow-shaped starting points.
 - `examples/capability-demo` proves embedded assets, native IPC, sandboxed filesystem access, and allowlisted shell execution.
 - `apps/research-desk` is the flagship user-selected document workflow and the main proof app for the repo.

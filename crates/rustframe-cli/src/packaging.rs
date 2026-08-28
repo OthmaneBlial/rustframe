@@ -14,13 +14,14 @@ use cargo_packager::config::MacOsConfig;
 use cargo_packager::config::WindowsConfig;
 use cargo_packager::{
     Config, PackageFormat,
-    config::{AppCategory, Binary, Resource},
+    config::{AppCategory, Binary, BundleTypeRole, FileAssociation, Resource},
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    AppProject, CliResult, copy_with_permissions, executable_name, packaged_fs_roots, slash_path,
+    AppFileAssociation, AppFileAssociationRole, AppProject, CliResult, copy_with_permissions,
+    executable_name, packaged_fs_roots, slash_path,
 };
 
 #[derive(Debug, Serialize)]
@@ -49,6 +50,7 @@ struct PackageManifest<'a> {
     source_commit: Option<&'a str>,
     linux_categories: &'a [String],
     linux_keywords: &'a [String],
+    file_associations: &'a [AppFileAssociation],
     artifacts: &'a [ArtifactRecord],
 }
 
@@ -102,6 +104,8 @@ pub fn package(
         .categories
         .first()
         .and_then(|category| AppCategory::from_str(category).ok());
+    config.file_associations = (!app.config.packaging.file_associations.is_empty())
+        .then(|| packager_file_associations(&app.config.packaging.file_associations));
     config.resources = resources(app);
     if let Some(icon) = prepare_icon(app, &staging_dir)? {
         config.icons = Some(vec![slash_path(&icon)]);
@@ -154,6 +158,7 @@ pub fn package(
         source_commit: source_commit.as_deref(),
         linux_categories: &app.config.packaging.linux.categories,
         linux_keywords: &app.config.packaging.linux.keywords,
+        file_associations: &app.config.packaging.file_associations,
         artifacts: &artifacts,
     };
     write_text(
@@ -196,6 +201,32 @@ pub fn package(
         release_notes_path,
         signed,
     })
+}
+
+fn packager_file_associations(associations: &[AppFileAssociation]) -> Vec<FileAssociation> {
+    associations
+        .iter()
+        .map(|association| {
+            let mut output =
+                FileAssociation::new(association.extensions.clone()).role(match association.role {
+                    AppFileAssociationRole::Editor => BundleTypeRole::Editor,
+                    AppFileAssociationRole::Viewer => BundleTypeRole::Viewer,
+                    AppFileAssociationRole::Shell => BundleTypeRole::Shell,
+                    AppFileAssociationRole::QlGenerator => BundleTypeRole::QLGenerator,
+                    AppFileAssociationRole::None => BundleTypeRole::None,
+                });
+            if let Some(mime_type) = &association.mime_type {
+                output = output.mime_type(mime_type);
+            }
+            if let Some(description) = &association.description {
+                output = output.description(description);
+            }
+            if let Some(name) = &association.name {
+                output = output.name(name);
+            }
+            output
+        })
+        .collect()
 }
 
 #[cfg(target_os = "macos")]
@@ -333,8 +364,21 @@ fn render_release_notes(app: &AppProject, signed: bool, tested_os_version: Optio
         "This local build is unsigned. It is not a trusted end-user release."
     };
     let tested_on = tested_os_version.unwrap_or("local host version not recorded");
+    let associated_extensions = app
+        .config
+        .packaging
+        .file_associations
+        .iter()
+        .flat_map(|association| association.extensions.iter())
+        .map(|extension| format!(".{extension}"))
+        .collect::<Vec<_>>();
+    let associations = if associated_extensions.is_empty() {
+        "File associations: none declared.".to_string()
+    } else {
+        format!("File associations: {}.", associated_extensions.join(", "))
+    };
     format!(
-        "# {} {}\n\nNative RustFrame package for {} {}.\n\nSignature state: **{}**.\n\nTested on: `{tested_on}`.\n\n{trust}\n\nVerify downloaded artifacts against `SHA256SUMS` before installation.\n",
+        "# {} {}\n\nNative RustFrame package for {} {}.\n\nSignature state: **{}**.\n\nTested on: `{tested_on}`.\n\n{associations}\n\n{trust}\n\nVerify downloaded artifacts against `SHA256SUMS` before installation.\n",
         app.config.title,
         app.config.packaging.version,
         std::env::consts::OS,
@@ -626,9 +670,29 @@ fn verify_artifacts(
 
 #[cfg(test)]
 mod tests {
-    use cargo_packager::PackageFormat;
+    use cargo_packager::{PackageFormat, config::BundleTypeRole};
 
-    use super::{host_formats, native_packager_version, resolve_formats};
+    use crate::{AppFileAssociation, AppFileAssociationRole};
+
+    use super::{
+        host_formats, native_packager_version, packager_file_associations, resolve_formats,
+    };
+
+    #[test]
+    fn maps_validated_associations_to_native_packager_metadata() {
+        let associations = packager_file_associations(&[AppFileAssociation {
+            extensions: vec!["md".into(), "markdown".into()],
+            mime_type: Some("text/markdown".into()),
+            description: Some("Markdown document".into()),
+            name: Some("Markdown".into()),
+            role: AppFileAssociationRole::Viewer,
+        }]);
+
+        assert_eq!(associations.len(), 1);
+        assert_eq!(associations[0].extensions, vec!["md", "markdown"]);
+        assert_eq!(associations[0].mime_type.as_deref(), Some("text/markdown"));
+        assert_eq!(associations[0].role, BundleTypeRole::Viewer);
+    }
 
     #[test]
     fn selects_the_two_v1_native_formats_for_the_host() {

@@ -92,6 +92,9 @@ pub struct ShellReport {
 pub struct PackagingReport {
     pub version: String,
     pub native_host_required: bool,
+    pub single_instance: bool,
+    pub file_association_count: usize,
+    pub associated_extensions: Vec<String>,
     pub signing_policy: &'static str,
     pub update_policy: &'static str,
     pub verification_command: &'static str,
@@ -247,6 +250,15 @@ pub fn inspect(app: &AppProject) -> CliResult<LocalFirstReport> {
         packaging: PackagingReport {
             version: app.config.packaging.version.clone(),
             native_host_required: true,
+            single_instance: true,
+            file_association_count: app.config.packaging.file_associations.len(),
+            associated_extensions: app
+                .config
+                .packaging
+                .file_associations
+                .iter()
+                .flat_map(|association| association.extensions.iter().cloned())
+                .collect(),
             signing_policy: "observed by the protected native release workflow",
             update_policy: "not declared by RustFrame schema v1",
             verification_command: "rustframe release verify <artifact> --json",

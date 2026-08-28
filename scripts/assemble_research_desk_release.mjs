@@ -23,7 +23,9 @@ const downloads = [];
 const evidence = [];
 const sourceCommits = new Set();
 const localFirstReportHashes = new Set();
+const fileAssociationPolicies = new Set();
 let localFirstReportSource = null;
+let releaseFileAssociations = null;
 
 for (const [label, definition] of Object.entries(platformDefinitions)) {
   const bundleDir = path.join(inputDir, label);
@@ -35,6 +37,12 @@ for (const [label, definition] of Object.entries(platformDefinitions)) {
   if (packageManifest.version !== version) {
     fail(`${label} contains version ${packageManifest.version}, expected ${version}`);
   }
+  if (!Array.isArray(packageManifest.fileAssociations) || packageManifest.fileAssociations.length === 0) {
+    fail(`${label} is missing Research Desk file association metadata`);
+  }
+  const associationPolicy = JSON.stringify(packageManifest.fileAssociations);
+  fileAssociationPolicies.add(associationPolicy);
+  releaseFileAssociations ||= packageManifest.fileAssociations;
   const localFirstReportFile = findTopLevelFile(bundleDir, (name) => name === "rustframe-local-first-report.json");
   if (!localFirstReportFile) fail(`${label} is missing the local-first conformance report`);
   const localFirstReport = readJson(localFirstReportFile);
@@ -115,6 +123,9 @@ if (sourceCommits.size !== 1) fail("release bundles do not share one source comm
 if (localFirstReportHashes.size !== 1 || !localFirstReportSource) {
   fail("release bundles do not share one local-first conformance report");
 }
+if (fileAssociationPolicies.size !== 1 || !releaseFileAssociations) {
+  fail("release bundles do not share one file association policy");
+}
 
 const localFirstReportName = `research-desk-${version}-local-first-report.json`;
 copy(localFirstReportSource, path.join(outputDir, localFirstReportName));
@@ -134,6 +145,7 @@ const index = {
   generatedAt: new Date().toISOString(),
   downloads,
   verification: evidence,
+  fileAssociations: releaseFileAssociations,
   localFirstReport: localFirstReportName,
   offlineProof: {
     state: "packaged-runtime-without-production-server",

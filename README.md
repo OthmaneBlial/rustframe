@@ -88,7 +88,7 @@ RustFrame is deliberately narrower than Tauri or Electron. It is designed for to
 | A Vite frontend in any directory | Hidden Rust runner generation and compilation |
 | `data/schema.json` | Embedded SQLite, migrations, transactions, backup and restore |
 | Window-scoped permissions | Native IPC authorization, limits and audit records |
-| User-facing workflow logic | Grants, watchers, dialogs, events and packaging |
+| User-facing workflow logic | Grants, watchers, file-open routing, dialogs, events and packaging |
 
 There are three coordinated public packages:
 

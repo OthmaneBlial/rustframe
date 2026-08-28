@@ -1,0 +1,20 @@
+{
+  "$schema": "https://othmaneblial.github.io/rustframe/schemas/file-associations/v1/file-associations.schema.json",
+  "schemaVersion": 1,
+  "associations": [
+    {
+      "extensions": ["md", "markdown", "mdown", "mkdn"],
+      "mimeType": "text/markdown",
+      "description": "Markdown research document",
+      "name": "Markdown research document",
+      "role": "editor"
+    },
+    {
+      "extensions": ["txt", "text"],
+      "mimeType": "text/plain",
+      "description": "Plain text research document",
+      "name": "Plain text research document",
+      "role": "editor"
+    }
+  ]
+}

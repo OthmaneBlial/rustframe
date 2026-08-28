@@ -9,4 +9,8 @@ cp "$repo_root"/docs/*.md "$repo_root/site/docs/"
 mkdir -p "$repo_root/site/schemas/v1"
 cp "$repo_root/schemas/v1/rustframe.schema.json" "$repo_root/site/schemas/v1/"
 
-echo "Synced docs and public schema into site/"
+mkdir -p "$repo_root/site/schemas/file-associations/v1"
+cp "$repo_root/schemas/file-associations/v1/file-associations.schema.json" \
+  "$repo_root/site/schemas/file-associations/v1/"
+
+echo "Synced docs and public schemas into site/"

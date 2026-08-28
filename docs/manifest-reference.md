@@ -4,6 +4,8 @@
 
 Manifest schema v1 rejects unknown properties. Paths, capabilities, and release metadata remain subject to the semantic validation performed by `rustframe validate` in addition to the JSON Schema constraints below.
 
+Native document types are intentionally not added to this immutable schema. Declare them through the separately versioned [file association contract](./file-open-routing.md) at `.rustframe/file-associations.json`.
+
 ## Fields
 
 | Path | Required | Schema contract |

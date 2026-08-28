@@ -47,6 +47,11 @@ expectSame(
   path.join(repoRoot, "site/schemas/v1/rustframe.schema.json"),
   "published schema",
 );
+expectSame(
+  path.join(repoRoot, "schemas/file-associations/v1/file-associations.schema.json"),
+  path.join(repoRoot, "site/schemas/file-associations/v1/file-associations.schema.json"),
+  "published file associations schema",
+);
 
 for (const file of markdownFiles) {
   const source = fs.readFileSync(file, "utf8");

@@ -21,6 +21,8 @@ The report covers:
 - bounded shell commands;
 - native packaging, signing, update, and release-verification policy.
 
+Packaging evidence also reports single-instance behavior, declared native file-association count, and associated extensions. These values come from the validated sidecar and do not claim that the app is already the user's OS default.
+
 Use the stable JSON form in CI or attach it to an audit:
 
 ```bash
