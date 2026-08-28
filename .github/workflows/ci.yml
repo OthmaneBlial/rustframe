@@ -6,6 +6,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   rust:
     name: Rust / ${{ matrix.os }}
@@ -16,11 +19,13 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@2eae45db285e407f22119950686d47e1101e071b # 1.88.0
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: Install Linux WebView dependencies
         if: runner.os == 'Linux'
@@ -44,10 +49,12 @@ jobs:
     name: Frontend API and standalone project
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.88.0
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@2eae45db285e407f22119950686d47e1101e071b # 1.88.0
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: 22
           cache: npm
@@ -76,7 +83,9 @@ jobs:
           node --check site/codegen.js
           node --check site/benchmarks.js
           node --test apps/research-desk/indexing.test.mjs
-          node --test scripts/assert_offline_smoke.test.mjs scripts/bridge_contract.test.mjs scripts/verify_release_artifacts.test.mjs scripts/assemble_research_desk_release.test.mjs scripts/validate_template_registry.test.mjs
+          node --test scripts/assert_offline_smoke.test.mjs scripts/bridge_contract.test.mjs scripts/verify_release_artifacts.test.mjs scripts/assemble_research_desk_release.test.mjs scripts/validate_template_registry.test.mjs scripts/check_workflow_security.test.mjs
+          node scripts/check_workflow_security.mjs
+          ./scripts/run_actionlint.sh
           node scripts/generate_reference_docs.mjs --check
           node scripts/validate_template_registry.mjs
           node scripts/check_public_contracts.mjs
@@ -127,8 +136,10 @@ jobs:
     name: Site browser and Lighthouse contracts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: 22
           cache: npm
@@ -149,8 +160,10 @@ jobs:
     name: Published artifact contract
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@2eae45db285e407f22119950686d47e1101e071b # 1.88.0
       - name: Install Linux WebView dependencies
         shell: bash
         run: |

@@ -12,7 +12,9 @@ jobs:
     name: Rust runtime semver
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Check for a published baseline
         id: baseline
         shell: bash
@@ -29,7 +31,7 @@ jobs:
           sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
       - name: Check public Rust API against crates.io
         if: steps.baseline.outputs.exists == 'true'
-        uses: obi1kenobi/cargo-semver-checks-action@v2
+        uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
         with:
           package: rustframe-runtime
 
@@ -37,8 +39,10 @@ jobs:
     name: TypeScript public contract
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: 22
           cache: npm

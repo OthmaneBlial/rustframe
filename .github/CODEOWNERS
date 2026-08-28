@@ -1,0 +1,14 @@
+# Default review ownership
+* @OthmaneBlial
+
+# Security-sensitive runtime and policy surfaces
+/crates/rustframe/ @OthmaneBlial
+/crates/rustframe-cli/ @OthmaneBlial
+/schemas/ @OthmaneBlial
+/packages/rustframe-api/ @OthmaneBlial
+
+# Release and repository policy
+/.github/ @OthmaneBlial
+/scripts/ @OthmaneBlial
+/deny.toml @OthmaneBlial
+/SECURITY.md @OthmaneBlial

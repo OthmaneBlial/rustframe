@@ -1,0 +1,55 @@
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Paris
+    groups:
+      cargo-non-major:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - rust
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directories:
+      - /packages/rustframe-api
+      - /apps/research-desk
+      - /site
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:15"
+      timezone: Europe/Paris
+    groups:
+      npm-non-major:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - javascript
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:30"
+      timezone: Europe/Paris
+    groups:
+      actions:
+        patterns:
+          - "*"
+    labels:
+      - dependencies
+      - area-ci
+    open-pull-requests-limit: 5
