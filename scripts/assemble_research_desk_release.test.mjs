@@ -45,6 +45,23 @@ test("release assembly exposes one primary download per host and every proof fil
       signature: { state: label.startsWith("linux") ? "not-applicable" : "verified" },
     })}\n`);
     fs.writeFileSync(path.join(directory, `research-desk-${label}.spdx.json`), "{}\n");
+    const format = label.replace(/^.*-/u, "");
+    fs.writeFileSync(path.join(directory, `rustframe-offline-${format}-receipt.json`), `${JSON.stringify({
+      schemaVersion: 1,
+      kind: "rustframe.offline-package-receipt",
+      appId: "research-desk",
+      packageFormat: format,
+      result: "passed",
+      scope: "packaged-runtime-without-production-server",
+      checks: {
+        embeddedLaunch: true,
+        noActiveDevUrl: true,
+        indexHtmlBundled: true,
+        nativeBridgeAvailable: true,
+        localFirstSecurity: true,
+        sqliteOpened: true,
+      },
+    })}\n`);
     if (artifact) fs.writeFileSync(path.join(directory, artifact), `${label}\n`);
   }
   const transportDirectory = path.join(transport, "research-desk-verified-macos-app");
@@ -66,6 +83,11 @@ test("release assembly exposes one primary download per host and every proof fil
     assert.equal(index.downloads.filter((entry) => entry.host === host && entry.primary).length, 1);
   }
   assert.equal(index.verification.length, 6);
+  assert.equal(index.offlineProof.receipts.length, 6);
+  assert.equal(index.offlineProof.state, "packaged-runtime-without-production-server");
+  for (const entry of index.verification) {
+    assert.ok(fs.statSync(path.join(output, entry.offlineReceipt)).isFile());
+  }
   assert.equal(index.localFirstReport, "research-desk-0.1.0-rc.1-local-first-report.json");
   assert.ok(fs.statSync(path.join(output, index.localFirstReport)).isFile());
   assert.match(fs.readFileSync(path.join(output, "SHA256SUMS"), "utf8"), /research-desk-release-index\.json/u);

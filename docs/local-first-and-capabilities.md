@@ -32,6 +32,8 @@ The command exits non-zero when an error finding makes the project non-conforman
 
 Every native package also writes `rustframe-local-first-report.json`. Its `policyHash` is recorded in `rustframe-package-manifest.json`, so a reviewer can tie the package metadata to one normalized policy.
 
+Native package CI installs each generated format and launches the installed release binary with an isolated data directory and no frontend server. `scripts/assert_offline_smoke.mjs` fails unless the release uses embedded assets, has no active development URL, exposes the native bridge, opens local SQLite, and resolves the `local-first` security model. The resulting `rustframe-offline-<format>-receipt.json` travels through the release download boundary and is linked from the end-user release index. This proves that the packaged runtime does not require a production server; it does not claim that the operating system blocked every network interface during the check.
+
 ## Explain effective capabilities
 
 ```bash

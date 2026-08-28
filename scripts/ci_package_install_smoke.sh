@@ -40,12 +40,23 @@ run_smoke_binary() {
   test -s "$output"
 }
 
+write_offline_receipt() {
+  local input="$1"
+  local output="$package_dir/rustframe-offline-${host_format}-receipt.json"
+  node scripts/assert_offline_smoke.mjs \
+    --input "$input" \
+    --format "$host_format" \
+    --output "$output"
+  test -s "$output"
+}
+
 case "$host_format" in
   appimage)
     artifact="$(find_artifact '*.AppImage')"
     chmod +x "$artifact"
     APPIMAGE_EXTRACT_AND_RUN=1 run_smoke_binary \
       "$artifact" "$smoke_root/appimage.json" "$smoke_root/appimage-data"
+    smoke_output="$smoke_root/appimage.json"
     ;;
 
   deb)
@@ -60,6 +71,7 @@ case "$host_format" in
     test -n "$installed_binary"
     run_smoke_binary \
       "$installed_binary" "$smoke_root/deb.json" "$smoke_root/deb-data"
+    smoke_output="$smoke_root/deb.json"
     sudo dpkg --remove "$package_name"
     trap - EXIT
     test ! -e "$installed_binary"
@@ -76,6 +88,7 @@ case "$host_format" in
     test -n "$installed_binary"
     run_smoke_binary \
       "$installed_binary" "$smoke_root/app.json" "$smoke_root/app-data"
+    smoke_output="$smoke_root/app.json"
     rm -rf "$installed_app"
     test ! -e "$installed_app"
     ;;
@@ -98,6 +111,7 @@ case "$host_format" in
     test -n "$installed_binary"
     run_smoke_binary \
       "$installed_binary" "$smoke_root/dmg.json" "$smoke_root/dmg-data"
+    smoke_output="$smoke_root/dmg.json"
     rm -rf "$installed_app"
     hdiutil detach "$mount_root" -quiet
     trap - EXIT
@@ -131,6 +145,7 @@ if ($result.ExitCode -ne 0) { throw "NSIS uninstall failed with exit code $($res
 Start-Sleep -Seconds 2
 if (Test-Path $binary) { throw "NSIS uninstall left $binary behind" }
 POWERSHELL
+    smoke_output="$smoke_root/nsis.json"
     ;;
 
   msi)
@@ -168,6 +183,7 @@ $result = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -
 if ($result.ExitCode -ne 0) { throw "MSI uninstall failed with exit code $($result.ExitCode)" }
 if (Test-Path $binary) { throw "MSI uninstall left $binary behind" }
 POWERSHELL
+    smoke_output="$smoke_root/msi.json"
     ;;
 
   *)
@@ -175,3 +191,5 @@ POWERSHELL
     exit 1
     ;;
 esac
+
+write_offline_receipt "$smoke_output"

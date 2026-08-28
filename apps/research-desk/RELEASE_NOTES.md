@@ -21,7 +21,7 @@ The release index marks one primary download per host:
 - Windows: signed and timestamped NSIS `.exe`;
 - Linux: AppImage.
 
-Advanced `.app`, `.msi`, and `.deb` formats are also attached. Every release includes `SHA256SUMS`, an SPDX SBOM, per-host verification evidence, and a machine-readable `research-desk-release-index.json`.
+Advanced `.app`, `.msi`, and `.deb` formats are also attached. Every release includes `SHA256SUMS`, an SPDX SBOM, per-host verification evidence, a packaged no-server receipt for each format, and a machine-readable `research-desk-release-index.json`.
 
 ## Privacy and storage
 
@@ -33,10 +33,13 @@ Database version 2 adds content fingerprints for reliable rename detection. The 
 
 ## Verify a download
 
-Compare the artifact with `SHA256SUMS`, then verify its GitHub build attestation:
+Verify the observed checksum, native-host trust, SBOM, and GitHub build attestation together:
 
 ```bash
-gh attestation verify <download> --repo OthmaneBlial/rustframe
+rustframe release verify <download> \
+  --repository OthmaneBlial/rustframe \
+  --require-provenance \
+  --require-sbom
 ```
 
 The macOS and Windows release jobs additionally verify the downloaded native signature on a fresh host before GitHub publishes the release. Do not bypass Gatekeeper or Windows security warnings: if native verification fails, the release workflow fails closed.

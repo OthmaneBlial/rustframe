@@ -49,6 +49,21 @@ for (const [label, definition] of Object.entries(platformDefinitions)) {
   const evidenceFile = findTopLevelFile(bundleDir, (name) => name.endsWith("-evidence.json"));
   const sbomFile = findTopLevelFile(bundleDir, (name) => name.endsWith(".spdx.json"));
   if (!evidenceFile || !sbomFile) fail(`${label} is missing evidence or SBOM metadata`);
+  const offlineReceiptFile = findTopLevelFile(
+    bundleDir,
+    (name) => name === `rustframe-offline-${definition.format}-receipt.json`,
+  );
+  if (!offlineReceiptFile) fail(`${label} is missing its packaged no-server receipt`);
+  const offlineReceipt = readJson(offlineReceiptFile);
+  if (offlineReceipt.schemaVersion !== 1
+    || offlineReceipt.kind !== "rustframe.offline-package-receipt"
+    || offlineReceipt.packageFormat !== definition.format
+    || offlineReceipt.result !== "passed"
+    || offlineReceipt.scope !== "packaged-runtime-without-production-server"
+    || !offlineReceipt.checks
+    || Object.values(offlineReceipt.checks).some((passed) => passed !== true)) {
+    fail(`${label} packaged no-server receipt is incomplete or failed`);
+  }
   const verified = readJson(evidenceFile);
   if (verified.version !== version || verified.product !== "Research Desk") {
     fail(`${label} verification evidence identifies a different product or version`);
@@ -65,9 +80,17 @@ for (const [label, definition] of Object.entries(platformDefinitions)) {
 
   const evidenceName = `research-desk-${version}-${label}-evidence.json`;
   const sbomName = `research-desk-${version}-${label}.spdx.json`;
+  const offlineReceiptName = `research-desk-${version}-${label}-offline-receipt.json`;
   copy(evidenceFile, path.join(outputDir, evidenceName));
   copy(sbomFile, path.join(outputDir, sbomName));
-  evidence.push({ host: definition.host, format: definition.format, evidence: evidenceName, sbom: sbomName });
+  copy(offlineReceiptFile, path.join(outputDir, offlineReceiptName));
+  evidence.push({
+    host: definition.host,
+    format: definition.format,
+    evidence: evidenceName,
+    sbom: sbomName,
+    offlineReceipt: offlineReceiptName,
+  });
 
   const nativeArtifact = findNativeArtifact(bundleDir, definition.format);
   if (nativeArtifact) {
@@ -112,6 +135,10 @@ const index = {
   downloads,
   verification: evidence,
   localFirstReport: localFirstReportName,
+  offlineProof: {
+    state: "packaged-runtime-without-production-server",
+    receipts: evidence.map(({ host, format, offlineReceipt }) => ({ host, format, offlineReceipt })),
+  },
   provenance: {
     state: "github-attested",
     command: `gh attestation verify <download> --repo OthmaneBlial/rustframe`,
