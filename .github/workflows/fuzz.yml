@@ -13,10 +13,10 @@ jobs:
   fuzz:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb # nightly 2026-08-28
+      - uses: dtolnay/rust-toolchain@2eae45db285e407f22119950686d47e1101e071b # nightly 2026-08-28
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo +nightly install cargo-fuzz --locked
       - run: cargo +nightly fuzz run manifest_parsing -- -runs=2000
