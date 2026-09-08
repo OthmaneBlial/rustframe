@@ -16,7 +16,7 @@ Build research desks, review queues and offline catalogs with TypeScript, SQLite
 
 [![Research Desk: native SQLite search and document review](site/assets/screenshots/research-desk-native.png)](docs/native-demo.md)
 
-**Real native demo:** folder selection, SQLite search, review notes, reader synchronization and JSONL export on macOS ARM. [Short recording and local playback](docs/native-demo.md) · [3–5 minute narrated explainer](docs/explainer-video.md). Video hosting and signed app downloads remain release gates.
+**Real native demo:** folder selection, SQLite search, review notes, reader synchronization and JSONL export on macOS ARM. [Download the short demo MP4](https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.4/rustframe-demo.mp4) · [Download the narrated explainer](https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.4/rustframe-explainer.mp4) · [Local playback and provenance](docs/native-demo.md) · [Explainer notes](docs/explainer-video.md). The Research Desk preview remains unsigned; the release assets include EN/FR captions and posters.
 
 ## From empty folder to desktop app
 

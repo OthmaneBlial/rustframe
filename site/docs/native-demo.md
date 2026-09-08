@@ -13,7 +13,7 @@ The delivery workspace is `target/delivery/research-desk-preview/media/`:
 
 The assembled local site in `target/delivery/site/` contains a working player with controls, captions and a transcript. Serve it with `python3 -m http.server 4319 --bind 127.0.0.1 --directory target/delivery/site` and open `http://127.0.0.1:4319/demo.html`.
 
-The source site's media manifest deliberately has no public video URL until an upload is authorized and verified. The README links to this page and a real native screenshot. Neither is a claim that a full GitHub video player has been published or reviewed.
+The source site's media manifest deliberately keeps the inline player disabled because GitHub release assets are served as downloads. The verified public MP4 is attached to the [`v0.1.0-rc.4` release](https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.4), with [English captions](https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.4/rustframe-demo.en.vtt), [French captions](https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.4/rustframe-demo.fr.vtt) and a poster. The README links to the release asset and this provenance page.
 
 ## Reproduce the workflow
 

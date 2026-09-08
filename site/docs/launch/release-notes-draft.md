@@ -1,6 +1,8 @@
 # Research Desk and RustFrame — release preparation
 
-Status: draft for the coordinated `v0.1.0-rc.4` candidate. Not published, signed, notarized or declared stable until the tag and release assets are verified. These local builds must not replace assets on the existing RC3 tag.
+Status: published prerelease for `v0.1.0-rc.4`. The CLI archives, checksums, real demo/explainer videos, posters, EN/FR captions and provenance receipts are attached to the GitHub release. Research Desk installers remain unsigned, unnotarized and non-stable.
+
+Release: https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.4
 
 ## What changes for users
 
