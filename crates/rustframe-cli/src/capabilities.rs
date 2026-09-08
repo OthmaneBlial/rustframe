@@ -453,7 +453,12 @@ fn finalize(mut policy: CapabilityPolicy) -> CliResult<CapabilityPolicy> {
     };
     let encoded = serde_json::to_vec(&input)
         .map_err(|error| format!("failed to hash capability policy: {error}"))?;
-    policy.policy_hash = format!("sha256:{:x}", Sha256::digest(encoded));
+    let digest = Sha256::digest(encoded);
+    let digest = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    policy.policy_hash = format!("sha256:{digest}");
     Ok(policy)
 }
 

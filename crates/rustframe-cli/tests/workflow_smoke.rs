@@ -157,7 +157,11 @@ fn verifies_a_release_without_requiring_a_rustframe_project() {
     let artifact = temp.path().join(artifact_name);
     let contents = b"verified release fixture\n";
     fs::write(&artifact, contents).unwrap();
-    let digest = format!("{:x}", Sha256::digest(contents));
+    let digest = Sha256::digest(contents);
+    let digest = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
     fs::write(
         temp.path().join("SHA256SUMS"),
         format!("{digest}  {artifact_name}\n"),
@@ -187,7 +191,11 @@ fn verifies_an_assembled_release_index_and_spdx_sbom() {
     let artifact = temp.path().join(artifact_name);
     let contents = b"assembled release fixture\n";
     fs::write(&artifact, contents).unwrap();
-    let digest = format!("{:x}", Sha256::digest(contents));
+    let digest = Sha256::digest(contents);
+    let digest = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
     let sbom_name = "owned-desk.spdx.json";
     fs::write(
         temp.path().join(sbom_name),

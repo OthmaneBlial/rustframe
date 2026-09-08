@@ -430,7 +430,8 @@ fn file_sha256(path: &Path) -> CliResult<String> {
         }
         digest.update(&buffer[..read]);
     }
-    Ok(format!("{:x}", digest.finalize()))
+    let digest = digest.finalize();
+    Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 fn unix_time_ms() -> CliResult<u128> {

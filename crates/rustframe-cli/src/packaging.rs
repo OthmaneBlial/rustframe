@@ -562,7 +562,8 @@ fn file_sha256(path: &Path) -> CliResult<String> {
         }
         digest.update(&buffer[..read]);
     }
-    Ok(format!("{:x}", digest.finalize()))
+    let digest = digest.finalize();
+    Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 pub(crate) fn artifact_digest(path: &Path) -> CliResult<(String, u64)> {
@@ -589,7 +590,9 @@ pub(crate) fn artifact_digest(path: &Path) -> CliResult<(String, u64)> {
         bytes = bytes.saturating_add(contents.len() as u64);
         digest.update(&contents);
     }
-    Ok((format!("{:x}", digest.finalize()), bytes))
+    let digest = digest.finalize();
+    let digest = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+    Ok((digest, bytes))
 }
 
 fn collect_files(
