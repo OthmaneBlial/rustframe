@@ -1,6 +1,6 @@
 # RustFrame — roadmap vers une adoption réelle
 
-> Audit du 8 septembre 2026, checkout `bae1321` (`0.1.0-rc.2`).
+> Audit du 8 septembre 2026, checkout `bae1321` (`0.1.0-rc.3`).
 > Exécution en cours. Les publications restent soumises à autorisation ; la vidéo sera réalisée en dernier, après les autres travaux locaux, conformément à la demande du 8 septembre.
 > Les cases ouvertes sont du travail futur. La présence de code ou d’un workflow ne prouve pas une validation native ni une publication réussie.
 
@@ -30,8 +30,8 @@ Les stars sont un résultat possible de cette progression, jamais une garantie. 
 | Observation | Preuve | Conséquence |
 | --- | --- | --- |
 | 27 stars, 1 fork ; Discussions activées | API GitHub consultée le 8 septembre | Une petite audience existe ; aucun diagnostic de conversion n’est possible sans données de visites et d’activation. |
-| Deux prereleases, dernière `v0.1.0-rc.2` | `gh release list` | Il faut terminer le parcours de distribution, pas inventer un système de release. |
-| RC2 contient 14 assets, centrés sur le CLI ; aucun installateur Research Desk dans cette release | `gh release view v0.1.0-rc.2 --json assets` | Le visiteur ne dispose pas ici du téléchargement évident de l’application montrée. |
+| Deux prereleases, dernière `v0.1.0-rc.3` | `gh release list` | Il faut terminer le parcours de distribution, pas inventer un système de release. |
+| RC2 contient 14 assets, centrés sur le CLI ; aucun installateur Research Desk dans cette release | `gh release view v0.1.0-rc.3 --json assets` | Le visiteur ne dispose pas ici du téléchargement évident de l’application montrée. |
 | Les archives CLI RC2 affichent 5 téléchargements ARM macOS, 0 Intel macOS, 1 Windows et 1 Linux | Compteurs GitHub au moment de l’audit | Signal très limité ; ces téléchargements peuvent inclure CI et mainteneur, pas uniquement de nouveaux utilisateurs. |
 | `npm view rustframe-api version --json` retourne `E404` | Registre npm consulté pendant l’audit | Le quickstart public est bloqué à l’installation du frontend. Priorité absolue. |
 | README avertit de ce blocage, annonce GitHub RC2 et crates.io RC1 | [README](README.md) | Décalage de versions à résoudre ; versions crates.io rapportées par le README, non revérifiées dans le registre pendant cet audit. |
@@ -151,6 +151,7 @@ Cet exemple produit une version silencieuse. Pour un tutoriel commenté, conserv
 ### Deux formats, deux usages
 
 - [x] Film court local : 46,47 s, 1920 × 1080, 30 fps, environ 1,51 Mo. Hébergement public encore ouvert.
+- [x] Préparer un explainer local de 3–5 minutes avec narration, chapitres, pistes EN/FR, poster, reçu FFmpeg et séquence native réelle ; voir [la provenance](docs/explainer-video.md). L’URL publique reste ouverte.
 - [ ] Tutoriel de 3–5 minutes : installation publique, projet autonome, changement de schéma, fenêtre native, packaging. Fournir les durées réelles de build et les commandes complètes.
 - [ ] Héberger les fichiers hors de l’historique source ; vérifier le lecteur réellement rendu sur GitHub, avec lecture complète et contrôles. Un GIF ne remplace pas la vidéo.
 - [x] Lecteur, poster, contrôles, sous-titres, transcription et `preload="metadata"` préparés et vérifiés dans le site livré localement. Le manifeste source reste sans URL vidéo publique avant autorisation.
@@ -160,7 +161,7 @@ Cet exemple produit une version silencieuse. Pour un tutoriel commenté, conserv
 - [ ] En haut : promesse concrète, vidéo réelle, lien d’installation fonctionnel et téléchargement de Research Desk.
 - [x] README : schéma minimal et API TypeScript cohérents, avec limites du parcours public visibles.
 - [x] Statut RC, gates registres/signatures et portée native macOS visibles ; catalogue CLI détaillé renvoyé aux docs.
-- [x] Aligner aperçu social, première section du site, release et README sur le même résultat : même promesse, même candidate `0.1.0-rc.2`, et même preuve native liée.
+- [x] Aligner aperçu social, première section du site, release et README sur le même résultat : même promesse, même candidate `0.1.0-rc.3`, et même preuve native liée.
 - [ ] Faire lire cette entrée à cinq développeurs inconnus du projet : au moins quatre doivent pouvoir expliquer la cible et trouver le premier essai sans aide.
 
 **Sortie :** vidéo vérifiée sur le lecteur final, démonstration reproductible et premier écran compris. Aucun tournage d’une installation publique qui dépend encore d’un contournement privé.

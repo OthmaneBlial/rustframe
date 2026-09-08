@@ -1,0 +1,13 @@
+{
+  "status": "local-preview-awaiting-media-publication",
+  "sourceCommit": "8bfd4cf36d9623b961963986a48a061f24e54751",
+  "durationSeconds": 191.991,
+  "video": null,
+  "poster": "assets/media/rustframe-explainer-poster.jpg",
+  "captions": {
+    "en": null,
+    "fr": null
+  },
+  "master": "rustframe-explainer-master.mp4",
+  "claims": "The workflow chapter is a real macOS ARM recording; cards are rendered from checked-in source and local receipts."
+}

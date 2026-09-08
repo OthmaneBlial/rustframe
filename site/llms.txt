@@ -22,4 +22,4 @@ RustFrame is an early release candidate. It is deliberately narrower than Tauri 
 - Default data model: local SQLite with no telemetry by default
 - Filesystem model: user-approved opaque grants checked by native IPC
 - Manifest schema v1: https://othmaneblial.github.io/rustframe/schemas/v1/rustframe.schema.json
-- Current candidate documented by this site: 0.1.0-rc.2
+- Current candidate documented by this site: 0.1.0-rc.3

@@ -32,4 +32,6 @@ Capture used macOS `screencapture` on a 1280 × 713 point rectangle, yielding 25
 
 The video is an unsigned local preview, not an installation tutorial from public registries, proof of code signing, or a Windows/Linux native validation. The public-install tutorial remains blocked by the coordinated API/runtime publications. The separate offline test constrains the native process; this film itself makes no claim of recording under a system-wide network block.
 
+The longer narrated explanation is documented in [the explainer video](explainer-video.md). It connects the manifest, build loop, native capture, data boundary, and release evidence while keeping the public-media URL unset until hosting is verified.
+
 See [the validation journal](validation/roadmap-execution.md) for test and package scopes, and [release preparation](launch/release-notes-draft.md) for publication gates.
