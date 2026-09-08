@@ -104,3 +104,13 @@ The restore regression suite passed all eight database workflow tests. Full work
 After the read-only source fix: all 163 workspace Rust tests passed, Clippy passed with warnings denied, and `cargo package -p rustframe-runtime --allow-dirty` successfully built the packaged crate. Research Desk app/DMG artifacts were rebuilt with the changed runtime, and temporary app/DMG installation smokes passed again. The full frontend suite passed 30 tests with two intentional viewport exclusions. Public docs, workflow security policy and actionlint checks passed.
 
 The user subsequently authorized direct commits and pushes to `main` for completed work. This does not authorize registry publication, a GitHub release or external outreach. Media production and remaining release preparation continue after this implementation checkpoint.
+
+## Delivery preparation and remote gate
+
+Implementation commit `685a1af` was created after validation. A direct push to `main`, explicitly authorized by the user, was rejected by GitHub GH013: pull requests are mandatory and six status checks are required. No branch-protection setting was changed. An approval question is pending for a PR-based delivery path; local work continues. The native measurement report was committed separately as `9052a8d`.
+
+The runtime crate passed packaging verification after the restore fix. Final app/DMG metadata identifies source `685a1af` and the tested macOS version. Syft 1.51.1 was downloaded into the ignored tool directory and its archive checksum verified against the upstream release. Separate SPDX inventories cover application artifacts and 402 locked build dependencies. The latter includes build/platform dependencies and is not a claim that every listed package is linked into the executable. GitHub provenance and native signing remain absent.
+
+### Re-selection regression discovered during real recording
+
+Selecting the same directory through the native picker allocated another persistent grant URI, so the queue indexed duplicate identities with blank annotations. Persistent directory grants now reuse an existing canonical path only when the access level matches exactly. Ephemeral grants stay separate; revoked grants are never revived. The regression covers canonical path equivalence, restart, different permission levels, ephemeral selection and revoke/regrant. Workspace tests now pass 164 cases; the previous 163-test count predates this fix. The first film takes are rejected pending a rebuilt native validation and new export carrying the saved note.

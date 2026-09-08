@@ -1,10 +1,12 @@
 # Research Desk and RustFrame — release preparation
 
-Status: local preview from the working tree based on `bae1321`. Not published, signed, notarized or declared stable. Package metadata remains `0.1.0-rc.2`; these local builds include unreleased fixes and must not replace assets on the existing RC2 tag.
+Status: local preview from the roadmap implementation branch. Not published, signed, notarized or declared stable. Package metadata remains `0.1.0-rc.2`; these local builds include unreleased fixes and must not replace assets on the existing RC2 tag.
 
 ## What changes for users
 
 Research Desk keeps its first screen compact, limits the document queue to the selected workspace and selects the matching document when searching. Typing continues uninterrupted while native search results arrive. Reader windows now open with the intended permissions, focus an existing reader for the same document and synchronize saved review notes with the main window.
+
+Selecting the same retained folder again preserves its opaque document identity and review notes. Grants with different permissions, ephemeral grants and revoked grants remain separate.
 
 Restore validation opens source databases read-only: a missing backup no longer creates a misleading empty database file. The public quickstart gate fails when the exact frontend API package is absent, including for candidates.
 

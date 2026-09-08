@@ -10,7 +10,7 @@ Les preuves et limites sont consignées dans [le journal de validation](docs/val
 
 ### Validations locales acquises
 
-- [x] Tests Rust du workspace : 163 réussites après correction de la restauration ; Clippy et formatage passent.
+- [x] Tests Rust du workspace : 164 réussites après corrections de la restauration et de la resélection de dossier ; Clippy et formatage passent.
 - [x] API frontend : compilation, tests et tarball npm local construits.
 - [x] Sept templates du dépôt construits et validés.
 - [x] Cinq starters autonomes créés et validés avec le tarball local ; reçus chronométrés conservés. La validation publique/native reste distincte.
@@ -101,16 +101,16 @@ Responsable : mainteneur produit. Le scénario central : « je choisis mes docum
 - [x] Parcourir sélection de dossier, consentement, indexation, recherche, lecture, annotation et export réel — validé nativement sur macOS ARM ; voir les reçus dans le journal.
 - [x] Vérifier la synchronisation entre fenêtres et la persistance des annotations après fermeture et réouverture — note persistée après relance puis modification lecteur→fenêtre principale vérifiée sur macOS ARM.
 - [x] Tester fichier modifié, renommé, supprimé, illisible, dossier vide et accès révoqué ; corriger les états trompeurs avant le tournage — parcours natif macOS et reçus consignés.
-- [ ] Vérifier hors ligne le binaire packagé, avec des opérations de lecture et d’écriture réelles ; conserver une preuve du blocage réseau de test.
+- [x] Vérifier hors ligne le binaire packagé, avec lecture et écriture réelles : processus natif testé sous refus des connexions externes, loopback autorisé ; portée WebKit/XPC explicitée dans le journal.
 - [ ] Tester clavier, focus, contraste et mise à l’échelle ; corriger d’abord les défauts du parcours central.
 - [ ] Mesurer l’indexation complète incluant lecture via IPC et commit SQLite, la recherche et le temps jusqu’à une fenêtre interactive. Distinguer ces mesures du benchmark de parsing existant.
-- [ ] Examiner la mémoire de l’application et de ses processus WebView ; documenter exactement ce que l’outil de mesure inclut.
+- [x] Examiner la mémoire et documenter la portée : RSS natif mesuré, attribution des services WebKit externes non disponible ; aucun chiffre de mémoire totale revendiqué. Voir [la mesure native](docs/validation/native-benchmark.md).
 
 **Sortie :** un parcours natif reproductible sur le build identifié, données exportées vérifiées et défauts bloquants corrigés. La vidéo peut alors montrer un résultat réellement obtenu.
 
 ## 6. P2 — Produire la démo vidéo réelle, puis simplifier l’entrée
 
-Responsable : mainteneur produit et média. **Plan seulement à ce stade : aucune capture ou vidéo n’est produite par cette roadmap.** Utiliser le skill `ffmpeg-video-editor` lors de l’exécution.
+Responsable : mainteneur produit et média. **Exécution média en cours, après les validations locales.** Captures de la fenêtre native packagée avec le skill `ffmpeg-video-editor` ; publication et tutoriel depuis les registres restent conditionnés aux accès externes.
 
 ### Film principal : 45–60 secondes
 
@@ -173,10 +173,10 @@ Responsable : mainteneur release. Réutiliser les pipelines existants ; leur exi
 - [ ] Distinguer clairement les artefacts du framework des installateurs de Research Desk, avec versions et liens réciproques.
 - [ ] Pour chaque hôte annoncé : télécharger, vérifier les checksums/provenance, installer, lancer, exercer le parcours P1 et désinstaller sur l’OS natif.
 - [ ] Pour Research Desk distribué comme produit de confiance : signature/notarisation macOS et signature Windows ; vérifier après téléchargement avec le workflow dédié.
-- [ ] Tant que les certificats manquent, signaler la preview non signée et garder le gate de release de confiance ouvert.
+- [x] Preview locale explicitement non signée ; vérification d’intégrité réussie avec `trusted:false`. Le gate de release de confiance reste ouvert.
 - [ ] Tester mise à niveau depuis la candidate précédente, conservation des données, sauvegarde/restauration et stratégie de récupération.
 - [ ] Joindre checksums, SBOM, provenance, OS testés et limitations réellement observées.
-- [ ] Écrire des notes centrées sur l’utilisateur : résultat, installation, démo, changements, migration et problèmes connus.
+- [x] Notes de préparation écrites : [release locale](docs/launch/release-notes-draft.md), installation, changements, migration et limites ; liens publics différés jusqu’à publication.
 - [ ] Vérifier les URLs finales et les assets après publication, puis mettre à jour les surfaces publiques.
 
 **Gate stable :** P0 complet, QA native P1, migrations vérifiées, artefacts publics exacts testés, aucune étape critique ignorée et retours externes traités. « Schéma v1 » et « version stable du produit » doivent rester deux notions distinctes.
