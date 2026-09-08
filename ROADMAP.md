@@ -31,7 +31,7 @@ Les stars sont un résultat possible de cette progression, jamais une garantie. 
 | --- | --- | --- |
 | 27 stars, 1 fork ; Discussions activées | API GitHub consultée le 8 septembre | Une petite audience existe ; aucun diagnostic de conversion n’est possible sans données de visites et d’activation. |
 | Quatre prereleases, dernière `v0.1.0-rc.4` | `gh release list` | Une candidate coordonnée existe ; les gates de publication stable restent ouvertes. |
-| RC4 contient 26 assets : archives CLI, checksums, vidéos, posters, captions et reçus ; aucun installateur Research Desk signé dans cette release | `gh release view v0.1.0-rc.4 --json assets` | Le CLI et les preuves vidéo sont téléchargeables ; le binaire Research Desk reste un preview local non signé. |
+| RC4 contient 25 assets : archives CLI, checksums, vidéos, posters, captions et reçus ; aucun installateur Research Desk signé dans cette release | `gh release view v0.1.0-rc.4 --json assets` | Le CLI et les preuves vidéo sont téléchargeables ; le binaire Research Desk reste un preview local non signé. |
 | Les compteurs de téléchargement CLI restent un signal limité | Compteurs GitHub au moment de l’audit | Ils peuvent inclure CI et mainteneur, pas uniquement de nouveaux utilisateurs. |
 | `npm view rustframe-api version --json` retourne `E404` | Registre npm consulté pendant l’audit | Le quickstart public est bloqué à l’installation du frontend. Priorité absolue. |
 | README avertit de ce blocage, annonce GitHub RC4 et crates.io RC1 | [README](README.md) | Décalage de versions à résoudre ; la publication crates.io reste distincte de la candidate GitHub. |
