@@ -12,7 +12,7 @@ Build research desks, review queues and offline catalogs with TypeScript, SQLite
 
 </div>
 
-> **Release candidate:** `0.1.0-rc.3` is the third public v1 candidate. Framework CLI artifacts are published through GitHub Releases; the crates.io candidate remains `0.1.0-rc.1`. The `rustframe-api` npm package is still awaiting its initial 2FA-authorized publication, so a generated project's dependency install is not yet a supported public path.
+> **Release candidate:** `0.1.0-rc.4` is the fourth public v1 candidate. Framework CLI artifacts are published through GitHub Releases; the crates.io candidate remains `0.1.0-rc.1`. The `rustframe-api` npm package is still awaiting its initial 2FA-authorized publication, so a generated project's dependency install is not yet a supported public path.
 
 [![Research Desk: native SQLite search and document review](site/assets/screenshots/research-desk-native.png)](docs/native-demo.md)
 
@@ -24,20 +24,20 @@ Install [Rust 1.88+](https://www.rust-lang.org/tools/install) and [Node.js 20+](
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.3/rustframe-cli-installer.sh | sh
+  https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.4/rustframe-cli-installer.sh | sh
 ```
 
 On Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.3/rustframe-cli-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.4/rustframe-cli-installer.ps1 | iex"
 ```
 
 Building the CLI from source remains available:
 
 ```bash
 cargo install --git https://github.com/OthmaneBlial/rustframe \
-  --tag v0.1.0-rc.3 rustframe-cli --locked
+  --tag v0.1.0-rc.4 rustframe-cli --locked
 ```
 
 Then create the project:

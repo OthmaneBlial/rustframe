@@ -64,7 +64,7 @@ mkdir -p target/package-check
 cargo build -p rustframe-cli
 node scripts/verify_standalone.mjs \
   --cli target/debug/rustframe \
-  --api-tarball target/package-check/rustframe-api-0.1.0-rc.3.tgz \
+  --api-tarball target/package-check/rustframe-api-0.1.0-rc.4.tgz \
   --output target/package-check/standalone
 ```
 

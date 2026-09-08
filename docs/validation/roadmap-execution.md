@@ -1,6 +1,6 @@
 # Roadmap execution evidence
 
-Started 2026-09-08 from the original audit checkout `bae1321` (`0.1.0-rc.2`). Local roadmap execution is complete and merged to `main` through PR #26 as `a405010`; the coordinated candidate `v0.1.0-rc.3` is tagged and published as a prerelease.
+Started 2026-09-08 from the original audit checkout `bae1321` (`0.1.0-rc.2`). Local roadmap execution through RC3 is complete and merged to `main`; the coordinated RC4 version bump is being validated on `release/0.1.0-rc.4` before its tag and prerelease publication.
 
 ## P0: public installation
 

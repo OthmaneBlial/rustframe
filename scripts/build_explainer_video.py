@@ -197,7 +197,7 @@ def main() -> None:
             "kicker": "06 / Try the project",
             "title": "A focused foundation for local tools",
             "body": "Clone the repository, read the manifest, run the validation loop, and inspect the real Research Desk capture. Then build your own workflow around the permissions and data boundaries you can explain to a reviewer.",
-            "code": ["github.com/OthmaneBlial/rustframe", "docs/native-demo.md", "ROADMAP.md", "candidate: v0.1.0-rc.3"],
+            "code": ["github.com/OthmaneBlial/rustframe", "docs/native-demo.md", "ROADMAP.md", "candidate: v0.1.0-rc.4"],
             "voice": "That is the RustFrame foundation: a typed frontend, a native runtime, explicit permissions, inspectable local data, and a workflow you can actually package. Start with the manifest and the developer loop, then use the real capture and validation notes to judge the boundaries for yourself. The candidate tag and full source are linked in the release notes. Thanks for watching.",
         },
     ]

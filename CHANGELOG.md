@@ -18,6 +18,18 @@ All notable RustFrame changes are documented here. RustFrame follows [Semantic V
 
 - A repeatable local-tarball standalone verification script with per-step timings and explicit separation from registry-only release evidence.
 
+## [0.1.0-rc.4] - 2026-09-08
+
+### Changed
+
+- Updated the coordinated runtime, CLI, API and Research Desk metadata to `0.1.0-rc.4`.
+- Refreshed the supported desktop dependencies (`wry`, `rfd`) and Research Desk build toolchain (`vite` 8.2.2).
+- Completed the `sha2` 0.11 compatibility migration and kept the release surfaces aligned with the candidate.
+
+### Validation
+
+- Main CI, native package smoke, dependency security, CodeQL and OpenSSF Scorecard passed for the merged dependency refresh.
+
 ## [0.1.0-rc.3] - 2026-09-08
 
 ### Added
@@ -79,7 +91,8 @@ All notable RustFrame changes are documented here. RustFrame follows [Semantic V
 
 - Repository-relative generated runner dependencies and the `apps/` parent-directory requirement.
 
-[Unreleased]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0-rc.3...HEAD
+[Unreleased]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0-rc.4...HEAD
+[0.1.0-rc.4]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0-rc.3...v0.1.0-rc.4
 [0.1.0-rc.3]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0-rc.2...v0.1.0-rc.3
 [0.1.0-rc.2]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0-rc.1...v0.1.0-rc.2
 [0.1.0-rc.1]: https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.1

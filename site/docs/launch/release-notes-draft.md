@@ -1,6 +1,6 @@
 # Research Desk and RustFrame — release preparation
 
-Status: local preview from the roadmap implementation branch. Not published, signed, notarized or declared stable. Package metadata remains `0.1.0-rc.3`; these local builds include unreleased fixes and must not replace assets on the existing RC2 tag.
+Status: draft for the coordinated `v0.1.0-rc.4` candidate. Not published, signed, notarized or declared stable until the tag and release assets are verified. These local builds must not replace assets on the existing RC3 tag.
 
 ## What changes for users
 
