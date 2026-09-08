@@ -2,9 +2,9 @@
 
 <img src="site/assets/rustframe-wordmark.svg" width="520" alt="RustFrame — local workflow kit">
 
-### Desktop tools that keep their data close.
+### Turn local documents into a desktop workflow.
 
-Build local-first macOS, Windows, and Linux applications with the frontend stack you already know. RustFrame adds a native window, embedded SQLite, user-approved filesystem access, bounded automation, multi-window events, and real installers—without making your application a Rust project.
+Build research desks, review queues and offline catalogs with TypeScript, SQLite and native file access. RustFrame supplies the desktop runtime and packaging; you build the workflow in your usual frontend stack. Rust is required to compile the native app, but you do not need to write the backend.
 
 [![CI](https://github.com/OthmaneBlial/rustframe/actions/workflows/ci.yml/badge.svg)](https://github.com/OthmaneBlial/rustframe/actions/workflows/ci.yml)
 [![Native packages](https://github.com/OthmaneBlial/rustframe/actions/workflows/package-verify.yml/badge.svg)](https://github.com/OthmaneBlial/rustframe/actions/workflows/package-verify.yml)
@@ -220,30 +220,11 @@ Sensitive operations also have request-size limits, per-window rate limits, boun
 
 Read the [threat model](docs/threat-model.md) and [security policy](SECURITY.md) before distributing an application.
 
-## One command surface
+## Developer tools
 
-```text
-rustframe new          Create an independent Vite project
-rustframe doctor       Check Rust and native host prerequisites
-rustframe dev          Run Vite and the desktop process together
-rustframe validate     Validate the complete static project contract
-rustframe inspect      Explain the project or emit a local-first conformance report
-rustframe capabilities Explain, diff, and deny unreviewed permission expansion
-rustframe codegen      Generate deterministic database types
-rustframe build        Build the frontend, then the hidden native runner
-rustframe package      Produce native packages, checksums, and metadata
-rustframe release      Verify downloaded integrity, native trust, SBOM, and provenance
-rustframe diagnostics  Export redacted host, project, policy, and audit evidence
-rustframe db ...       Reset, back up, restore, or portably export SQLite
-rustframe migrate      Convert a pre-v1 project without rewriting app logic
-rustframe eject        Materialize the native runner
-```
+The CLI creates projects, validates permissions, generates database types, runs the frontend and native app, and builds installers. It also provides backup/restore, portable exports, diagnostics and release verification.
 
-RustFrame finds the nearest `rustframe.json`, so every command works from a nested project directory. Monorepos remain explicit:
-
-```bash
-rustframe --project apps/research-desk validate
-```
+Start with [the developer loop](docs/developer-loop.md), [capability inspection](docs/local-first-and-capabilities.md) and [release verification](docs/release-verification.md). Run `rustframe --help` for the complete command list.
 
 ## Real native packages
 

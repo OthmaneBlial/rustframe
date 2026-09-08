@@ -145,9 +145,9 @@ a {
 }
 
 .headline h1 {
-    max-width: 12ch;
-    font-size: clamp(3.1rem, 6vw, 5.6rem);
-    line-height: 0.92;
+    max-width: 24ch;
+    font-size: clamp(1.8rem, 2.8vw, 2.6rem);
+    line-height: 1.12;
 }
 
 .headline p,
@@ -928,7 +928,7 @@ mark {
 
     .headline h1 {
         max-width: none;
-        font-size: clamp(2.4rem, 12vw, 3.8rem);
+        font-size: clamp(1.8rem, 6vw, 2.4rem);
     }
 
     .metric-grid {

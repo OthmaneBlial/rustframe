@@ -4,6 +4,20 @@ All notable RustFrame changes are documented here. RustFrame follows [Semantic V
 
 ## [Unreleased]
 
+### Fixed
+
+- Missing restore inputs fail without creating empty SQLite files; backup and restore sources open read-only.
+
+- Research Desk limits the archive and search results to the active workspace without deleting other workspaces' records, and keeps the selected document within the visible results.
+- Search retains keyboard focus while asynchronous native results update the workbench.
+- Reader windows use explicit `reader-<document-id>` identifiers matching their declared permissions; reopening the same reader focuses its existing window.
+- The workbench masthead uses a compact title so the first-run controls remain visible on laptop screens.
+- Public quickstart CI now fails when the exact npm API version is missing, including release candidates; CLI-only checks cannot stand in for complete installation.
+
+### Added
+
+- A repeatable local-tarball standalone verification script with per-step timings and explicit separation from registry-only release evidence.
+
 ## [0.1.0-rc.2] - 2026-08-28
 
 ### Changed

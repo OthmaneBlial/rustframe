@@ -51,3 +51,23 @@ target/rustframe/diagnostics/  redacted support bundles
 ```
 
 Use the [public benchmark](https://othmaneblial.github.io/rustframe/benchmarks.html) for measured native initialization, package size, memory, indexing, and warm production builds. Local timings vary with the Rust cache, linker, host WebView, and frontend dependency cache; RustFrame does not turn one machine's result into a universal speed claim.
+
+## Verify a local package before publication
+
+From the RustFrame source checkout, build and pack the frontend API, then test generated projects outside the repository:
+
+```bash
+npm --prefix packages/rustframe-api ci
+npm --prefix packages/rustframe-api run build
+mkdir -p target/package-check
+(cd packages/rustframe-api && npm pack --pack-destination ../../target/package-check)
+cargo build -p rustframe-cli
+node scripts/verify_standalone.mjs \
+  --cli target/debug/rustframe \
+  --api-tarball target/package-check/rustframe-api-0.1.0-rc.2.tgz \
+  --output target/package-check/standalone
+```
+
+The script checks vanilla TypeScript, React, vanilla JavaScript, Vue and Svelte. It preserves the generated exact-version API requirement in a receipt before installing the local tarball, then records dependency installation, frontend build and validation timings. Temporary projects are retained for debugging; their path appears in the receipt. This is a maintainer integration check, not proof that npm and crates.io publication succeeded, and it does not perform native builds.
+
+The public-artifact workflow requires the exact npm API version for release candidates as well as stable releases. A missing package now fails the quickstart gate; there is no CLI-only fallback reported as a complete install.

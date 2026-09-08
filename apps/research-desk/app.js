@@ -253,13 +253,15 @@ async function clearActiveFilters() {
 }
 
 async function refreshDocuments() {
-    state.documents = await window.RustFrame.db.list("documents", {
+    const documents = await window.RustFrame.db.list("documents", {
         orderBy: [
             { field: "pinned", direction: "desc" },
             { field: "collection", direction: "asc" },
             { field: "updatedAt", direction: "desc" }
         ]
     });
+    const root = workspaceProfile().root;
+    state.documents = root ? documents.filter((row) => row.path.startsWith(`${root}/`)) : [];
     await refreshVisibleDocuments();
 }
 
@@ -288,7 +290,7 @@ function selectDefaultDocument() {
         return;
     }
 
-    if (!state.selectedId || !state.documents.some((entry) => entry.id === state.selectedId)) {
+    if (!state.selectedId || !visible.some((entry) => entry.id === state.selectedId)) {
         state.selectedId = visible[0].id;
     }
 }
@@ -314,7 +316,8 @@ async function refreshVisibleDocuments() {
     });
 
     if (requestId === latestSearchRequestId) {
-        state.visibleDocuments = results;
+        const activeIds = new Set(state.documents.map((row) => row.id));
+        state.visibleDocuments = results.filter((row) => activeIds.has(row.id));
     }
 }
 
@@ -1251,6 +1254,7 @@ async function handleClick(event) {
                 return;
             }
             await window.RustFrame.window.open({
+                id: `reader-${documentRecord.id}`,
                 route: `/reader?doc=${documentRecord.id}`,
                 title: `${documentRecord.title} · Reader`,
                 width: 1040,
@@ -1354,10 +1358,21 @@ async function handleClick(event) {
 }
 
 function render() {
+    // Keep the actual search control alive while native IPC results update the UI.
+    // Replacing it on every response interrupts typing in the native WebView.
+    const search = APP.querySelector("#search-input");
+    const searchFocused = search && document.activeElement === search;
     if (state.mode === "main") {
         renderMain();
     } else {
         renderReader();
+    }
+    if (searchFocused) {
+        const replacement = APP.querySelector("#search-input");
+        if (replacement) {
+            replacement.replaceWith(search);
+            search.focus({ preventScroll: true });
+        }
     }
 }
 
@@ -1379,10 +1394,10 @@ function renderMain() {
         <section class="shell-frame masthead">
             <article class="headline">
                 <p class="eyebrow">Research Desk</p>
-                <h1>Review a local archive, store decisions in SQLite, and keep the source files close.</h1>
+                <h1>Your research, in reach.</h1>
                 <p class="section-copy">
-                    Choose any Markdown or text-document folder. Research Desk indexes it natively,
-                    keeps every source file in place, and synchronizes review state across focused reader windows.
+                    Find, review, and annotate your documents. Your files stay in their folder;
+                    your notes stay on this device.
                 </p>
                 <div class="action-row">
                     <button class="button button-primary" type="button" data-action="choose-workspace" ${state.importBusy ? "disabled" : ""}>${workspace.root ? "Change workspace" : "Choose workspace"}</button>
