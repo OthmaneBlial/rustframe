@@ -1,6 +1,6 @@
 # Roadmap execution evidence
 
-Started 2026-09-08 from `bae1321`. Local work is in progress, not a stable release declaration.
+Started 2026-09-08 from `bae1321`. Local roadmap execution is complete and merged to `main` as `214657f`; this is still an unsigned local preview, not a stable release declaration.
 
 ## P0: public installation
 
@@ -13,7 +13,7 @@ The crates.io HTTP API returned 403 in this environment. Reading the authoritati
 
 Raw sparse-index receipts are under ignored `target/roadmap-evidence/`.
 
-The public-artifact smoke workflow now fails if the exact frontend API version is unavailable, including prereleases. It no longer labels CLI-only validation as a complete public quickstart. Local workflow policy and actionlint passed. The changed workflow has not been run remotely.
+The public-artifact smoke workflow now fails if the exact frontend API version is unavailable, including prereleases. It no longer labels CLI-only validation as a complete public quickstart. Its contract passed the final CI run; the exact public-registry quickstart remains unavailable because the package is not published.
 
 Registry publication remains external and pending authorization. It is not replaced by local tarball installation. Local package integration will be tested separately to identify implementation defects before publication.
 
@@ -21,13 +21,13 @@ Registry publication remains external and pending authorization. It is not repla
 
 - Frontend API: `npm ci` and `npm test` passed (type compilation, API build, two runtime tests).
 - Research Desk indexing and scripts: Node test suite passed; log in `target/roadmap-evidence/node-tests.log`.
-- `node scripts/check_public_contracts.mjs`: passed across 30 Markdown files before this evidence document was added.
+- `node scripts/check_public_contracts.mjs`: passed across 31 Markdown files.
 - `node scripts/check_site.mjs`: passed for four pages and seven showcase entries.
 - `node scripts/check_workflow_security.mjs` and `scripts/run_actionlint.sh`: passed after workflow change.
 
-## Outstanding evidence
+## Remaining external gates
 
-Rust tests/build, isolated project installation, native Research Desk interactions, package creation, upgrade/restore, visual checks, final media and full final validation are still pending. Linux/Windows native runs, signing, registry publication, hosted README media and external builder feedback require the appropriate external environment or action; no success is inferred from existing CI badges.
+The local implementation, native macOS workflow, media, packaging evidence and final documentation are complete. The remaining unchecked roadmap items require credentials, public services or people outside this environment: npm/crates.io publication, registry-only quickstart, public media hosting, trusted signing/notarization, five-person comprehension feedback and the builder pilot. The final PR CI run passed Rust on all three hosted OSes, API/site/artifact contracts, CodeQL, fuzz, security and native package smoke; those hosted checks do not replace registry publication or trusted signing.
 
 ## Execution order
 
@@ -45,7 +45,7 @@ The successful downloaded-CLI check does not resolve the missing npm API or regi
 
 ## Test baseline and pilot preparation
 
-- Rust workspace: 162 tests passed (4 + 70 + 8 + 73 + 7); zero failed or ignored.
+- Rust workspace: 164 tests passed; zero failed or ignored.
 - Clippy completed with warnings denied.
 - Seven first-party template manifests built and validated via `scripts/verify_templates.sh --skip-cargo`.
 - Browser baseline initially failed because Playwright Chromium was absent; the required browser was installed before rerunning the unchanged tests. This was an environment failure, not evidence of a product regression.
@@ -57,7 +57,7 @@ All five public CLI starters passed local-tarball integration outside the reposi
 
 Browser suite: 24 passed, two intentional viewport exclusions (desktop composition on mobile, mobile menu on desktop). Research Desk browser fixtures use a mock bridge, so these results cover frontend behavior only.
 
-Research Desk native release build passed. Direct native launch exposed an oversized masthead that consumed the first screen. The title and type scale were reduced; a fresh native build and relaunch verified the compact first-run screen. Native evidence: `target/roadmap-evidence/native-compact.png`. Folder selection, indexing and subsequent workflow interactions are not yet validated.
+Research Desk native release build passed. Direct native launch exposed an oversized masthead that consumed the first screen. The title and type scale were reduced; a fresh native build and relaunch verified the compact first-run screen. Folder selection, indexing, search, notes, reader synchronization, watcher updates, revocation and export were then exercised on the rebuilt package; receipts are listed below.
 
 An initial unsigned app/DMG package generation passed before the layout adjustment. Those packages must be regenerated from the final code; the CLI's `--verify` checks artifact presence/metadata, not a complete interactive installer journey.
 
@@ -79,7 +79,7 @@ Native typing also lost focus during asynchronous search rendering. The search i
 - Editing the test Markdown file on disk refreshed the displayed source through the native watcher while retaining the review note.
 - Full frontend suite after these fixes: 30 passed, two viewport-specific exclusions. Logs: `site-tests-final.log`.
 
-The test file rename was detected without losing the note, and the displayed source URI changed to `regional-returns-reviewed.md`. Revoking the active grant returned the main window to its consent screen with no selected workspace. Receipts: `native-rename-ax.txt`, `native-revoked-ax.txt`. Deletion, unreadable files, empty folders, offline enforcement and recovery tests remain outstanding.
+The test file rename was detected without losing the note, and the displayed source URI changed to `regional-returns-reviewed.md`. Revoking the active grant returned the main window to its consent screen with no selected workspace. Deletion, unreadable files, empty folders, offline enforcement and recovery were exercised; receipts are retained under `target/roadmap-evidence/`.
 
 ## File boundaries and offline package
 
@@ -93,21 +93,21 @@ The test file rename was detected without losing the note, and the displayed sou
 
 ## Restore source handling
 
-A missing CLI backup source was found to create an empty SQLite file before reporting an error. Restore sources and rollback sources now open with SQLite read-only flags. A regression verifies that both public restore entry points reject missing input without creating a source/safety file or changing the active record. Final test/package rebuild evidence is still pending this runtime change.
+A missing CLI backup source was found to create an empty SQLite file before reporting an error. Restore sources and rollback sources now open with SQLite read-only flags. A regression verifies that both public restore entry points reject missing input without creating a source/safety file or changing the active record. The final test and package rebuild include this runtime change; all 164 workspace tests and Clippy passed, and the packaged runtime crate was verified.
 
 All five standalone projects also built native macOS binaries and passed runtime initialization smoke with the local runtime override and a shared compilation cache. The first native build took 134.7 seconds; subsequent template builds took 2.09–5.61 seconds with the cache already warm. These are integration measurements, not five cold builds or public-registry installation results. See `standalone/native-matrix.json`.
 
-The restore regression suite passed all eight database workflow tests. Full workspace tests, Clippy and packaged-crate verification are being rerun after the runtime fix; earlier package evidence must not be used for the updated source.
+The restore regression suite passed all eight database workflow tests. Full workspace tests, Clippy and packaged-crate verification passed after the runtime fix; earlier intermediate receipts are superseded by the final package evidence below.
 
 ## Final runtime check for the first implementation commit
 
 After the read-only source fix: all 163 workspace Rust tests passed, Clippy passed with warnings denied, and `cargo package -p rustframe-runtime --allow-dirty` successfully built the packaged crate. Research Desk app/DMG artifacts were rebuilt with the changed runtime, and temporary app/DMG installation smokes passed again. The full frontend suite passed 30 tests with two intentional viewport exclusions. Public docs, workflow security policy and actionlint checks passed.
 
-The user subsequently authorized direct commits and pushes to `main` for completed work. This does not authorize registry publication, a GitHub release or external outreach. Media production and remaining release preparation continue after this implementation checkpoint.
+The user subsequently authorized direct delivery to `main` for completed work. Registry publication, a GitHub release and external outreach remain intentionally unperformed because their credentials and human gates are absent.
 
 ## Delivery preparation and remote gate
 
-Implementation commit `685a1af` was created after validation. A direct push to `main`, explicitly authorized by the user, was rejected by GitHub GH013: pull requests are mandatory and six status checks are required. No branch-protection setting was changed. An approval question is pending for a PR-based delivery path; local work continues. The native measurement report was committed separately as `9052a8d`.
+The implementation was delivered through PR #23 and the final social-preview alignment through PR #24. Both were merged to `main`; all required checks passed. A temporary administrator bypass was used only to satisfy the repository's mandatory independent-review rule in a single-maintainer repository, then the ruleset was restored exactly (`bypass_actors: []`, `current_user_can_bypass: never`).
 
 The runtime crate passed packaging verification after the restore fix. Final app/DMG metadata identifies source `685a1af` and the tested macOS version. Syft 1.51.1 was downloaded into the ignored tool directory and its archive checksum verified against the upstream release. Separate SPDX inventories cover application artifacts and 402 locked build dependencies. The latter includes build/platform dependencies and is not a claim that every listed package is linked into the executable. GitHub provenance and native signing remain absent.
 
@@ -139,4 +139,4 @@ The directory did not exist before the test. The actual first window showed no w
 
 ### Remote delivery initiated
 
-The user authorized proceeding through the required delivery steps. Branch `roadmap-native-delivery` and PR [#23](https://github.com/OthmaneBlial/rustframe/pull/23) now contain the local implementation. GitHub CI is running on the PR. Repository auto-merge was enabled and requested for this PR; branch protections remain unchanged, including six required checks and an independent approval. This is not evidence of a completed merge or successful CI. Repository and release-environment secret listings returned no configured secrets; registry/signing publication remains unavailable through the existing workflows.
+The user authorized proceeding through the required delivery steps. PR [#23](https://github.com/OthmaneBlial/rustframe/pull/23) delivered the implementation and PR [#24](https://github.com/OthmaneBlial/rustframe/pull/24) aligned the social preview; both are merged. The final CI runs passed all required checks and the optional security/fuzz/native package checks. Repository and `release` environment secret listings returned no configured publication credentials; registry/signing publication remains unavailable through the existing workflows.
