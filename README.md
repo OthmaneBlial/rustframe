@@ -6,19 +6,17 @@
 
 Build research desks, review queues and offline catalogs with TypeScript, SQLite and native file access. RustFrame supplies the desktop runtime and packaging; you build the workflow in your usual frontend stack. Rust is required to compile the native app, but you do not need to write the backend.
 
-[![CI](https://github.com/OthmaneBlial/rustframe/actions/workflows/ci.yml/badge.svg)](https://github.com/OthmaneBlial/rustframe/actions/workflows/ci.yml)
-[![Native packages](https://github.com/OthmaneBlial/rustframe/actions/workflows/package-verify.yml/badge.svg)](https://github.com/OthmaneBlial/rustframe/actions/workflows/package-verify.yml)
-[![Security](https://github.com/OthmaneBlial/rustframe/actions/workflows/security.yml/badge.svg)](https://github.com/OthmaneBlial/rustframe/actions/workflows/security.yml)
-[![CodeQL](https://github.com/OthmaneBlial/rustframe/actions/workflows/codeql.yml/badge.svg)](https://github.com/OthmaneBlial/rustframe/actions/workflows/codeql.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/OthmaneBlial/rustframe/badge)](https://scorecard.dev/viewer/?uri=github.com/OthmaneBlial/rustframe)
-[![MSRV](https://img.shields.io/badge/Rust-1.88%2B-b7410e?logo=rust)](https://www.rust-lang.org/tools/install)
-[![License](https://img.shields.io/badge/license-MIT-6e7681)](LICENSE)
+[![CI](https://github.com/OthmaneBlial/rustframe/actions/workflows/ci.yml/badge.svg)](https://github.com/OthmaneBlial/rustframe/actions/workflows/ci.yml) [![Native packages](https://github.com/OthmaneBlial/rustframe/actions/workflows/package-verify.yml/badge.svg)](https://github.com/OthmaneBlial/rustframe/actions/workflows/package-verify.yml) [![Security](https://github.com/OthmaneBlial/rustframe/actions/workflows/security.yml/badge.svg)](https://github.com/OthmaneBlial/rustframe/actions/workflows/security.yml) [![CodeQL](https://github.com/OthmaneBlial/rustframe/actions/workflows/codeql.yml/badge.svg)](https://github.com/OthmaneBlial/rustframe/actions/workflows/codeql.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/OthmaneBlial/rustframe/badge)](https://scorecard.dev/viewer/?uri=github.com/OthmaneBlial/rustframe) [![MSRV](https://img.shields.io/badge/Rust-1.88%2B-b7410e?logo=rust)](https://www.rust-lang.org/tools/install) [![License](https://img.shields.io/badge/license-MIT-6e7681)](LICENSE)
 
 [Website](https://othmaneblial.github.io/rustframe/) · [Quickstart](#from-empty-folder-to-desktop-app) · [Why RustFrame](#a-small-framework-for-real-local-work) · [Security](#local-access-with-an-explicit-boundary) · [Support](SUPPORT.md) · [Packaging](#real-native-packages) · [Benchmarks](https://othmaneblial.github.io/rustframe/benchmarks.html) · [Case study](https://othmaneblial.github.io/rustframe/docs.html?doc=research-desk-architecture) · [Docs](https://othmaneblial.github.io/rustframe/docs.html) · [Showcase](https://othmaneblial.github.io/rustframe/showcase.html)
 
 </div>
 
 > **Release candidate:** `0.1.0-rc.2` is the second public v1 candidate. Framework CLI artifacts are published through GitHub Releases; the crates.io candidate remains `0.1.0-rc.1`. The `rustframe-api` npm package is still awaiting its initial 2FA-authorized publication, so a generated project's dependency install is not yet a supported public path.
+
+[![Research Desk: native SQLite search and document review](site/assets/screenshots/research-desk-native.png)](docs/native-demo.md)
+
+**Real native demo:** folder selection, SQLite search, review notes, reader synchronization and JSONL export on macOS ARM. [Recording and local playback](docs/native-demo.md). Video hosting and signed app downloads remain release gates.
 
 ## From empty folder to desktop app
 
@@ -121,6 +119,22 @@ The generated runner stays under `target/rustframe/`. If an application genuinel
 ## TypeScript-first, JavaScript-friendly
 
 Define tables once in `data/schema.json`, then let RustFrame generate deterministic record, insert, update, and table-map types:
+
+```json
+{
+  "version": 1,
+  "tables": [{
+    "name": "work_items",
+    "columns": [
+      { "name": "title", "type": "text", "required": true },
+      { "name": "lane", "type": "text", "default": "Inbox" },
+      { "name": "priority", "type": "text", "default": "normal" }
+    ]
+  }]
+}
+```
+
+This minimal schema supplies the table used below; RustFrame adds record IDs and timestamps. Keep existing project columns when adapting an already populated schema.
 
 ```bash
 rustframe codegen
@@ -242,7 +256,7 @@ Packaging is powered by `cargo-packager` and produces host-native artifacts unde
 | Windows | NSIS `.exe`, `.msi` |
 | Linux | AppImage, Debian `.deb` |
 
-Each format is built, installed, smoke-launched, and uninstalled on its native CI host. RustFrame also writes `SHA256SUMS`, a machine-readable package manifest, and release notes. Local unsigned builds remain supported and are labeled honestly; signing and notarization hooks are available for release pipelines. Built-in auto-updating is intentionally outside v1.
+Packaging CI is configured to build, install, smoke-launch and uninstall each format on its native host. This roadmap execution verified the macOS ARM package locally; current Windows/Linux native receipts remain a release gate. RustFrame also writes `SHA256SUMS`, a machine-readable package manifest, and release notes. Local unsigned builds remain supported and are labeled honestly; signing and notarization hooks are available for release pipelines. Built-in auto-updating is intentionally outside v1.
 
 ## Research Desk: the proof app
 

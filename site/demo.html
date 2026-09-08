@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Research Desk — RustFrame native demonstration</title>
+  <meta name="description" content="Real native folder access, SQLite search, review notes and JSONL export in Research Desk, built with RustFrame.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background:#10141c; color:#f3f1e9; }
+    * { box-sizing:border-box; } body { margin:0; } main { max-width:1120px; margin:auto; padding:40px 24px 64px; }
+    a { color:#e7b86a; } .eyebrow { color:#e7b86a; letter-spacing:.12em; font-size:.78rem; text-transform:uppercase; }
+    h1 { font-size:clamp(2rem,6vw,4rem); letter-spacing:-.045em; margin:24px 0 12px; }
+    p,li { line-height:1.65; } .lede { max-width:760px; color:#c5cbd5; }
+    video,img { display:block; width:100%; height:auto; aspect-ratio:16/9; object-fit:contain; background:#080b10; border:1px solid #343a44; border-radius:12px; margin:24px 0; }
+    [hidden] { display:none !important; } .status { padding:16px 20px; border-left:3px solid #e7b86a; background:#192029; }
+    details { margin-top:28px; } summary { cursor:pointer; font-weight:650; padding:10px 0; } :focus-visible { outline:3px solid #e7b86a; outline-offset:5px; }
+  </style>
+</head>
+<body><main>
+  <a href="index.html">← RustFrame</a>
+  <p class="eyebrow">Research Desk · Real native demonstration</p>
+  <h1>From documents to decisions.</h1>
+  <p class="lede">Choose your folder, find a passage, save a review note and take your data with you. Recorded from the real macOS application using its native filesystem and SQLite bridge.</p>
+  <p class="status" id="availability">The native video is prepared locally. Public video hosting and signed app downloads are pending.</p>
+  <img id="poster" src="assets/screenshots/research-desk-native.png" width="2560" height="1426" alt="Real Research Desk window searching local documents for returns">
+  <video id="demo" hidden controls playsinline preload="metadata" poster="assets/screenshots/research-desk-native.png" aria-label="Research Desk native workflow demonstration"></video>
+  <p class="lede">Unsigned local preview, source <code>13926ad</code>, macOS ARM. Silent film with English captions. Actions run at their recorded speed; cuts remove waiting. Personal system labels are redacted. The export viewer uses a larger display font; its JSON content was verified unchanged.</p>
+  <details><summary>Read the demonstration transcript</summary><ol>
+    <li>Search the local document queue for “returns” and open the matching source.</li>
+    <li>Select the demonstration folder through the native macOS picker.</li>
+    <li>Save “Review west-corridor packaging on Friday.” in the reader.</li>
+    <li>Close the reader and find the same note in the main window.</li>
+    <li>Export the visible queue as JSONL through the native save dialog.</li>
+    <li>Open the exported file and verify the saved note.</li>
+  </ol></details>
+  <p><a href="docs.html?doc=native-demo">Reproduction and validation</a> · <a href="https://github.com/OthmaneBlial/rustframe">Source on GitHub</a></p>
+</main>
+<script type="module">
+  try {
+    const response = await fetch('assets/data/native-demo.json');
+    if (!response.ok) throw new Error('Media manifest unavailable');
+    const media = await response.json();
+    if (media.video && media.captions) {
+      const video = document.getElementById('demo');
+      const source = document.createElement('source'); source.src = media.video; source.type = 'video/mp4';
+      const track = document.createElement('track'); track.kind = 'captions'; track.srclang = 'en'; track.label = 'English'; track.src = media.captions; track.default = true;
+      video.append(source, track); video.hidden = false;
+      document.getElementById('poster').hidden = true;
+      document.getElementById('availability').textContent = 'Play the real native workflow. This is an unsigned local preview.';
+      video.addEventListener('error', () => { document.getElementById('availability').textContent = 'Video unavailable at this address. The transcript and native screenshot remain available.'; });
+      video.load();
+    }
+  } catch { /* Keep the honest poster/transcript fallback visible. */ }
+</script>
+</body>
+</html>

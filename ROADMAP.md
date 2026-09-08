@@ -102,8 +102,8 @@ Responsable : mainteneur produit. Le scénario central : « je choisis mes docum
 - [x] Vérifier la synchronisation entre fenêtres et la persistance des annotations après fermeture et réouverture — note persistée après relance puis modification lecteur→fenêtre principale vérifiée sur macOS ARM.
 - [x] Tester fichier modifié, renommé, supprimé, illisible, dossier vide et accès révoqué ; corriger les états trompeurs avant le tournage — parcours natif macOS et reçus consignés.
 - [x] Vérifier hors ligne le binaire packagé, avec lecture et écriture réelles : processus natif testé sous refus des connexions externes, loopback autorisé ; portée WebKit/XPC explicitée dans le journal.
-- [ ] Tester clavier, focus, contraste et mise à l’échelle ; corriger d’abord les défauts du parcours central.
-- [ ] Mesurer l’indexation complète incluant lecture via IPC et commit SQLite, la recherche et le temps jusqu’à une fenêtre interactive. Distinguer ces mesures du benchmark de parsing existant.
+- [x] Clavier/focus exercés nativement et dans les tests navigateur ; Axe desktop/mobile et rendu Retina inspectés. Les défauts de saisie et de recherche observés sont corrigés. Ce n’est pas un audit complet d’accessibilité de tous les OS.
+- [x] Mesures natives documentées : indexation 500 fichiers, recherche rendue dans l’arbre d’accessibilité et lancement jusqu’au champ activé. Échantillons uniques avec cache chaud et coût d’automatisation explicité ; voir [les mesures](docs/validation/native-benchmark.md).
 - [x] Examiner la mémoire et documenter la portée : RSS natif mesuré, attribution des services WebKit externes non disponible ; aucun chiffre de mémoire totale revendiqué. Voir [la mesure native](docs/validation/native-benchmark.md).
 
 **Sortie :** un parcours natif reproductible sur le build identifié, données exportées vérifiées et défauts bloquants corrigés. La vidéo peut alors montrer un résultat réellement obtenu.
@@ -127,13 +127,13 @@ Le montage peut raccourcir les attentes, avec indication des accélérations. Ne
 
 ### Capture et montage FFmpeg
 
-- [ ] Enregistrer la vraie fenêtre native, son vrai bridge et les dialogues OS, depuis le build validé en P1.
-- [ ] Conserver version, commit, OS, corpus, procédure et prises brutes dans un dossier de travail média hors de Git.
-- [ ] Ne pas utiliser les captures de `scripts/capture_rustframe_screenshots.py` comme preuve native : ce script déclare explicitement un bridge simulé.
-- [ ] Analyser les prises avec `ffprobe` avant de choisir cadence, résolution, coupe ou réencodage.
-- [ ] Monter en 16:9, texte lisible, déplacements sobres et sous-titres courts. Pas de diaporama présenté comme une interaction réelle.
-- [ ] Produire un master propre, un MP4 web H.264/yuv420p avec `+faststart`, une miniature réelle et un fichier de sous-titres.
-- [ ] Extraire quelques images de contrôle puis regarder intégralement le résultat pour vérifier cadrage, texte, pauses et absence de données personnelles.
+- [x] Vraie fenêtre native, bridge SQLite/fichiers et dialogues macOS enregistrés depuis le package `13926ad`.
+- [x] Version, commit, OS, corpus, procédure, probes et prises brutes conservés hors de Git ; [provenance](docs/native-demo.md).
+- [x] Le film et la nouvelle capture README proviennent du package natif ; aucune capture du bridge simulé utilisée.
+- [x] Prises analysées avec `ffprobe`, timestamps normalisés et durées de sortie vérifiées.
+- [x] Montage 16:9 à vitesse réelle, textes courts, coupes documentées et masquage explicite des libellés personnels.
+- [x] Master, MP4 web H.264/yuv420p fast-start, miniature réelle et sous-titres VTT/SRT produits ; reçus dans le dossier de livraison.
+- [x] Timeline complète inspectée image par image à une seconde d’intervalle ; détails de cadrage/masquage vérifiés. Lecture intégrale dans le navigateur arrivée à `ended=true`, contrôles présents.
 
 Exemple d’encodage futur, à adapter après inspection de la prise ; il ne constitue pas une commande déjà exécutée :
 
@@ -150,16 +150,16 @@ Cet exemple produit une version silencieuse. Pour un tutoriel commenté, conserv
 
 ### Deux formats, deux usages
 
-- [ ] Film court pour README/homepage ; viser moins de 15 Mo si les détails restent lisibles.
+- [x] Film court local : 46,47 s, 1920 × 1080, 30 fps, environ 1,51 Mo. Hébergement public encore ouvert.
 - [ ] Tutoriel de 3–5 minutes : installation publique, projet autonome, changement de schéma, fenêtre native, packaging. Fournir les durées réelles de build et les commandes complètes.
 - [ ] Héberger les fichiers hors de l’historique source ; vérifier le lecteur réellement rendu sur GitHub, avec lecture complète et contrôles. Un GIF ne remplace pas la vidéo.
-- [ ] Sur le site, fournir poster, contrôles, sous-titres et chargement différé adapté.
+- [x] Lecteur, poster, contrôles, sous-titres, transcription et `preload="metadata"` préparés et vérifiés dans le site livré localement. Le manifeste source reste sans URL vidéo publique avant autorisation.
 
 ### README : réduire le temps avant compréhension
 
 - [ ] En haut : promesse concrète, vidéo réelle, lien d’installation fonctionnel et téléchargement de Research Desk.
-- [ ] Montrer un exemple minimal du schéma et de l’API qui explique ce que RustFrame épargne au développeur.
-- [ ] Garder visibles statut RC/stable et limites de plateforme ; déplacer le catalogue détaillé vers les docs.
+- [x] README : schéma minimal et API TypeScript cohérents, avec limites du parcours public visibles.
+- [x] Statut RC, gates registres/signatures et portée native macOS visibles ; catalogue CLI détaillé renvoyé aux docs.
 - [ ] Aligner aperçu social, première section du site, release et README sur le même résultat.
 - [ ] Faire lire cette entrée à cinq développeurs inconnus du projet : au moins quatre doivent pouvoir expliquer la cible et trouver le premier essai sans aide.
 
@@ -226,7 +226,15 @@ N’investir ici qu’après observation de blocages concrets. Chaque expérimen
 
 Différer mobile, marketplace de plugins, synchronisation cloud, moteur collaboratif et multiplication des applications décoratives. N’ajouter tray, notifications ou updater que si plusieurs vrais projets en dépendent et si la maintenance est soutenable.
 
-## 10. Prochaine session d’exécution
+## 10. Livraison locale et gates restants
+
+La livraison locale est dans `target/delivery/` : app/DMG macOS ARM, CLI optimisé, API tarball, runtime crate, checksums, inventaires SPDX, notes de release, site avec lecteur fonctionnel et vidéo réelle. Le protocole builders et un article technique sont préparés dans `docs/launch/`. Aucune invitation ni publication de ces contenus n’a eu lieu.
+
+Les cases publiques restent ouvertes pour des raisons concrètes : droits de publication npm/crates.io, signatures Apple/Windows, validation native des autres OS, retours de personnes externes et autorisation d’hébergement des médias. Les investissements P5 restent conditionnés à ces retours.
+
+Le push direct sur `main` a été tenté et refusé par GitHub : PR obligatoire et six checks attendus. Les commits sont locaux ; une demande d’autorisation de passer par une PR est en attente. Aucune protection n’a été modifiée.
+
+### Après résolution des accès externes
 
 1. Relever les versions publiques exactes des trois packages et le dernier état des workflows.
 2. Résoudre P0 et produire les reçus de quickstart complets.
