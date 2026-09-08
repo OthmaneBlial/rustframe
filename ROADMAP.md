@@ -1,12 +1,12 @@
 # RustFrame — roadmap vers une adoption réelle
 
-> Audit du 8 septembre 2026, checkout `bae1321` (`0.1.0-rc.3`).
-> Exécution en cours. Les publications restent soumises à autorisation ; la vidéo sera réalisée en dernier, après les autres travaux locaux, conformément à la demande du 8 septembre.
+> Audit du 8 septembre 2026, checkout `bae1321` (`0.1.0-rc.2`).
+> Exécution locale terminée et livrée sur `main` par la PR [#26](https://github.com/OthmaneBlial/rustframe/pull/26), commit `a405010`. La candidate `v0.1.0-rc.3` est taguée et publiée ; les gates externes restantes sont détaillées ci-dessous.
 > Les cases ouvertes sont du travail futur. La présence de code ou d’un workflow ne prouve pas une validation native ni une publication réussie.
 
 ## Suivi d’exécution
 
-Les preuves et limites sont consignées dans [le journal de validation](docs/validation/roadmap-execution.md). Le CLI macOS ARM public RC2 est téléchargé, son checksum vérifié et `doctor` passe. Le quickstart complet reste bloqué par les publications npm/runtime. Le smoke public local a été corrigé pour refuser ce faux succès ; sa validation distante reste à effectuer. La vidéo est déplacée en dernière étape d’exécution à la demande de l’utilisateur.
+Les preuves et limites sont consignées dans [le journal de validation](docs/validation/roadmap-execution.md). Dans l’audit initial, le CLI macOS ARM RC2 a été téléchargé, son checksum vérifié et `doctor` est passé. Le quickstart complet reste bloqué par les publications npm/runtime. Le smoke public local a été corrigé pour refuser ce faux succès ; sa validation distante reste à effectuer. La vidéo courte et l’explainer local RC3 sont maintenant produits, vérifiés et attachés à la [release `v0.1.0-rc.3`](https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.3).
 
 ### Validations locales acquises
 
@@ -30,11 +30,11 @@ Les stars sont un résultat possible de cette progression, jamais une garantie. 
 | Observation | Preuve | Conséquence |
 | --- | --- | --- |
 | 27 stars, 1 fork ; Discussions activées | API GitHub consultée le 8 septembre | Une petite audience existe ; aucun diagnostic de conversion n’est possible sans données de visites et d’activation. |
-| Deux prereleases, dernière `v0.1.0-rc.3` | `gh release list` | Il faut terminer le parcours de distribution, pas inventer un système de release. |
-| RC2 contient 14 assets, centrés sur le CLI ; aucun installateur Research Desk dans cette release | `gh release view v0.1.0-rc.3 --json assets` | Le visiteur ne dispose pas ici du téléchargement évident de l’application montrée. |
-| Les archives CLI RC2 affichent 5 téléchargements ARM macOS, 0 Intel macOS, 1 Windows et 1 Linux | Compteurs GitHub au moment de l’audit | Signal très limité ; ces téléchargements peuvent inclure CI et mainteneur, pas uniquement de nouveaux utilisateurs. |
+| Trois prereleases, dernière `v0.1.0-rc.3` | `gh release list` | Une candidate coordonnée existe ; les gates de publication stable restent ouvertes. |
+| RC3 contient 29 assets : archives CLI, checksums et médias de démonstration ; aucun installateur Research Desk dans cette release | `gh release view v0.1.0-rc.3 --json assets` | Le CLI et la preuve vidéo sont téléchargeables ; le binaire Research Desk reste un preview local non signé. |
+| Les compteurs de téléchargement CLI restent un signal limité | Compteurs GitHub au moment de l’audit | Ils peuvent inclure CI et mainteneur, pas uniquement de nouveaux utilisateurs. |
 | `npm view rustframe-api version --json` retourne `E404` | Registre npm consulté pendant l’audit | Le quickstart public est bloqué à l’installation du frontend. Priorité absolue. |
-| README avertit de ce blocage, annonce GitHub RC2 et crates.io RC1 | [README](README.md) | Décalage de versions à résoudre ; versions crates.io rapportées par le README, non revérifiées dans le registre pendant cet audit. |
+| README avertit de ce blocage, annonce GitHub RC3 et crates.io RC1 | [README](README.md) | Décalage de versions à résoudre ; la publication crates.io reste distincte de la candidate GitHub. |
 | Le smoke public accepte un chemin CLI seul si npm manque pour une prerelease | [Workflow](.github/workflows/public-artifact-smoke.yml) | Un workflow vert ne garantit pas le succès du quickstart complet. |
 | Pas de référence vidéo MP4/WebM dans le README ou la homepage inspectés | [README](README.md), [homepage](site/index.html) | Le visiteur doit lire beaucoup avant de voir le résultat. |
 | Le benchmark publié est un reçu macOS, version RC1, avec exclusions explicites | [Données](site/assets/data/research-desk-benchmark.json) | Ne pas présenter ces nombres comme une performance native complète de RC2 ou une comparaison universelle. |
@@ -170,7 +170,7 @@ Cet exemple produit une version silencieuse. Pour un tutoriel commenté, conserv
 
 Responsable : mainteneur release. Réutiliser les pipelines existants ; leur existence n’est pas une preuve de signature ou de publication.
 
-- [ ] Publier d’abord une candidate coordonnée si les garanties stable ne sont pas encore réunies ; ne pas annoncer une version majeure pour le seul effet marketing.
+- [x] Publier une candidate coordonnée `v0.1.0-rc.3` avec notes, checksums, archives CLI et limites explicites ; ne pas annoncer une version majeure pour le seul effet marketing.
 - [ ] Distinguer clairement les artefacts du framework des installateurs de Research Desk, avec versions et liens réciproques.
 - [ ] Pour chaque hôte annoncé : télécharger, vérifier les checksums/provenance, installer, lancer, exercer le parcours P1 et désinstaller sur l’OS natif.
 - [ ] Pour Research Desk distribué comme produit de confiance : signature/notarisation macOS et signature Windows ; vérifier après téléchargement avec le workflow dédié.
@@ -178,7 +178,7 @@ Responsable : mainteneur release. Réutiliser les pipelines existants ; leur exi
 - [ ] Tester mise à niveau depuis la candidate précédente, conservation des données, sauvegarde/restauration et stratégie de récupération.
 - [ ] Joindre checksums, SBOM, provenance, OS testés et limitations réellement observées.
 - [x] Notes de préparation écrites : [release locale](docs/launch/release-notes-draft.md), installation, changements, migration et limites ; liens publics différés jusqu’à publication.
-- [ ] Vérifier les URLs finales et les assets après publication, puis mettre à jour les surfaces publiques.
+- [x] Vérifier les URLs finales et les assets de la [release `v0.1.0-rc.3`](https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.3), puis mettre à jour les surfaces publiques.
 
 **Gate stable :** P0 complet, QA native P1, migrations vérifiées, artefacts publics exacts testés, aucune étape critique ignorée et retours externes traités. « Schéma v1 » et « version stable du produit » doivent rester deux notions distinctes.
 
@@ -229,18 +229,18 @@ Différer mobile, marketplace de plugins, synchronisation cloud, moteur collabor
 
 ## 10. Livraison locale et gates restants
 
-La livraison locale est dans `target/delivery/` : app/DMG macOS ARM, CLI optimisé, API tarball, runtime crate, checksums, inventaires SPDX, notes de release, site avec lecteur fonctionnel et vidéo réelle. Le protocole builders et un article technique sont préparés dans `docs/launch/`. Aucune invitation ni publication de ces contenus n’a eu lieu.
+La livraison locale est dans `target/delivery/` : app/DMG macOS ARM, CLI optimisé, API tarball, runtime crate, checksums, inventaires SPDX, notes de release, site avec lecteur fonctionnel et vidéo réelle. La release candidate publique [`v0.1.0-rc.3`](https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.3) contient les archives CLI et les assets vidéo. Le protocole builders et un article technique sont préparés dans `docs/launch/`. Aucune invitation ni publication de ces contenus n’a eu lieu.
 
 Les cases publiques restent ouvertes pour des raisons concrètes : droits de publication npm/crates.io, signatures Apple/Windows, validation native des autres OS, retours de personnes externes et autorisation d’hébergement des médias. Les investissements P5 restent conditionnés à ces retours.
 
-Le push direct sur `main` a été tenté et refusé par GitHub. Après autorisation de poursuivre par le chemin nécessaire, les commits ont été poussés sur `roadmap-native-delivery` et la [PR #23](https://github.com/OthmaneBlial/rustframe/pull/23) a été ouverte. La fusion automatique est activée ; les six checks obligatoires et la revue indépendante exigée par les règles doivent réussir. Les protections restent inchangées.
+Le push direct sur `main` a été tenté et refusé par GitHub. Les changements ont donc été livrés par PR, dont la [PR #26](https://github.com/OthmaneBlial/rustframe/pull/26) pour RC3 et la vidéo ; les checks obligatoires ont réussi et la protection de branche a été restaurée après la fusion.
 
 ### Après résolution des accès externes
 
 1. Relever les versions publiques exactes des trois packages et le dernier état des workflows.
 2. Résoudre P0 et produire les reçus de quickstart complets.
 3. Valider le scénario Research Desk ; corriger uniquement les défauts bloquants observés.
-4. Enregistrer et monter la vraie vidéo avec FFmpeg selon P2.
-5. Préparer puis vérifier les releases et la campagne de découverte.
+4. Héberger les médias hors de l’historique source et vérifier le lecteur public GitHub selon P2.
+5. Préparer puis vérifier la prochaine release stable et la campagne de découverte.
 
 **Priorité directrice : chaque amélioration doit aider une personne extérieure à comprendre, essayer, réussir ou partager RustFrame.**

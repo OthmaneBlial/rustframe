@@ -1,6 +1,6 @@
 # Roadmap execution evidence
 
-Started 2026-09-08 from `bae1321`. Local roadmap execution is complete and merged to `main` as `214657f`; this is still an unsigned local preview, not a stable release declaration.
+Started 2026-09-08 from the original audit checkout `bae1321` (`0.1.0-rc.2`). Local roadmap execution is complete and merged to `main` through PR #26 as `a405010`; the coordinated candidate `v0.1.0-rc.3` is tagged and published as a prerelease.
 
 ## P0: public installation
 
@@ -35,13 +35,13 @@ P0 local implementation and validation first, then P1, release preparation and c
 
 ## Additional local receipts
 
-- Downloaded the RC2 macOS ARM CLI archive directly from GitHub Releases; its SHA-256 matches the published checksum. The downloaded executable reports `rustframe 0.1.0-rc.3`.
+- Downloaded the RC2 macOS ARM CLI archive directly from GitHub Releases; its SHA-256 matches the published checksum. The downloaded executable reports `rustframe 0.1.0-rc.2`.
 - The downloaded CLI `doctor` passed: Rust/Cargo 1.88, aarch64-apple-darwin, Xcode command line tools present.
 - Research Desk `npm ci` and Vite production build passed.
 - Rust formatting check passed.
 - Node suite: 21 tests, 21 passed, zero skipped.
 
-The successful downloaded-CLI check does not resolve the missing npm API or registry runtime RC2.
+The successful downloaded-CLI check does not resolve the missing npm API or registry runtime RC3.
 
 ## Test baseline and pilot preparation
 
@@ -103,7 +103,7 @@ The restore regression suite passed all eight database workflow tests. Full work
 
 After the read-only source fix: all 163 workspace Rust tests passed, Clippy passed with warnings denied, and `cargo package -p rustframe-runtime --allow-dirty` successfully built the packaged crate. Research Desk app/DMG artifacts were rebuilt with the changed runtime, and temporary app/DMG installation smokes passed again. The full frontend suite passed 30 tests with two intentional viewport exclusions. Public docs, workflow security policy and actionlint checks passed.
 
-The user subsequently authorized direct delivery to `main` for completed work. Registry publication, a GitHub release and external outreach remain intentionally unperformed because their credentials and human gates are absent.
+At the time of this implementation receipt, registry publication, a GitHub release and external outreach were intentionally unperformed because their credentials and human gates were absent. The later RC3 release is recorded below; registry publication and external outreach remain open.
 
 ## Delivery preparation and remote gate
 
@@ -140,3 +140,11 @@ The directory did not exist before the test. The actual first window showed no w
 ### Remote delivery initiated
 
 The user authorized proceeding through the required delivery steps. PR [#23](https://github.com/OthmaneBlial/rustframe/pull/23) delivered the implementation and PR [#24](https://github.com/OthmaneBlial/rustframe/pull/24) aligned the social preview; both are merged. The final CI runs passed all required checks and the optional security/fuzz/native package checks. Repository and `release` environment secret listings returned no configured publication credentials; registry/signing publication remains unavailable through the existing workflows.
+
+### RC3 release and explainer delivery
+
+PR [#26](https://github.com/OthmaneBlial/rustframe/pull/26) coordinated the repository metadata at `0.1.0-rc.3`, synced the starter manifests and added the narrated explainer documentation. It merged to `main` as `a4050106dc653af6ab5b1fcb424e51f13fd5f6b2`. The tag [`v0.1.0-rc.3`](https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.3) is a published GitHub prerelease; the cargo-dist workflow passed all hosted artifact jobs for macOS ARM/Intel, Linux and Windows.
+
+The release contains the 3:11.991 narrated explainer (`1920x1080`, H.264/yuv420p, AAC), a higher-quality master, the 46.467-second native demo, EN/FR VTT and SRT captions, posters and FFmpeg provenance receipts. `ffprobe` metadata checks and full FFmpeg decode checks passed for the final web and master exports. The local site player was checked with controls, poster, two text tracks, `readyState=1`, duration `191.991111` seconds and no horizontal overflow; the source manifest deliberately remains without a public media URL.
+
+The release is intentionally still a prerelease: npm/crates.io publication, signed/notarized Research Desk installers, public README media hosting and the external builder pilot remain unchecked. The attached Research Desk preview is unsigned and must not be presented as a trusted end-user installer.
