@@ -2253,7 +2253,7 @@ dependencies = [
 
 [[package]]
 name = "rustframe-cli"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "cargo-packager",
  "clap",
@@ -2279,7 +2279,7 @@ dependencies = [
 
 [[package]]
 name = "rustframe-runtime"
-version = "0.1.0-rc.3"
+version = "0.1.0-rc.4"
 dependencies = [
  "base64",
  "dirs",
