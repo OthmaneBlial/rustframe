@@ -1,6 +1,6 @@
 # Roadmap execution evidence
 
-Started 2026-09-08 from the original audit checkout `bae1321` (`0.1.0-rc.2`). Local roadmap execution through RC3 is complete and merged to `main`; the coordinated RC4 version bump is being validated on `release/0.1.0-rc.4` before its tag and prerelease publication.
+Started 2026-09-08 from the original audit checkout `bae1321` (`0.1.0-rc.2`). Local roadmap execution through RC4 is complete and merged to `main` as `da22451`; the coordinated candidate is tagged and published as a GitHub prerelease.
 
 ## P0: public installation
 
@@ -9,7 +9,7 @@ The crates.io HTTP API returned 403 in this environment. Reading the authoritati
 - `https://index.crates.io/ru/st/rustframe-runtime`: only `0.1.0-rc.1`, not yanked.
 - `https://index.crates.io/ru/st/rustframe-cli`: only `0.1.0-rc.1`, not yanked.
 - `npm view rustframe-api version --json`: E404.
-- Local runtime, CLI and API versions: `0.1.0-rc.3`.
+- Local runtime, CLI and API versions: `0.1.0-rc.4`.
 
 Raw sparse-index receipts are under ignored `target/roadmap-evidence/`.
 
@@ -27,7 +27,7 @@ Registry publication remains external and pending authorization. It is not repla
 
 ## Remaining external gates
 
-The local implementation, native macOS workflow, media, packaging evidence and final documentation are complete. The remaining unchecked roadmap items require credentials, public services or people outside this environment: npm/crates.io publication, registry-only quickstart, public media hosting, trusted signing/notarization, five-person comprehension feedback and the builder pilot. The final PR CI run passed Rust on all three hosted OSes, API/site/artifact contracts, CodeQL, fuzz, security and native package smoke; those hosted checks do not replace registry publication or trusted signing.
+The local implementation, native macOS workflow, media, packaging evidence and final documentation are complete. The remaining unchecked roadmap items require credentials, public services or people outside this environment: npm/crates.io publication, registry-only quickstart, inline site media hosting, trusted signing/notarization, five-person comprehension feedback and the builder pilot. The final PR CI run passed Rust on all three hosted OSes, API/site/artifact contracts, CodeQL, fuzz, security and native package smoke; those hosted checks do not replace registry publication or trusted signing.
 
 ## Execution order
 
@@ -148,3 +148,9 @@ PR [#26](https://github.com/OthmaneBlial/rustframe/pull/26) coordinated the repo
 The release contains the 3:11.991 narrated explainer (`1920x1080`, H.264/yuv420p, AAC), a higher-quality master, the 46.467-second native demo, EN/FR VTT and SRT captions, posters and FFmpeg provenance receipts. `ffprobe` metadata checks and full FFmpeg decode checks passed for the final web and master exports. The local site player was checked with controls, poster, two text tracks, `readyState=1`, duration `191.991111` seconds and no horizontal overflow; the source manifest deliberately remains without a public media URL.
 
 The release is intentionally still a prerelease: npm/crates.io publication, signed/notarized Research Desk installers, public README media hosting and the external builder pilot remain unchecked. The attached Research Desk preview is unsigned and must not be presented as a trusted end-user installer.
+
+### RC4 release and public media assets
+
+PR [#30](https://github.com/OthmaneBlial/rustframe/pull/30) coordinated the RC4 metadata, refreshed the seven template verification receipts and updated the public surfaces. It merged to `main` as `da22451`; the annotated tag [`v0.1.0-rc.4`](https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.4) was published by workflow `34233539302`, whose plan, four CLI target builds, global artifacts, host publication and announce jobs all passed.
+
+The release contains 26 verified assets: four CLI targets, checksums, source archives, the real 46-second native demo, the 3:11.991 narrated explainer, posters, English/French VTT captions and provenance receipts. The release URLs were checked with `gh release view`; the local five-template standalone integration also passed with the RC4 CLI and API tarball. Research Desk remains an unsigned preview and the inline site manifests stay disabled because GitHub release assets are download responses.
