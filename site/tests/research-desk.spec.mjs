@@ -50,8 +50,10 @@ async function installRustFrameMock(page, { connected = false, fileCount = 2, re
         pinned: false,
       },
     ] : [];
-    if (includeForeignDocument) documents.unshift({ ...documents[0], id: 19,
-      path: "grant://workspace-alpha-other/private.md", title: "Foreign launch memo" });
+    if (includeForeignDocument) documents.unshift(...Array.from({ length: 300 }, (_, index) => ({
+      ...documents[1], id: 1000 + index,
+      path: `grant://workspace-alpha-other/private-${index}.md`, title: "Foreign launch memo"
+    })));
     const settings = connectedWorkspace ? [
       {
         id: 10,
@@ -70,7 +72,8 @@ async function installRustFrameMock(page, { connected = false, fileCount = 2, re
 
     const clone = (value) => JSON.parse(JSON.stringify(value));
     const tableRows = (table) => table === "documents" ? documents : settings;
-    const matchesFilters = (row, filters = []) => filters.every((filter) => row[filter.field] === filter.value);
+    const matchesFilters = (row, filters = []) => filters.every((filter) =>
+      filter.op === "in" ? filter.value.includes(row[filter.field]) : row[filter.field] === filter.value);
     const indexFiles = Array.from({ length: requestedFileCount }, (_, index) => ({
       uri: `${root}/new-${index + 1}.md`,
       path: `${root}/new-${index + 1}.md`,
@@ -110,7 +113,7 @@ async function installRustFrameMock(page, { connected = false, fileCount = 2, re
           return clone(tableRows(table).filter((row) => {
             const haystack = JSON.stringify(row).toLowerCase();
             return matchesFilters(row, options.filters) && terms.every((word) => haystack.includes(word));
-          }));
+          }).slice(0, options.limit ?? Infinity));
         },
         get: async (table, id) => clone(tableRows(table).find((row) => row.id === id) || null),
         insert: async (table, record) => {

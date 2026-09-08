@@ -114,3 +114,7 @@ The runtime crate passed packaging verification after the restore fix. Final app
 ### Re-selection regression discovered during real recording
 
 Selecting the same directory through the native picker allocated another persistent grant URI, so the queue indexed duplicate identities with blank annotations. Persistent directory grants now reuse an existing canonical path only when the access level matches exactly. Ephemeral grants stay separate; revoked grants are never revived. The regression covers canonical path equivalence, restart, different permission levels, ephemeral selection and revoke/regrant. Workspace tests now pass 164 cases; the previous 163-test count predates this fix. The first film takes are rejected pending a rebuilt native validation and new export carrying the saved note.
+
+### Search isolation before ranking
+
+The native 500-document corpus revealed that filtering an already limited global FTS result could hide matches in a smaller workspace. Search now constrains the query to active document IDs before ranking and LIMIT. The frontend regression inserts 300 matching foreign records ahead of the local records and applies the query limit in its test bridge. Six targeted desktop/mobile checks pass; native verification follows in the rebuilt package.

@@ -305,8 +305,13 @@ async function refreshVisibleDocuments() {
         return;
     }
 
+    if (!state.documents.length) {
+        state.visibleDocuments = [];
+        return;
+    }
     const results = await window.RustFrame.db.search("documents", searchTerm, {
-        filters,
+        // Scope before FTS ranking/limit: another workspace must not crowd out matches.
+        filters: [...filters, { field: "id", op: "in", value: state.documents.map((row) => row.id) }],
         orderBy: [
             { field: "pinned", direction: "desc" },
             { field: "collection", direction: "asc" },
