@@ -18,6 +18,18 @@ All notable RustFrame changes are documented here. RustFrame follows [Semantic V
 
 - A repeatable local-tarball standalone verification script with per-step timings and explicit separation from registry-only release evidence.
 
+## [0.1.0-rc.3] - 2026-09-08
+
+### Added
+
+- A narrated 3-minute explainer deliverable with English and French caption tracks, a poster, an edit receipt, and a real native Research Desk workflow chapter.
+- Local provenance documentation for the explainer and its honest public-media gate.
+
+### Changed
+
+- Coordinated runtime, CLI, API, and Research Desk metadata to `0.1.0-rc.3`.
+- Updated README, site, generated API references, starter output, and release links to the new candidate.
+
 ## [0.1.0-rc.2] - 2026-08-28
 
 ### Changed
@@ -67,6 +79,7 @@ All notable RustFrame changes are documented here. RustFrame follows [Semantic V
 
 - Repository-relative generated runner dependencies and the `apps/` parent-directory requirement.
 
-[Unreleased]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0-rc.2...HEAD
+[Unreleased]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0-rc.3...HEAD
+[0.1.0-rc.3]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0-rc.2...v0.1.0-rc.3
 [0.1.0-rc.2]: https://github.com/OthmaneBlial/rustframe/compare/v0.1.0-rc.1...v0.1.0-rc.2
 [0.1.0-rc.1]: https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.1

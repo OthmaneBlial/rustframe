@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RustFrame — narrated explainer</title>
+  <meta name="description" content="A narrated RustFrame explainer connecting the manifest, native runtime, real Research Desk workflow, local data, and release evidence.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background:#10141c; color:#f3f1e9; }
+    * { box-sizing:border-box; } body { margin:0; } main { max-width:1120px; margin:auto; padding:40px 24px 64px; }
+    a { color:#e7b86a; } .eyebrow { color:#e7b86a; letter-spacing:.12em; font-size:.78rem; text-transform:uppercase; }
+    h1 { font-size:clamp(2rem,6vw,4rem); letter-spacing:-.045em; margin:24px 0 12px; }
+    p,li { line-height:1.65; } .lede { max-width:800px; color:#c5cbd5; }
+    video,img { display:block; width:100%; height:auto; aspect-ratio:16/9; object-fit:contain; background:#080b10; border:1px solid #343a44; border-radius:12px; margin:24px 0; }
+    [hidden] { display:none !important; } .status { padding:16px 20px; border-left:3px solid #e7b86a; background:#192029; }
+    details { margin-top:28px; } summary { cursor:pointer; font-weight:650; padding:10px 0; } :focus-visible { outline:3px solid #e7b86a; outline-offset:5px; }
+  </style>
+</head>
+<body><main>
+  <a href="index.html">← RustFrame</a>
+  <p class="eyebrow">RustFrame · Narrated explainer</p>
+  <h1>From contract to native workflow.</h1>
+  <p class="lede">A 3:11 explainer connecting the manifest, developer loop, real Research Desk interactions, local data boundaries, and release evidence.</p>
+  <p class="status" id="availability">The explanatory video is prepared in the local delivery. Public media hosting is still pending.</p>
+  <img id="poster" src="assets/media/rustframe-explainer-poster.jpg" width="1920" height="1080" alt="RustFrame explainer title card">
+  <video id="explainer" hidden controls playsinline preload="metadata" poster="assets/media/rustframe-explainer-poster.jpg" aria-label="Narrated RustFrame explainer"></video>
+  <details><summary>Chapters and evidence</summary><ol>
+    <li>Project contract and explicit capability boundaries.</li>
+    <li>Frontend-to-native developer loop and local delivery receipt.</li>
+    <li>Real macOS folder picker, search, review note, synchronization and JSONL export.</li>
+    <li>SQLite inspection, recovery states and offline test boundary.</li>
+    <li>Checksums, SBOMs, native smoke and the unsigned release-candidate gate.</li>
+  </ol></details>
+  <p><a href="docs.html?doc=explainer-video">Reproduction and provenance</a> · <a href="demo.html">Short native demo</a> · <a href="https://github.com/OthmaneBlial/rustframe">Source on GitHub</a></p>
+</main>
+<script type="module">
+  try {
+    const response = await fetch('assets/data/explainer-video.json');
+    if (!response.ok) throw new Error('Media manifest unavailable');
+    const media = await response.json();
+    if (media.video) {
+      const video = document.getElementById('explainer');
+      const source = document.createElement('source'); source.src = media.video; source.type = 'video/mp4';
+      for (const [lang, src] of Object.entries(media.captions || {})) {
+        if (!src) continue;
+        const track = document.createElement('track'); track.kind = 'captions'; track.srclang = lang; track.label = lang === 'fr' ? 'Français' : 'English'; track.src = src;
+        if (lang === 'en') track.default = true;
+        video.append(track);
+      }
+      video.prepend(source); video.hidden = false; document.getElementById('poster').hidden = true;
+      document.getElementById('availability').textContent = 'Play the narrated explainer. The native workflow chapter is a real macOS capture.';
+      video.addEventListener('error', () => { document.getElementById('availability').textContent = 'Video unavailable at this address. The chapter list and provenance remain available.'; });
+      video.load();
+    }
+  } catch { /* Keep the honest poster and chapter fallback visible. */ }
+</script>
+</body>
+</html>

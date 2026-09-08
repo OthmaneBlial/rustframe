@@ -84,6 +84,14 @@ const DOCS = {
         source: "docs/native-demo.md",
         path: "docs/native-demo.md",
     },
+    "explainer-video": {
+        title: "Narrated explainer video",
+        navLabel: "Explainer video",
+        section: "core",
+        summary: "Connect the manifest, native runtime, real workflow recording, and release evidence.",
+        source: "docs/explainer-video.md",
+        path: "docs/explainer-video.md",
+    },
     "roadmap-execution": {
         title: "Roadmap validation journal",
         navLabel: "Validation journal",

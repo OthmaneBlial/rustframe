@@ -9,7 +9,7 @@ The crates.io HTTP API returned 403 in this environment. Reading the authoritati
 - `https://index.crates.io/ru/st/rustframe-runtime`: only `0.1.0-rc.1`, not yanked.
 - `https://index.crates.io/ru/st/rustframe-cli`: only `0.1.0-rc.1`, not yanked.
 - `npm view rustframe-api version --json`: E404.
-- Local runtime, CLI and API versions: `0.1.0-rc.2`.
+- Local runtime, CLI and API versions: `0.1.0-rc.3`.
 
 Raw sparse-index receipts are under ignored `target/roadmap-evidence/`.
 
@@ -35,7 +35,7 @@ P0 local implementation and validation first, then P1, release preparation and c
 
 ## Additional local receipts
 
-- Downloaded the RC2 macOS ARM CLI archive directly from GitHub Releases; its SHA-256 matches the published checksum. The downloaded executable reports `rustframe 0.1.0-rc.2`.
+- Downloaded the RC2 macOS ARM CLI archive directly from GitHub Releases; its SHA-256 matches the published checksum. The downloaded executable reports `rustframe 0.1.0-rc.3`.
 - The downloaded CLI `doctor` passed: Rust/Cargo 1.88, aarch64-apple-darwin, Xcode command line tools present.
 - Research Desk `npm ci` and Vite production build passed.
 - Rust formatting check passed.
