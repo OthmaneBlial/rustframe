@@ -7,7 +7,7 @@ use std::{
 };
 
 use rusqlite::{
-    Connection, OptionalExtension,
+    Connection, OpenFlags, OptionalExtension,
     backup::Backup,
     params,
     types::{Value as SqlValue, ValueRef},
@@ -825,7 +825,8 @@ impl DatabaseCapability {
     /// Restores a compatible snapshot through SQLite's online backup API and
     /// always writes a safety snapshot before touching the active database.
     pub fn restore_from(&self, source: &Path, safety_backup: &Path) -> Result<()> {
-        let source_connection = Connection::open(source)?;
+        let source_connection =
+            Connection::open_with_flags(source, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         validate_backup_identity(
             &source_connection,
             &self.info.app_id,
@@ -846,7 +847,8 @@ impl DatabaseCapability {
             rebuild_search_indexes(&destination, &self.tables)
         })();
         if let Err(restore_error) = restore_result {
-            let safety_connection = Connection::open(safety_backup)?;
+            let safety_connection =
+                Connection::open_with_flags(safety_backup, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
             if let Err(rollback_error) = backup_connections(&safety_connection, &mut destination) {
                 return Err(RuntimeError::InvalidConfiguration(format!(
                     "restore failed: {restore_error}; safety rollback also failed: {rollback_error}"
@@ -892,7 +894,7 @@ pub fn backup_database_file(source: &Path, destination: &Path) -> Result<()> {
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent)?;
     }
-    let source = Connection::open(source)?;
+    let source = Connection::open_with_flags(source, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     let mut destination = Connection::open(destination)?;
     backup_connections(&source, &mut destination)
 }
@@ -904,12 +906,13 @@ pub fn restore_database_file(
     expected_schema_version: u32,
     safety_backup: &Path,
 ) -> Result<()> {
-    let source_connection = Connection::open(source)?;
+    let source_connection = Connection::open_with_flags(source, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     validate_backup_identity(&source_connection, expected_app_id, expected_schema_version)?;
     backup_database_file(active, safety_backup)?;
     let mut active_connection = Connection::open(active)?;
     if let Err(restore_error) = backup_connections(&source_connection, &mut active_connection) {
-        let safety_connection = Connection::open(safety_backup)?;
+        let safety_connection =
+            Connection::open_with_flags(safety_backup, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         if let Err(rollback_error) = backup_connections(&safety_connection, &mut active_connection)
         {
             return Err(RuntimeError::InvalidConfiguration(format!(

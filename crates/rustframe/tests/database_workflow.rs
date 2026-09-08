@@ -448,3 +448,43 @@ fn backup_and_restore_validate_identity_and_preserve_a_safety_snapshot() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0]["title"], "In backup");
 }
+
+#[test]
+fn missing_restore_source_never_creates_files_or_changes_active_data() {
+    let temp = tempdir().unwrap();
+    let database = DatabaseCapability::open(DatabaseOpenConfig {
+        app_id: "restore_missing".into(),
+        data_dir: Some(temp.path().join("data")),
+        schema: schema(),
+        migration_files: Vec::new(),
+        seed_files: Vec::new(),
+    })
+    .unwrap();
+    let record = database
+        .insert("tasks", json!({"title": "Keep this"}))
+        .unwrap();
+    let source = temp.path().join("missing.db");
+    let safety = temp.path().join("safety.db");
+    assert!(database.restore_from(&source, &safety).is_err());
+    assert!(!source.exists());
+    assert!(!safety.exists());
+    assert!(
+        rustframe::restore_database_file(
+            std::path::Path::new(&database.info().database_path),
+            &source,
+            "restore_missing",
+            1,
+            &safety
+        )
+        .is_err()
+    );
+    assert!(!source.exists());
+    assert!(!safety.exists());
+    assert_eq!(
+        database
+            .get("tasks", record["id"].as_i64().unwrap())
+            .unwrap()
+            .unwrap()["title"],
+        "Keep this"
+    );
+}

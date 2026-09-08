@@ -30,7 +30,7 @@ The frontend receives an opaque grant URI, not a reusable absolute-path capabili
 2. `fs.walk` lists only Markdown and text documents beneath that grant. `fs.readText` reads changed entries; the app parser produces metadata and a content fingerprint.
 3. One `db.batch` commits inserts, updates, rename-preserving patches, and removals. Cancellation happens before this atomic commit, so a partial scan never becomes partial database state.
 4. `db.search` uses the runtime search contract over the `documents` table. The schema declares an FTS5 index for title, summary, tags, reviewer, and note.
-5. `window.open` creates a synchronized reader route. Database and filesystem events refresh other windows without granting them the main window's backup, restore, or dialog capabilities.
+5. `window.open` creates a synchronized reader route with an explicit `reader-<document-id>` identity matching the declared permission pattern. Reopening that document focuses its existing reader. Database and filesystem events refresh other windows without granting them the main window's backup, restore, or dialog capabilities.
 6. The frontend builds human-readable JSON, JSONL, CSV, full-data, and diagnostic exports, then hands the bytes to `dialog.saveText`. Database recovery uses `db.backup` and `db.restore`.
 7. `fs.revokeGrant` removes future source access without deleting source files or silently erasing indexed review state.
 
@@ -85,3 +85,9 @@ node scripts/benchmark_research_desk.mjs
 - It does not hide the npm initial-publication gate behind a local tarball.
 
 Those boundaries keep the flagship useful as evidence: each positive claim points to source, a public API, a permission, and a repeatable check.
+
+## Workspace and editing behavior
+
+The archive and full-text results are restricted to paths inside the active workspace grant, including the URI separator boundary. Records from another workspace remain stored but are not shown in the active queue. Search changes select a document from the visible results, and the search control retains focus while native responses update the interface.
+
+Review notes persist in SQLite and synchronize between the main workbench and readers. Source documents remain separate from those notes. Missing backup inputs are opened read-only and cannot silently become empty SQLite files during restore validation.

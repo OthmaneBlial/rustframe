@@ -3,9 +3,9 @@ import AxeBuilder from "@axe-core/playwright";
 
 const RESEARCH_DESK_URL = "http://127.0.0.1:4316/";
 
-async function installRustFrameMock(page, { connected = false, fileCount = 2, renameFirst = false } = {}) {
-  await page.addInitScript(({ connectedWorkspace, requestedFileCount, shouldRenameFirst }) => {
-    const calls = { batches: [], saves: [], revoked: [], backups: 0 };
+async function installRustFrameMock(page, { connected = false, fileCount = 2, renameFirst = false, foreignDocument = false } = {}) {
+  await page.addInitScript(({ connectedWorkspace, requestedFileCount, shouldRenameFirst, includeForeignDocument }) => {
+    const calls = { batches: [], saves: [], revoked: [], backups: 0, windows: [] };
     let nextId = 20;
     const root = "grant://workspace-alpha";
     const documents = connectedWorkspace ? [
@@ -50,6 +50,10 @@ async function installRustFrameMock(page, { connected = false, fileCount = 2, re
         pinned: false,
       },
     ] : [];
+    if (includeForeignDocument) documents.unshift(...Array.from({ length: 300 }, (_, index) => ({
+      ...documents[1], id: 1000 + index,
+      path: `grant://workspace-alpha-other/private-${index}.md`, title: "Foreign launch memo"
+    })));
     const settings = connectedWorkspace ? [
       {
         id: 10,
@@ -68,7 +72,8 @@ async function installRustFrameMock(page, { connected = false, fileCount = 2, re
 
     const clone = (value) => JSON.parse(JSON.stringify(value));
     const tableRows = (table) => table === "documents" ? documents : settings;
-    const matchesFilters = (row, filters = []) => filters.every((filter) => row[filter.field] === filter.value);
+    const matchesFilters = (row, filters = []) => filters.every((filter) =>
+      filter.op === "in" ? filter.value.includes(row[filter.field]) : row[filter.field] === filter.value);
     const indexFiles = Array.from({ length: requestedFileCount }, (_, index) => ({
       uri: `${root}/new-${index + 1}.md`,
       path: `${root}/new-${index + 1}.md`,
@@ -88,7 +93,7 @@ async function installRustFrameMock(page, { connected = false, fileCount = 2, re
         route: "/",
         list: async () => [{ id: "main", route: "/", title: "Research Desk", isPrimary: true }],
         setTitle: async () => true,
-        open: async () => ({ id: "reader-1" }),
+        open: async (options) => { calls.windows.push(clone(options)); return { id: options.id }; },
         close: async () => true,
       },
       db: {
@@ -108,7 +113,7 @@ async function installRustFrameMock(page, { connected = false, fileCount = 2, re
           return clone(tableRows(table).filter((row) => {
             const haystack = JSON.stringify(row).toLowerCase();
             return matchesFilters(row, options.filters) && terms.every((word) => haystack.includes(word));
-          }));
+          }).slice(0, options.limit ?? Infinity));
         },
         get: async (table, id) => clone(tableRows(table).find((row) => row.id === id) || null),
         insert: async (table, record) => {
@@ -175,7 +180,7 @@ async function installRustFrameMock(page, { connected = false, fileCount = 2, re
         onRestore: () => () => {},
       },
     };
-  }, { connectedWorkspace: connected, requestedFileCount: fileCount, shouldRenameFirst: renameFirst });
+  }, { connectedWorkspace: connected, requestedFileCount: fileCount, shouldRenameFirst: renameFirst, includeForeignDocument: foreignDocument });
 }
 
 test("first run explains the exact consent boundary and data controls", async ({ page }) => {
@@ -282,4 +287,39 @@ test("keyboard shortcuts and automated accessibility checks cover the main workb
   await page.getByRole("button", { name: "My data & privacy" }).click();
   const privacyAudit = await new AxeBuilder({ page }).analyze();
   expect(privacyAudit.violations).toEqual([]);
+});
+
+
+test("active workspace excludes unrelated records and search updates the reader", async ({ page }) => {
+  await installRustFrameMock(page, { connected: true, foreignDocument: true });
+  await page.goto(RESEARCH_DESK_URL);
+  await expect(page.locator(".document-card")).toHaveCount(2);
+  await expect(page.getByText("Foreign launch memo", { exact: true })).toHaveCount(0);
+  await page.getByRole("searchbox", { name: "Search" }).fill("archive");
+  await expect(page.locator(".document-card")).toHaveCount(1);
+  await expect(page.locator(".preview-header h2")).toHaveText("Archive checklist");
+  await page.getByRole("searchbox", { name: "Search" }).fill("foreign");
+  await expect(page.locator(".document-card")).toHaveCount(0);
+  await expect(page.locator(".preview-header h2")).toHaveCount(0);
+});
+
+
+test("search keeps keyboard focus across asynchronous native responses", async ({ page }) => {
+  await installRustFrameMock(page, { connected: true });
+  await page.goto(RESEARCH_DESK_URL);
+  const search = page.getByRole("searchbox", { name: "Search" });
+  await search.pressSequentially("archive", { delay: 80 });
+  await expect(search).toHaveValue("archive");
+  await expect(search).toBeFocused();
+  await expect(page.locator(".preview-header h2")).toHaveText("Archive checklist");
+});
+
+
+test("reader windows use the declared permission scope", async ({ page }) => {
+  await installRustFrameMock(page, { connected: true });
+  await page.goto(RESEARCH_DESK_URL);
+  await page.getByRole("button", { name: "Open reader window", exact: true }).click();
+  const windows = await page.evaluate(() => window.__mockCalls.windows);
+  expect(windows).toHaveLength(1);
+  expect(windows[0]).toMatchObject({ id: "reader-1", route: "/reader?doc=1" });
 });

@@ -235,6 +235,21 @@ impl FsCapability {
                 "only files and directories can receive filesystem grants".into(),
             ));
         };
+        let mut grants = self.grants.lock().map_err(|_| {
+            RuntimeError::InvalidConfiguration("filesystem grant store is poisoned".into())
+        })?;
+        // Re-selecting a retained directory must preserve opaque document URIs.
+        // Never reuse a broader permission, an ephemeral grant, or a revoked grant.
+        if persistent && kind == FsGrantKind::Directory {
+            if let Some(existing) = grants.values().find(|stored| {
+                stored.path == canonical
+                    && stored.grant.persistent
+                    && stored.grant.kind == kind
+                    && stored.grant.access == access
+            }) {
+                return Ok(existing.grant.clone());
+            }
+        }
         let id = format!(
             "grant-{}",
             self.next_grant_id.fetch_add(1, Ordering::Relaxed)
@@ -250,18 +265,14 @@ impl FsCapability {
             kind,
             persistent,
         };
-        self.grants
-            .lock()
-            .map_err(|_| {
-                RuntimeError::InvalidConfiguration("filesystem grant store is poisoned".into())
-            })?
-            .insert(
-                id,
-                StoredFsGrant {
-                    grant: grant.clone(),
-                    path: canonical,
-                },
-            );
+        grants.insert(
+            id,
+            StoredFsGrant {
+                grant: grant.clone(),
+                path: canonical,
+            },
+        );
+        drop(grants);
         if persistent {
             self.save_persistent_grants()?;
         }
@@ -1792,6 +1803,51 @@ mod tests {
             .with_persistence(&store)
             .unwrap();
         assert!(after_revocation.grants().unwrap().is_empty());
+    }
+
+    #[test]
+    fn reselecting_persistent_directory_preserves_identity_without_widening_access() {
+        let temp = tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(&workspace).unwrap();
+        let store = temp.path().join("grants.json");
+        let capability = FsCapability::new(Vec::<PathBuf>::new())
+            .unwrap()
+            .with_persistence(&store)
+            .unwrap();
+        let original = capability
+            .grant_path(&workspace, FsGrantAccess::Read, true)
+            .unwrap();
+        let repeated = capability
+            .grant_path(workspace.join("."), FsGrantAccess::Read, true)
+            .unwrap();
+        assert_eq!(original.uri, repeated.uri);
+        let writable = capability
+            .grant_path(&workspace, FsGrantAccess::ReadWrite, true)
+            .unwrap();
+        assert_ne!(original.uri, writable.uri);
+        let ephemeral = capability
+            .grant_path(&workspace, FsGrantAccess::Read, false)
+            .unwrap();
+        assert_ne!(original.uri, ephemeral.uri);
+        drop(capability);
+        let restored = FsCapability::new(Vec::<PathBuf>::new())
+            .unwrap()
+            .with_persistence(&store)
+            .unwrap();
+        assert_eq!(
+            restored
+                .grant_path(&workspace, FsGrantAccess::Read, true)
+                .unwrap()
+                .uri,
+            original.uri
+        );
+        assert!(restored.revoke_grant(&original.id).unwrap());
+        let replacement = restored
+            .grant_path(&workspace, FsGrantAccess::Read, true)
+            .unwrap();
+        assert_ne!(replacement.uri, original.uri);
+        assert_eq!(replacement.access, FsGrantAccess::Read);
     }
 
     #[test]
