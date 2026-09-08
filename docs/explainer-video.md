@@ -18,10 +18,10 @@ Serve the assembled local site and open `http://127.0.0.1:4319/explainer.html`:
 python3 -m http.server 4319 --bind 127.0.0.1 --directory target/delivery/site
 ```
 
-The checked-in site manifest deliberately has no public media URL. The local delivery copies the generated video and captions into the site media directory; a public host can be added only after the URL and complete playback are verified.
+The checked-in site manifest keeps the inline player disabled because GitHub release assets are served as downloads. The verified public MP4 is attached to the [`v0.1.0-rc.4` release](https://github.com/OthmaneBlial/rustframe/releases/tag/v0.1.0-rc.4), with [English captions](https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.4/rustframe-explainer.en.vtt), [French captions](https://github.com/OthmaneBlial/rustframe/releases/download/v0.1.0-rc.4/rustframe-explainer.fr.vtt) and a poster.
 
 ## Rebuild the media
 
 The reproducible local edit script is [`scripts/build_explainer_video.py`](../scripts/build_explainer_video.py). It uses the FFmpeg workflow, the macOS `say` voice, Pillow for 16:9 cards, and the accepted native source under `target/roadmap-evidence/media/accepted/`. The source recordings and generated voice files remain outside Git.
 
-The cards explain the manifest boundary, developer loop, local data/recovery behavior, and release evidence. The receipt is the authority for the final duration and segment boundaries. Public registry installation, signing, and public media hosting remain separate release gates.
+The cards explain the manifest boundary, developer loop, local data/recovery behavior, and release evidence. The receipt is the authority for the final duration and segment boundaries. Public registry installation, signing, and inline site media hosting remain separate release gates.
