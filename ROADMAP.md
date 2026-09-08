@@ -97,7 +97,7 @@ Responsable : mainteneur release. C’est le chantier qui conditionne le retour 
 
 Responsable : mainteneur produit. Le scénario central : « je choisis mes documents, je trouve une information, je la classe et je récupère mes données ».
 
-- [ ] Vérifier le premier lancement avec un dossier de démonstration dédié, des documents compréhensibles et aucun chemin personnel.
+- [x] Premier lancement sur profil vide vérifié nativement : zéro document/accès au départ, choix du corpus dédié, indexation de deux fichiers et recherche. Lanceur de test avec seul `data_dir` isolé (et nom de binaire distinct), mêmes assets et runtime ; aucun chemin personnel dans les écrans vérifiés.
 - [x] Parcourir sélection de dossier, consentement, indexation, recherche, lecture, annotation et export réel — validé nativement sur macOS ARM ; voir les reçus dans le journal.
 - [x] Vérifier la synchronisation entre fenêtres et la persistance des annotations après fermeture et réouverture — note persistée après relance puis modification lecteur→fenêtre principale vérifiée sur macOS ARM.
 - [x] Tester fichier modifié, renommé, supprimé, illisible, dossier vide et accès révoqué ; corriger les états trompeurs avant le tournage — parcours natif macOS et reçus consignés.
