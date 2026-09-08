@@ -110,7 +110,7 @@ Responsable : mainteneur produit. Le scénario central : « je choisis mes docum
 
 ## 6. P2 — Produire la démo vidéo réelle, puis simplifier l’entrée
 
-Responsable : mainteneur produit et média. **Exécution média en cours, après les validations locales.** Captures de la fenêtre native packagée avec le skill `ffmpeg-video-editor` ; publication et tutoriel depuis les registres restent conditionnés aux accès externes.
+Responsable : mainteneur produit et média. **Montage local terminé et vérifié, après les validations locales.** Captures de la fenêtre native packagée avec le skill `ffmpeg-video-editor` ; publication et tutoriel depuis les registres restent conditionnés aux accès externes.
 
 ### Film principal : 45–60 secondes
 
@@ -232,7 +232,7 @@ La livraison locale est dans `target/delivery/` : app/DMG macOS ARM, CLI optimis
 
 Les cases publiques restent ouvertes pour des raisons concrètes : droits de publication npm/crates.io, signatures Apple/Windows, validation native des autres OS, retours de personnes externes et autorisation d’hébergement des médias. Les investissements P5 restent conditionnés à ces retours.
 
-Le push direct sur `main` a été tenté et refusé par GitHub : PR obligatoire et six checks attendus. Les commits sont locaux ; une demande d’autorisation de passer par une PR est en attente. Aucune protection n’a été modifiée.
+Le push direct sur `main` a été tenté et refusé par GitHub. Après autorisation de poursuivre par le chemin nécessaire, les commits ont été poussés sur `roadmap-native-delivery` et la [PR #23](https://github.com/OthmaneBlial/rustframe/pull/23) a été ouverte. La fusion automatique est activée ; les six checks obligatoires et la revue indépendante exigée par les règles doivent réussir. Les protections restent inchangées.
 
 ### Après résolution des accès externes
 
