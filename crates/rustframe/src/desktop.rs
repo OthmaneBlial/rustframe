@@ -250,7 +250,12 @@ fn single_instance_lock_name(_app_id: &str, endpoint_path: &Path) -> String {
 #[cfg(not(target_os = "macos"))]
 fn single_instance_lock_name(app_id: &str, _endpoint_path: &Path) -> String {
     use sha2::{Digest, Sha256};
-    format!("rustframe-{:x}", Sha256::digest(app_id.as_bytes()))
+    let digest = Sha256::digest(app_id.as_bytes());
+    let digest = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("rustframe-{digest}")
 }
 
 fn random_hex_token() -> Result<String> {
