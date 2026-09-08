@@ -15,7 +15,7 @@
     <text x="56" y="61" fill="#11130f" font-family="Arial Black,Arial" font-size="34" font-weight="900">F</text>
   </g>
   <text x="170" y="86" fill="#11130f" font-family="Arial Black,Arial" font-size="30" font-weight="900">RustFrame</text>
-  <text x="170" y="116" fill="#1647d8" font-family="monospace" font-size="14" font-weight="700" letter-spacing="2">LOCAL WORKFLOW KIT / RC 0.1</text>
+  <text x="170" y="116" fill="#1647d8" font-family="monospace" font-size="14" font-weight="700" letter-spacing="2">LOCAL WORKFLOW KIT / RC 0.1.0-RC.2</text>
   <g font-family="Arial Black,Arial" font-size="76" font-weight="900" letter-spacing="-4">
     <text x="58" y="238" fill="#11130f">YOUR FRONTEND.</text>
     <text x="58" y="320" fill="#1647d8">THEIR FILES.</text>

@@ -160,7 +160,7 @@ Cet exemple produit une version silencieuse. Pour un tutoriel commenté, conserv
 - [ ] En haut : promesse concrète, vidéo réelle, lien d’installation fonctionnel et téléchargement de Research Desk.
 - [x] README : schéma minimal et API TypeScript cohérents, avec limites du parcours public visibles.
 - [x] Statut RC, gates registres/signatures et portée native macOS visibles ; catalogue CLI détaillé renvoyé aux docs.
-- [ ] Aligner aperçu social, première section du site, release et README sur le même résultat.
+- [x] Aligner aperçu social, première section du site, release et README sur le même résultat : même promesse, même candidate `0.1.0-rc.2`, et même preuve native liée.
 - [ ] Faire lire cette entrée à cinq développeurs inconnus du projet : au moins quatre doivent pouvoir expliquer la cible et trouver le premier essai sans aide.
 
 **Sortie :** vidéo vérifiée sur le lecteur final, démonstration reproductible et premier écran compris. Aucun tournage d’une installation publique qui dépend encore d’un contournement privé.
