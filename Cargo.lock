@@ -3544,7 +3544,7 @@ dependencies = [
  "arboard",
  "base64 0.23.1",
  "dirs",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "gtk",
  "mime_guess",
  "rfd",
@@ -4101,7 +4101,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix",
  "windows-sys 0.52.0",
