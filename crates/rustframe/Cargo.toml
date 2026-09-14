@@ -37,7 +37,7 @@ version = "0.17.2"
 optional = true
 
 [dependencies.tao]
-version = "0.34.6"
+version = "0.35.3"
 optional = true
 
 [dependencies.wry]
